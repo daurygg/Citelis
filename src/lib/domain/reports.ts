@@ -1,0 +1,86 @@
+// Agregaciones de reportes — funciones puras (PLAN.md §3, Slice 3).
+// Solo LECTURA: agrega valores ya congelados de citas COMPLETED. No recalcula nada.
+// CERO dependencias de React. Todo en centavos enteros.
+
+import type { Appointment } from './types';
+
+export interface MostProfitableService {
+  service_id: number;
+  profit: number; // ganancia acumulada del servicio en el periodo (centavos)
+}
+
+export interface WeekSummary {
+  business_id: number;
+  from: string; // ISO 8601 (inclusive)
+  to: string; // ISO 8601 (exclusive)
+  completed_count: number;
+  total_income: number; // Σ charged_price (centavos)
+  total_cost: number; // Σ actual_cost (centavos)
+  net_profit: number; // Σ profit (centavos)
+  most_profitable_service: MostProfitableService | null;
+}
+
+/**
+ * Resumen de un periodo para un negocio.
+ *
+ * - Filtra por `business_id` (INVARIANTE 1: ninguna lectura omite el tenant).
+ * - Cuenta SOLO citas COMPLETED cuyo `datetime` cae en el rango `[from, to)`
+ *   (desde inclusive, hasta exclusivo — evita solapes entre semanas).
+ * - Suma los valores congelados; nunca recalcula precios ni costos.
+ */
+export function weekSummary(
+  appointments: readonly Appointment[],
+  businessId: number,
+  from: string,
+  to: string,
+): WeekSummary {
+  const fromTime = new Date(from).getTime();
+  const toTime = new Date(to).getTime();
+
+  const inScope = appointments.filter((a) => {
+    if (a.business_id !== businessId) return false;
+    if (a.status !== 'COMPLETED') return false;
+    const t = new Date(a.datetime).getTime();
+    return t >= fromTime && t < toTime;
+  });
+
+  let total_income = 0;
+  let total_cost = 0;
+  let net_profit = 0;
+  const profitByService = new Map<number, number>();
+
+  for (const a of inScope) {
+    // Las citas COMPLETED tienen los tres valores congelados (no null), pero
+    // el contrato los tipa como `number | null`; el `?? 0` es defensivo.
+    total_income += a.charged_price ?? 0;
+    total_cost += a.actual_cost ?? 0;
+    net_profit += a.profit ?? 0;
+
+    const acc = profitByService.get(a.service_id) ?? 0;
+    profitByService.set(a.service_id, acc + (a.profit ?? 0));
+  }
+
+  let most_profitable_service: MostProfitableService | null = null;
+  for (const [service_id, serviceProfit] of profitByService) {
+    if (
+      most_profitable_service === null ||
+      serviceProfit > most_profitable_service.profit ||
+      // Empate: el service_id más bajo, para resultado determinista.
+      (serviceProfit === most_profitable_service.profit &&
+        service_id < most_profitable_service.service_id)
+    ) {
+      most_profitable_service = { service_id, profit: serviceProfit };
+    }
+  }
+
+  return {
+    business_id: businessId,
+    from,
+    to,
+    completed_count: inScope.length,
+    total_income,
+    total_cost,
+    net_profit,
+    most_profitable_service,
+  };
+}
