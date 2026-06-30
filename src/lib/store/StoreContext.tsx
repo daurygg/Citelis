@@ -4,10 +4,10 @@
 // En el Slice 4 cambiamos el cuerpo de estas funciones por llamadas a Supabase
 // sin tocar la UI (la fachada `Store` se mantiene igual).
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import type { Appointment, Service } from '../domain/types';
+import type { Appointment, Service, Supply } from '../domain/types';
 import { completeAppointment as completeAppointmentDomain } from '../domain/appointments';
-import { effectiveCost, profit } from '../domain/costs';
-import { CURRENT_BUSINESS_ID, SEED_APPOINTMENTS, SEED_SERVICES } from './seed';
+import { effectiveCost, profit, suppliesCost } from '../domain/costs';
+import { CURRENT_BUSINESS_ID, SEED_APPOINTMENTS, SEED_SERVICES, SEED_SUPPLIES } from './seed';
 
 // Lo que la UI necesita para agendar. Sin dinero: la cita nace PENDING (INVARIANTE 2).
 export interface ScheduleInput {
@@ -23,6 +23,28 @@ export interface CompletionPreview {
   profit: number; // centavos
 }
 
+// Datos de un insumo en lenguaje de la dueña (INVARIANTE 4): cuánto pagó por la
+// tanda y para cuántas clientas alcanza. Nunca ml/gramos.
+export interface SupplyInput {
+  name: string;
+  purchase_price: number; // centavos
+  servings: number; // > 0
+}
+
+// Campos editables de un servicio desde la pantalla de configuración.
+export interface ServicePatch {
+  name?: string;
+  price?: number; // centavos
+  duration_min?: number;
+}
+
+// Números en vivo de la calculadora: costo y margen de un servicio.
+export interface ServiceEconomics {
+  supply_cost: number; // cache: suma de insumos (centavos)
+  effective_cost: number; // override ?? supply_cost (centavos)
+  margin: number; // price − effective_cost (centavos)
+}
+
 // La fachada del store: el contrato que consume la UI. Lo permanente del diseño.
 export interface Store {
   services: readonly Service[];
@@ -31,6 +53,14 @@ export interface Store {
   completionPreview: (appointmentId: number, overridePrice?: number) => CompletionPreview | null;
   schedule: (input: ScheduleInput) => void;
   complete: (appointmentId: number, overridePrice?: number) => void;
+  // --- Slice 2: calculadora "por tandas" ---
+  suppliesForService: (serviceId: number) => Supply[];
+  serviceEconomics: (serviceId: number) => ServiceEconomics | null;
+  addSupply: (serviceId: number, input: SupplyInput) => void;
+  updateSupply: (supplyId: number, patch: Partial<SupplyInput>) => void;
+  removeSupply: (supplyId: number) => void;
+  updateService: (serviceId: number, patch: ServicePatch) => void;
+  setServiceCostOverride: (serviceId: number, cents: number | null) => void;
 }
 
 // El "token de inyección": empieza en null para detectar el uso fuera del Provider.
@@ -38,7 +68,8 @@ const StoreContext = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const businessId = CURRENT_BUSINESS_ID;
-  const [services] = useState<readonly Service[]>(SEED_SERVICES);
+  const [services, setServices] = useState<readonly Service[]>(SEED_SERVICES);
+  const [supplies, setSupplies] = useState<readonly Supply[]>(SEED_SUPPLIES);
   const [appointments, setAppointments] = useState<readonly Appointment[]>(SEED_APPOINTMENTS);
 
   // Citas de un día, ya filtradas por tenant (INVARIANTE 1) y ordenadas por hora.
@@ -107,6 +138,66 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  // --- Slice 2: calculadora "por tandas" ---
+
+  // Insumos de un servicio (INVARIANTE 1: solo del tenant, vía el servicio).
+  function suppliesForService(serviceId: number): Supply[] {
+    return supplies.filter((su: Supply) => su.service_id === serviceId);
+  }
+
+  // Costo y margen en vivo. Reusa el dominio: margin = profit(price, effectiveCost).
+  function serviceEconomics(serviceId: number): ServiceEconomics | null {
+    const service = services.find((s: Service) => s.id === serviceId);
+    if (!service) return null;
+    const effective_cost = effectiveCost(service);
+    return {
+      supply_cost: service.supply_cost,
+      effective_cost,
+      margin: profit(service.price, effective_cost),
+    };
+  }
+
+  // Recalcula y GUARDA el cache supply_cost de un servicio (INVARIANTE 6).
+  // Se llama SOLO al tocar un insumo, nunca en cada render.
+  function recomputeServiceCache(serviceId: number, nextSupplies: readonly Supply[]): void {
+    const cost = suppliesCost(nextSupplies.filter((su: Supply) => su.service_id === serviceId));
+    setServices((prev) =>
+      prev.map((s) => (s.id === serviceId ? { ...s, supply_cost: cost } : s)),
+    );
+  }
+
+  function addSupply(serviceId: number, input: SupplyInput): void {
+    const nextId = supplies.reduce((max: number, su: Supply) => Math.max(max, su.id), 0) + 1;
+    const next: readonly Supply[] = [...supplies, { id: nextId, service_id: serviceId, ...input }];
+    setSupplies(next);
+    recomputeServiceCache(serviceId, next);
+  }
+
+  function updateSupply(supplyId: number, patch: Partial<SupplyInput>): void {
+    const next = supplies.map((su) => (su.id === supplyId ? { ...su, ...patch } : su));
+    setSupplies(next);
+    const target = next.find((su) => su.id === supplyId);
+    if (target) recomputeServiceCache(target.service_id, next);
+  }
+
+  function removeSupply(supplyId: number): void {
+    const target = supplies.find((su: Supply) => su.id === supplyId);
+    const next = supplies.filter((su) => su.id !== supplyId);
+    setSupplies(next);
+    if (target) recomputeServiceCache(target.service_id, next);
+  }
+
+  function updateService(serviceId: number, patch: ServicePatch): void {
+    setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, ...patch } : s)));
+  }
+
+  // El override manual gana sobre el cache (INVARIANTE 6). null = volver al cache.
+  function setServiceCostOverride(serviceId: number, cents: number | null): void {
+    setServices((prev) =>
+      prev.map((s) => (s.id === serviceId ? { ...s, cost_override: cents } : s)),
+    );
+  }
+
   const store: Store = {
     services,
     appointmentsForDay,
@@ -114,6 +205,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     completionPreview,
     schedule,
     complete,
+    suppliesForService,
+    serviceEconomics,
+    addSupply,
+    updateSupply,
+    removeSupply,
+    updateService,
+    setServiceCostOverride,
   };
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }
