@@ -7,6 +7,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 import type { Appointment, Service, Supply } from '../domain/types';
 import { completeAppointment as completeAppointmentDomain } from '../domain/appointments';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
+import { weekSummary, type WeekSummary } from '../domain/reports';
 import { CURRENT_BUSINESS_ID, SEED_APPOINTMENTS, SEED_SERVICES, SEED_SUPPLIES } from './seed';
 
 // Lo que la UI necesita para agendar. Sin dinero: la cita nace PENDING (INVARIANTE 2).
@@ -61,6 +62,8 @@ export interface Store {
   removeSupply: (supplyId: number) => void;
   updateService: (serviceId: number, patch: ServicePatch) => void;
   setServiceCostOverride: (serviceId: number, cents: number | null) => void;
+  // --- Slice 3: reporte de ganancias ---
+  weekReport: (from: string, to: string) => WeekSummary;
 }
 
 // El "token de inyección": empieza en null para detectar el uso fuera del Provider.
@@ -198,6 +201,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  // --- Slice 3: reporte de ganancias ---
+
+  // Resumen del periodo [from, to). Solo lectura: agrega valores ya congelados de
+  // citas COMPLETED. El business_id sale del store (INVARIANTE 1), no de la UI.
+  function weekReport(from: string, to: string): WeekSummary {
+    return weekSummary(appointments, businessId, from, to);
+  }
+
   const store: Store = {
     services,
     appointmentsForDay,
@@ -212,6 +223,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     removeSupply,
     updateService,
     setServiceCostOverride,
+    weekReport,
   };
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }

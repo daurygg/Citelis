@@ -6,8 +6,9 @@ import { StoreProvider } from './lib/store/StoreContext';
 import { DayAgenda } from './components/DayAgenda';
 import { ScheduleForm } from './components/ScheduleForm';
 import { ServicesScreen } from './components/ServicesScreen';
+import { WeekReport } from './components/WeekReport';
 
-type View = 'agenda' | 'services';
+type View = 'agenda' | 'services' | 'report';
 
 export function App() {
   const [view, setView] = useState<View>('agenda');
@@ -24,16 +25,19 @@ export function App() {
           <button type="button" onClick={() => setView('services')} disabled={view === 'services'}>
             Servicios
           </button>
+          <button type="button" onClick={() => setView('report')} disabled={view === 'report'}>
+            Reporte
+          </button>
         </nav>
 
-        {view === 'agenda' ? (
+        {view === 'agenda' && (
           <>
             <ScheduleForm />
             <DayAgenda />
           </>
-        ) : (
-          <ServicesScreen />
         )}
+        {view === 'services' && <ServicesScreen />}
+        {view === 'report' && <WeekReport />}
       </main>
     </StoreProvider>
   );

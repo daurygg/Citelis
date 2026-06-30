@@ -31,13 +31,35 @@ export function parseMoneyToCents(text: string): number | null {
   return Math.round(value * 100);
 }
 
+/** Una fecha local → "YYYY-MM-DD". */
+function toISODate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /** Fecha de HOY como "YYYY-MM-DD" en hora local. */
 export function todayISODate(): string {
+  return toISODate(new Date());
+}
+
+/**
+ * Rango de la semana en curso (lunes a lunes) como ISO local.
+ * `from` inclusive, `to` exclusivo — encaja con weekSummary (rango [from, to)).
+ */
+export function currentWeekRange(): { from: string; to: string } {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const daysSinceMonday = (now.getDay() + 6) % 7; // getDay: 0=domingo
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceMonday);
+  const nextMonday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 7);
+  return { from: `${toISODate(monday)}T00:00:00`, to: `${toISODate(nextMonday)}T00:00:00` };
+}
+
+/** "2026-06-30T..." → "30/06/2026" (sin depender de Intl). */
+export function formatDateShort(iso: string): string {
+  const [year, month, day] = iso.slice(0, 10).split('-');
+  return `${day}/${month}/${year}`;
 }
 
 /** Etiqueta visible en español para cada estado (lenguaje de la dueña, INVARIANTE 4). */
