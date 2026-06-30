@@ -19,6 +19,18 @@ export function formatTime(iso: string): string {
   return iso.slice(11, 16);
 }
 
+/**
+ * Texto de moneda → centavos enteros. Ej: "3,500.50" → 350050.
+ * Devuelve null si el texto no es un número válido (≥ 0).
+ */
+export function parseMoneyToCents(text: string): number | null {
+  const cleaned = text.replace(/[^0-9.]/g, '');
+  if (cleaned === '') return null;
+  const value = Number(cleaned);
+  if (!Number.isFinite(value) || value < 0) return null;
+  return Math.round(value * 100);
+}
+
 /** Fecha de HOY como "YYYY-MM-DD" en hora local. */
 export function todayISODate(): string {
   const now = new Date();

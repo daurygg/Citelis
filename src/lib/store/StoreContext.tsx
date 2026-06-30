@@ -16,11 +16,19 @@ export interface ScheduleInput {
   datetime: string; // ISO 8601
 }
 
+// Vista previa del cobro ANTES de completar (no muta nada): lo que la dueña verá.
+export interface CompletionPreview {
+  charged_price: number; // centavos
+  actual_cost: number; // centavos
+  profit: number; // centavos
+}
+
 // La fachada del store: el contrato que consume la UI. Lo permanente del diseño.
 export interface Store {
   services: readonly Service[];
   appointmentsForDay: (isoDate: string) => Appointment[];
   projectedProfitForDay: (isoDate: string) => number;
+  completionPreview: (appointmentId: number, overridePrice?: number) => CompletionPreview | null;
   schedule: (input: ScheduleInput) => void;
   complete: (appointmentId: number, overridePrice?: number) => void;
 }
@@ -56,6 +64,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }, 0);
   }
 
+  // Vista previa del cobro de una cita SIN mutarla: calcula lo que se congelaría
+  // si se completara ahora (con un override opcional de precio). Delega en el dominio.
+  function completionPreview(appointmentId: number, overridePrice?: number): CompletionPreview | null {
+    const appointment = appointments.find((a: Appointment) => a.id === appointmentId);
+    if (!appointment) return null;
+    const service = services.find((s: Service) => s.id === appointment.service_id);
+    if (!service) return null;
+    const charged_price = overridePrice ?? service.price;
+    const actual_cost = effectiveCost(service);
+    return { charged_price, actual_cost, profit: profit(charged_price, actual_cost) };
+  }
+
   // Crea una cita PENDING. Los tres campos de dinero nacen en null (INVARIANTE 2).
   function schedule(input: ScheduleInput): void {
     setAppointments((prev) => {
@@ -87,7 +107,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  const store: Store = { services, appointmentsForDay, projectedProfitForDay, schedule, complete };
+  const store: Store = {
+    services,
+    appointmentsForDay,
+    projectedProfitForDay,
+    completionPreview,
+    schedule,
+    complete,
+  };
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }
 
