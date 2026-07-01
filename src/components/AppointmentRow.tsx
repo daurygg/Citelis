@@ -5,13 +5,15 @@
 import { useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, parseMoneyToCents, statusLabel } from '../lib/format';
-import type { Appointment, AppointmentStatus } from '../lib/domain/types';
+import type { AppointmentStatus, Appointment } from '../lib/domain/types';
+import { btnGhost, btnPrimary, card, field, fieldLabel, input } from './ui';
 
-const STATUS_COLOR: Record<AppointmentStatus, string> = {
-  PENDING: '#b45309',
-  IN_PROGRESS: '#1d4ed8',
-  COMPLETED: '#15803d',
-  CANCELED: '#6b7280',
+// Estilo del badge de estado (color de fondo + texto).
+const STATUS_BADGE: Record<AppointmentStatus, string> = {
+  PENDING: 'bg-amber-100 text-amber-800',
+  IN_PROGRESS: 'bg-blue-100 text-blue-800',
+  COMPLETED: 'bg-green-100 text-green-800',
+  CANCELED: 'bg-neutral-100 text-neutral-500',
 };
 
 export function AppointmentRow({ appointment }: { appointment: Appointment }) {
@@ -21,8 +23,6 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const [overrideText, setOverrideText] = useState('');
 
   const isOpen = appointment.status === 'PENDING' || appointment.status === 'IN_PROGRESS';
-
-  // Si el texto del override está vacío → undefined (se usa el precio del servicio).
   const overrideCents = overrideText.trim() === '' ? undefined : (parseMoneyToCents(overrideText) ?? undefined);
   const preview = store.completionPreview(appointment.id, overrideCents);
 
@@ -33,42 +33,45 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   }
 
   return (
-    <li style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '0.5rem 0.75rem' }}>
-      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'baseline' }}>
-        <strong style={{ width: '3.5rem' }}>{formatTime(appointment.datetime)}</strong>
-        <span style={{ flex: 1 }}>{appointment.client}</span>
-        <span style={{ color: '#6b7280' }}>{service?.name ?? 'Servicio desconocido'}</span>
-        <span style={{ color: STATUS_COLOR[appointment.status], fontWeight: 600 }}>
+    <li className={card + ' flex flex-col gap-3'}>
+      <div className="flex items-center gap-3">
+        <span className="w-14 shrink-0 font-semibold tabular-nums">{formatTime(appointment.datetime)}</span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium">{appointment.client}</div>
+          <div className="truncate text-sm text-neutral-500">{service?.name ?? 'Servicio desconocido'}</div>
+        </div>
+        <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + STATUS_BADGE[appointment.status]}>
           {statusLabel(appointment.status)}
         </span>
         {isOpen && (
-          <button type="button" onClick={() => setCharging((open) => !open)}>
+          <button type="button" className={btnGhost + ' px-3 py-1.5 text-sm'} onClick={() => setCharging((v) => !v)}>
             {charging ? 'Cerrar' : 'Cobrar'}
           </button>
         )}
         {appointment.status === 'COMPLETED' && appointment.profit !== null && (
-          <span style={{ color: '#15803d', fontWeight: 600 }}>+{formatMoney(appointment.profit)}</span>
+          <span className="font-semibold text-green-700">+{formatMoney(appointment.profit)}</span>
         )}
       </div>
 
       {charging && preview && (
-        <div style={{ marginTop: '0.75rem', display: 'grid', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Precio</span>
+        <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
+          <div className="flex justify-between">
+            <span className="text-neutral-600">Precio</span>
             <strong>{formatMoney(preview.charged_price)}</strong>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Costo</span>
+          <div className="flex justify-between">
+            <span className="text-neutral-600">Costo</span>
             <span>{formatMoney(preview.actual_cost)}</span>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Ganancia</span>
-            <strong style={{ color: '#15803d' }}>{formatMoney(preview.profit)}</strong>
+          <div className="flex justify-between">
+            <span className="text-neutral-600">Ganancia</span>
+            <strong className="text-green-700">{formatMoney(preview.profit)}</strong>
           </div>
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-            <span style={{ color: '#6b7280' }}>¿Cobraste otro precio? (opcional)</span>
+          <label className={field + ' mt-1'}>
+            <span className={fieldLabel}>¿Cobraste otro precio? (opcional)</span>
             <input
+              className={input}
               type="text"
               inputMode="decimal"
               value={overrideText}
@@ -77,7 +80,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             />
           </label>
 
-          <button type="button" onClick={handleComplete}>
+          <button type="button" className={btnPrimary} onClick={handleComplete}>
             Completar cita
           </button>
         </div>

@@ -3,8 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { parseMoneyToCents } from '../lib/format';
-
-const fieldStyle = { display: 'flex', flexDirection: 'column' as const, gap: '0.15rem', fontSize: '0.85rem' };
+import { btnGhost, field, fieldLabel, input } from './ui';
 
 export function AddSupplyForm({ serviceId }: { serviceId: number }) {
   const store = useStore();
@@ -26,24 +25,21 @@ export function AddSupplyForm({ serviceId }: { serviceId: number }) {
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginTop: '0.5rem' }}
-    >
-      <label style={{ ...fieldStyle, flex: 2 }}>
-        <span>Nuevo insumo</span>
-        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Pigmento" />
+    <form onSubmit={handleSubmit} className="mt-3 flex flex-wrap items-end gap-3 rounded-xl bg-neutral-50 p-3">
+      <label className={field + ' min-w-[8rem] flex-[2]'}>
+        <span className={fieldLabel}>Nuevo insumo</span>
+        <input className={input} type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Pigmento" />
       </label>
-      <label style={fieldStyle}>
-        <span>¿Cuánto pagaste?</span>
-        <input type="text" inputMode="decimal" value={paidText} onChange={(e) => setPaidText(e.target.value)} />
+      <label className={field + ' flex-1'}>
+        <span className={fieldLabel}>¿Cuánto pagaste?</span>
+        <input className={input} type="text" inputMode="decimal" value={paidText} onChange={(e) => setPaidText(e.target.value)} />
       </label>
-      <label style={fieldStyle}>
-        <span>¿Para cuántas clientas alcanza?</span>
-        <input type="number" min={1} value={servingsText} onChange={(e) => setServingsText(e.target.value)} />
+      <label className={field + ' flex-1'}>
+        <span className={fieldLabel}>¿Para cuántas alcanza?</span>
+        <input className={input} type="number" min={1} value={servingsText} onChange={(e) => setServingsText(e.target.value)} />
       </label>
-      <button type="submit" disabled={!canAdd}>
-        Añadir insumo
+      <button type="submit" className={btnGhost} disabled={!canAdd}>
+        Añadir
       </button>
     </form>
   );

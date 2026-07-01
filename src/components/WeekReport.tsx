@@ -2,13 +2,7 @@
 // weekSummary (dominio). No recalcula nada (INVARIANTE 2/5).
 import { useStore } from '../lib/store/StoreContext';
 import { currentWeekRange, formatDateShort, formatMoney } from '../lib/format';
-
-const cardStyle = {
-  border: '1px solid #e5e7eb',
-  borderRadius: 8,
-  padding: '1rem',
-  flex: '1 1 8rem',
-};
+import { card } from './ui';
 
 export function WeekReport() {
   const store = useStore();
@@ -20,38 +14,40 @@ export function WeekReport() {
     store.services.find((s) => s.id === summary.most_profitable_service?.service_id);
 
   return (
-    <section>
-      <h2>Reporte de la semana</h2>
-      <p style={{ color: '#6b7280' }}>
-        Semana del {formatDateShort(from)} · {summary.completed_count} cita(s) completada(s)
-      </p>
+    <section className="flex flex-col gap-4">
+      <div>
+        <h2 className="text-lg font-semibold">Reporte de la semana</h2>
+        <p className="text-sm text-neutral-500">
+          Semana del {formatDateShort(from)} · {summary.completed_count} cita(s) completada(s)
+        </p>
+      </div>
 
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        <div style={cardStyle}>
-          <div style={{ color: '#6b7280' }}>Ingresos</div>
-          <strong style={{ fontSize: '1.25rem' }}>{formatMoney(summary.total_income)}</strong>
+      <div className="grid grid-cols-2 gap-3">
+        <div className={card}>
+          <div className="text-sm text-neutral-500">Ingresos</div>
+          <div className="text-xl font-bold">{formatMoney(summary.total_income)}</div>
         </div>
-        <div style={cardStyle}>
-          <div style={{ color: '#6b7280' }}>Costos</div>
-          <strong style={{ fontSize: '1.25rem' }}>{formatMoney(summary.total_cost)}</strong>
+        <div className={card}>
+          <div className="text-sm text-neutral-500">Costos</div>
+          <div className="text-xl font-bold">{formatMoney(summary.total_cost)}</div>
         </div>
-        <div style={cardStyle}>
-          <div style={{ color: '#6b7280' }}>Ganancia neta</div>
-          <strong style={{ fontSize: '1.25rem', color: summary.net_profit >= 0 ? '#15803d' : '#b91c1c' }}>
+        <div className={card + ' col-span-2'}>
+          <div className="text-sm text-neutral-500">Ganancia neta</div>
+          <div className={'text-2xl font-bold ' + (summary.net_profit >= 0 ? 'text-green-700' : 'text-red-700')}>
             {formatMoney(summary.net_profit)}
-          </strong>
+          </div>
         </div>
       </div>
 
-      <div style={{ marginTop: '1rem' }}>
-        <span style={{ color: '#6b7280' }}>Servicio más rentable: </span>
+      <div className={card}>
+        <div className="text-sm text-neutral-500">Servicio más rentable</div>
         {summary.most_profitable_service ? (
-          <strong>
-            {topService?.name ?? `Servicio ${summary.most_profitable_service.service_id}`} (
-            {formatMoney(summary.most_profitable_service.profit)})
-          </strong>
+          <div className="font-semibold">
+            {topService?.name ?? `Servicio ${summary.most_profitable_service.service_id}`}{' '}
+            <span className="text-green-700">({formatMoney(summary.most_profitable_service.profit)})</span>
+          </div>
         ) : (
-          <em>aún no hay citas completadas esta semana</em>
+          <div className="text-neutral-500">Aún no hay citas completadas esta semana.</div>
         )}
       </div>
     </section>

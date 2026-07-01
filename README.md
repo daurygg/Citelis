@@ -31,7 +31,8 @@ npm run test       # tests en watch
 npm run test:run   # tests una vez (lo que corre el CI)
 npm run build      # build de producción (lo que despliega Vercel)
 ```
-
+Supabase pass
+2HMf6#WJ@q$?AM$
 ## Despliegue en Vercel
 
 Vercel autodetecta Vite. Framework Preset: **Vite**, Build Command: `npm run build`,

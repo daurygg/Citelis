@@ -3,13 +3,7 @@
 // Inputs CONTROLADOS: cada campo tiene su estado y su onChange (no hay two-way binding).
 import { useState, type FormEvent } from 'react';
 import { useStore } from '../lib/store/StoreContext';
-
-const fieldStyle = {
-  display: 'flex',
-  flexDirection: 'column' as const,
-  gap: '0.25rem',
-  marginBottom: '0.75rem',
-};
+import { btnPrimary, card, field, fieldLabel, input } from './ui';
 
 export function ScheduleForm() {
   const store = useStore();
@@ -23,21 +17,18 @@ export function ScheduleForm() {
     event.preventDefault(); // evita que el navegador recargue la página
     if (!canSubmit) return;
     store.schedule({ client: client.trim(), service_id: serviceId, datetime });
-    // Limpia el formulario para la siguiente cita (no reseteamos el servicio elegido).
     setClient('');
     setDatetime('');
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: '1rem', marginBottom: '1.5rem' }}
-    >
-      <h2 style={{ marginTop: 0 }}>Agendar cita</h2>
+    <form onSubmit={handleSubmit} className={card + ' flex flex-col gap-3'}>
+      <h2 className="text-lg font-semibold">Agendar cita</h2>
 
-      <label style={fieldStyle}>
-        <span>Clienta</span>
+      <label className={field}>
+        <span className={fieldLabel}>Clienta</span>
         <input
+          className={input}
           type="text"
           value={client}
           onChange={(e) => setClient(e.target.value)}
@@ -45,9 +36,9 @@ export function ScheduleForm() {
         />
       </label>
 
-      <label style={fieldStyle}>
-        <span>Servicio</span>
-        <select value={serviceId} onChange={(e) => setServiceId(Number(e.target.value))}>
+      <label className={field}>
+        <span className={fieldLabel}>Servicio</span>
+        <select className={input} value={serviceId} onChange={(e) => setServiceId(Number(e.target.value))}>
           {store.services.map((service) => (
             <option key={service.id} value={service.id}>
               {service.name}
@@ -56,12 +47,12 @@ export function ScheduleForm() {
         </select>
       </label>
 
-      <label style={fieldStyle}>
-        <span>Fecha y hora</span>
-        <input type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} />
+      <label className={field}>
+        <span className={fieldLabel}>Fecha y hora</span>
+        <input className={input} type="datetime-local" value={datetime} onChange={(e) => setDatetime(e.target.value)} />
       </label>
 
-      <button type="submit" disabled={!canSubmit}>
+      <button type="submit" className={btnPrimary} disabled={!canSubmit}>
         Agendar
       </button>
     </form>

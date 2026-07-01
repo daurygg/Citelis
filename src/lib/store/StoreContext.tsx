@@ -57,6 +57,7 @@ export interface Store {
   // --- Slice 2: calculadora "por tandas" ---
   suppliesForService: (serviceId: number) => Supply[];
   serviceEconomics: (serviceId: number) => ServiceEconomics | null;
+  addService: () => number; // crea un servicio vacío y devuelve su id (para editarlo)
   addSupply: (serviceId: number, input: SupplyInput) => void;
   updateSupply: (supplyId: number, patch: Partial<SupplyInput>) => void;
   removeSupply: (supplyId: number) => void;
@@ -194,6 +195,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, ...patch } : s)));
   }
 
+  // Crea un servicio vacío (sin insumos) y devuelve su id para abrirlo en el editor.
+  function addService(): number {
+    const nextId = services.reduce((max: number, s: Service) => Math.max(max, s.id), 0) + 1;
+    const service: Service = {
+      id: nextId,
+      business_id: businessId,
+      name: 'Nuevo servicio',
+      price: 0,
+      supply_cost: 0,
+      cost_override: null,
+      duration_min: 60,
+    };
+    setServices((prev) => [...prev, service]);
+    return nextId;
+  }
+
   // El override manual gana sobre el cache (INVARIANTE 6). null = volver al cache.
   function setServiceCostOverride(serviceId: number, cents: number | null): void {
     setServices((prev) =>
@@ -218,6 +235,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     complete,
     suppliesForService,
     serviceEconomics,
+    addService,
     addSupply,
     updateSupply,
     removeSupply,

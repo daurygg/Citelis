@@ -1,0 +1,6 @@
+@import 'tailwindcss';
+
+/* Tema base de la app. Fuente del sistema y color de fondo cálido. */
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}

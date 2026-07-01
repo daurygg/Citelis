@@ -3,6 +3,7 @@
 import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, todayISODate } from '../lib/format';
 import { AppointmentRow } from './AppointmentRow';
+import { card } from './ui';
 
 export function DayAgenda() {
   const store = useStore();
@@ -11,17 +12,19 @@ export function DayAgenda() {
   const projected = store.projectedProfitForDay(today);
 
   return (
-    <section>
-      <h2>Agenda de hoy</h2>
-      <p style={{ color: '#6b7280' }}>
-        Ganancia proyectada del día: <strong>{formatMoney(projected)}</strong>{' '}
-        <em>(estimada, aún no realizada)</em>
-      </p>
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Agenda de hoy</h2>
+        <div className="text-right">
+          <div className="text-xs text-neutral-400">Ganancia proyectada</div>
+          <div className="font-semibold text-rose-700">{formatMoney(projected)}</div>
+        </div>
+      </div>
 
       {appointments.length === 0 ? (
-        <p>No hay citas para hoy. Agenda la primera.</p>
+        <p className={card + ' text-neutral-500'}>No hay citas para hoy. Agenda la primera arriba.</p>
       ) : (
-        <ul style={{ listStyle: 'none', padding: 0, display: 'grid', gap: '0.5rem' }}>
+        <ul className="flex flex-col gap-3">
           {appointments.map((appointment) => (
             <AppointmentRow key={appointment.id} appointment={appointment} />
           ))}
