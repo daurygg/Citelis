@@ -44,6 +44,13 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
     }
   }
 
+  // Borra el servicio (con confirmación) y vuelve a la lista.
+  function handleDelete() {
+    if (!window.confirm(`¿Eliminar "${service?.name}"? Esta acción no se puede deshacer.`)) return;
+    store.deleteService(serviceId);
+    onBack();
+  }
+
   return (
     <section className="flex flex-col gap-4">
       <button type="button" className="self-start text-sm text-rose-700 hover:underline" onClick={onBack}>
@@ -51,7 +58,7 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
       </button>
 
       <div className={card + ' flex flex-col gap-4'}>
-        <label className={field}>
+        <label className={field}>          
           <span className={fieldLabel}>Nombre del servicio</span>
           <input
             className={input}
@@ -132,6 +139,10 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
           </div>
         </div>
       </div>
+
+      <button type="button" className="self-start text-sm text-red-600 hover:underline" onClick={handleDelete}>
+        Eliminar servicio
+      </button>
     </section>
   );
 }

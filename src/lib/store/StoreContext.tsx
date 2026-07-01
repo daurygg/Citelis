@@ -62,6 +62,7 @@ export interface Store {
   updateSupply: (supplyId: number, patch: Partial<SupplyInput>) => void;
   removeSupply: (supplyId: number) => void;
   updateService: (serviceId: number, patch: ServicePatch) => void;
+  deleteService: (serviceId: number) => void;
   setServiceCostOverride: (serviceId: number, cents: number | null) => void;
   // --- Slice 3: reporte de ganancias ---
   weekReport: (from: string, to: string) => WeekSummary;
@@ -210,6 +211,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setServices((prev) => [...prev, service]);
     return nextId;
   }
+  
+  function deleteService(serviceId: number): void {
+    setServices((prev) => prev.filter((s) => s.id !== serviceId));
+    setSupplies((prev) => prev.filter((s) => s.service_id !== serviceId));
+  }
 
   // El override manual gana sobre el cache (INVARIANTE 6). null = volver al cache.
   function setServiceCostOverride(serviceId: number, cents: number | null): void {
@@ -240,6 +246,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     updateSupply,
     removeSupply,
     updateService,
+    deleteService,
     setServiceCostOverride,
     weekReport,
   };
