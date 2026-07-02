@@ -69,6 +69,7 @@ export function statusLabel(status: AppointmentStatus): string {
     IN_PROGRESS: 'En curso',
     COMPLETED: 'Completada',
     CANCELED: 'Cancelada',
+    NO_SHOW: 'No llegó',
   };
   return labels[status];
 }

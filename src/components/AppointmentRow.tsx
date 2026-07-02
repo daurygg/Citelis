@@ -14,6 +14,7 @@ const STATUS_BADGE: Record<AppointmentStatus, string> = {
   IN_PROGRESS: 'bg-blue-100 text-blue-800',
   COMPLETED: 'bg-green-100 text-green-800',
   CANCELED: 'bg-neutral-100 text-neutral-500',
+  NO_SHOW: 'bg-red-100 text-red-700',
 };
 
 export function AppointmentRow({ appointment }: { appointment: Appointment }) {
