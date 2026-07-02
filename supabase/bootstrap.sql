@@ -1,10 +1,11 @@
 -- Arranque de datos (correr UNA vez, DESPUÉS de registrarte en la app con Auth).
 -- Crea el negocio y enlaza tu usuario. Reemplaza el correo por el tuyo real.
 
--- 1) Crea el negocio (si no existe).
-insert into business (name, plan)
-select 'Citelis', 'mvp'
-where not exists (select 1 from business where name = 'Citelis');
+-- 1) Crea el negocio con id 1 (si no existe). El id es explícito porque el
+--    esquema usa ids provistos (no autogenerados).
+insert into business (id, name, plan)
+select 1, 'Citelis', 'mvp'
+where not exists (select 1 from business where id = 1);
 
 -- 2) Enlaza tu usuario autenticado con ese negocio.
 insert into business_member (user_id, business_id)

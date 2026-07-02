@@ -1,12 +1,23 @@
 -- Citelis — esquema Postgres para Supabase (Slice 4).
--- Ejecuta TODO este script en el SQL Editor de Supabase (una vez).
--- Reglas del proyecto: dinero en CENTAVOS enteros; aislamiento por tenant vía RLS
--- (INVARIANTE 1). Los ids son numéricos (bigint) para no tocar la capa de dominio.
+-- Ejecuta TODO este script en el SQL Editor de Supabase. Es idempotente:
+-- puedes re-ejecutarlo (borra y recrea). Los ids los genera el cliente (bigint),
+-- para conservar la fachada síncrona del Store sin tocar la capa de dominio.
+-- Reglas del proyecto: dinero en CENTAVOS enteros; aislamiento por tenant vía RLS.
+
+-- ── Reset (para poder re-ejecutar) ──────────────────────────────────────────
+drop table if exists service_supply cascade;
+drop table if exists appointment cascade;
+drop table if exists fixed_expense cascade;
+drop table if exists service cascade;
+drop table if exists supply cascade;
+drop table if exists business_member cascade;
+drop table if exists business cascade;
+drop function if exists is_member(bigint);
 
 -- ── Tablas ────────────────────────────────────────────────────────────────
 
-create table if not exists business (
-  id   bigint generated always as identity primary key,
+create table business (
+  id   bigint primary key,
   name text not null,
   plan text not null default 'mvp'
 );
@@ -20,7 +31,7 @@ create table if not exists business_member (
 );
 
 create table if not exists service (
-  id             bigint generated always as identity primary key,
+  id             bigint primary key,
   business_id    bigint  not null references business (id) on delete cascade,
   name           text    not null,
   price          bigint  not null default 0,   -- centavos
@@ -31,7 +42,7 @@ create table if not exists service (
 );
 
 create table if not exists supply (
-  id             bigint  generated always as identity primary key,
+  id             bigint  primary key,
   business_id    bigint  not null references business (id) on delete cascade,
   name           text    not null,
   purchase_price bigint  not null default 0,   -- centavos
@@ -47,7 +58,7 @@ create table if not exists service_supply (
 );
 
 create table if not exists appointment (
-  id            bigint generated always as identity primary key,
+  id            bigint primary key,
   business_id   bigint not null references business (id) on delete cascade,
   service_id    bigint not null references service (id),
   client        text   not null,
@@ -59,7 +70,7 @@ create table if not exists appointment (
 );
 
 create table if not exists fixed_expense (
-  id          bigint generated always as identity primary key,
+  id          bigint primary key,
   business_id bigint not null references business (id) on delete cascade,
   concept     text   not null,
   amount      bigint not null default 0, -- centavos
