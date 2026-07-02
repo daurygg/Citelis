@@ -1,15 +1,19 @@
 // Reporte semanal de ganancias. Solo lectura: muestra valores ya agregados por
 // weekSummary (dominio). No recalcula nada (INVARIANTE 2/5).
 // Distingue ganancia BRUTA (servicios) de NETA (bruta − gastos fijos del negocio).
+import { useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { netProfit } from '../lib/domain/reports';
-import { currentWeekRange, formatDateShort, formatMoney } from '../lib/format';
+import { currentWeekRange, formatDateShort, formatMoney, shiftISODate, todayISODate, weekRange } from '../lib/format';
 import { FixedExpenses } from './FixedExpenses';
-import { card } from './ui';
+import { btnGhost, card } from './ui';
 
 export function WeekReport() {
   const store = useStore();
-  const { from, to } = currentWeekRange();
+  const [anchor, setAnchor] = useState(todayISODate()); // una fecha dentro de la semana mostrada
+  const { from, to } = weekRange(anchor);
+  const isThisWeek = from === currentWeekRange().from;
+
   const summary = store.weekReport(from, to);
   const fixedTotal = store.fixedExpensesTotal();
   const net = netProfit(summary.gross_profit, fixedTotal);
@@ -20,12 +24,36 @@ export function WeekReport() {
 
   return (
     <section className="flex flex-col gap-4">
-      <div>
-        <h2 className="text-lg font-semibold">Reporte de la semana</h2>
-        <p className="text-sm text-neutral-500">
-          Semana del {formatDateShort(from)} · {summary.completed_count} cita(s) completada(s)
-        </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className={btnGhost + ' px-3 py-1.5'}
+          onClick={() => setAnchor((a) => shiftISODate(a, -7))}
+          aria-label="Semana anterior"
+        >
+          ‹
+        </button>
+        <div className="flex-1 text-center">
+          <h2 className="font-semibold">
+            Semana del {formatDateShort(from)} {isThisWeek && <span className="text-rose-700">(actual)</span>}
+          </h2>
+          <p className="text-sm text-neutral-500">{summary.completed_count} cita(s) completada(s)</p>
+        </div>
+        <button
+          type="button"
+          className={btnGhost + ' px-3 py-1.5'}
+          onClick={() => setAnchor((a) => shiftISODate(a, 7))}
+          aria-label="Semana siguiente"
+        >
+          ›
+        </button>
       </div>
+
+      {!isThisWeek && (
+        <button type="button" className="self-center text-sm text-rose-700 hover:underline" onClick={() => setAnchor(todayISODate())}>
+          Volver a la semana actual
+        </button>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div className={card}>

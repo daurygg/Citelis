@@ -67,15 +67,21 @@ export function dayRange(isoDate: string): { from: string; to: string } {
 }
 
 /**
- * Rango de la semana en curso (lunes a lunes) como ISO local.
+ * Rango (lunes a lunes) de la semana que CONTIENE la fecha dada, como ISO local.
  * `from` inclusive, `to` exclusivo — encaja con weekSummary (rango [from, to)).
  */
-export function currentWeekRange(): { from: string; to: string } {
-  const now = new Date();
-  const daysSinceMonday = (now.getDay() + 6) % 7; // getDay: 0=domingo
-  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysSinceMonday);
+export function weekRange(isoDate: string): { from: string; to: string } {
+  const [year, month, day] = isoDate.slice(0, 10).split('-').map(Number);
+  const base = new Date(year, month - 1, day);
+  const daysSinceMonday = (base.getDay() + 6) % 7; // getDay: 0=domingo
+  const monday = new Date(year, month - 1, day - daysSinceMonday);
   const nextMonday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 7);
   return { from: `${toISODate(monday)}T00:00:00`, to: `${toISODate(nextMonday)}T00:00:00` };
+}
+
+/** Rango de la semana en curso (atajo de weekRange sobre hoy). */
+export function currentWeekRange(): { from: string; to: string } {
+  return weekRange(todayISODate());
 }
 
 /** "2026-06-30T..." → "30/06/2026" (sin depender de Intl). */
