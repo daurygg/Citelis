@@ -44,6 +44,14 @@ export function todayISODate(): string {
   return toISODate(new Date());
 }
 
+/** Rango de UN día como ISO local: [inicio, inicio del día siguiente). */
+export function dayRange(isoDate: string): { from: string; to: string } {
+  const [year, month, day] = isoDate.slice(0, 10).split('-').map(Number);
+  const start = new Date(year, month - 1, day);
+  const next = new Date(year, month - 1, day + 1);
+  return { from: `${toISODate(start)}T00:00:00`, to: `${toISODate(next)}T00:00:00` };
+}
+
 /**
  * Rango de la semana en curso (lunes a lunes) como ISO local.
  * `from` inclusive, `to` exclusivo — encaja con weekSummary (rango [from, to)).

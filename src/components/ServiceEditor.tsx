@@ -101,7 +101,7 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
             {supplies.length === 0 ? (
               <p className="text-sm text-neutral-500">Aún no hay insumos. Añade el primero abajo.</p>
             ) : (
-              supplies.map((supply) => <SupplyRow key={supply.id} supply={supply} />)
+              supplies.map((supply) => <SupplyRow key={supply.id} supply={supply} serviceId={serviceId} />)
             )}
             <AddSupplyForm serviceId={serviceId} />
           </div>

@@ -8,7 +8,7 @@ import { unitCost } from '../lib/domain/costs';
 import type { Supply } from '../lib/domain/types';
 import { field, fieldLabel, input } from './ui';
 
-export function SupplyRow({ supply }: { supply: Supply }) {
+export function SupplyRow({ supply, serviceId }: { supply: Supply; serviceId: number }) {
   const store = useStore();
   // El monto pagado se edita como texto (permite "1,200.50") y se convierte a
   // centavos solo cuando es válido.
@@ -53,7 +53,7 @@ export function SupplyRow({ supply }: { supply: Supply }) {
         <button
           type="button"
           className="text-sm text-red-600 hover:underline"
-          onClick={() => store.removeSupply(supply.id)}
+          onClick={() => store.unlinkSupply(serviceId, supply.id)}
         >
           Quitar
         </button>

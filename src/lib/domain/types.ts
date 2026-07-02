@@ -11,12 +11,22 @@ export interface Business {
   plan: string;
 }
 
+// Insumo GLOBAL del negocio (INVARIANTE 1). Un mismo insumo (wipes, pegamento…)
+// puede usarse en varios servicios → la relación vive en ServiceSupply (N↔N).
 export interface Supply {
   id: number;
-  service_id: number;
+  business_id: number;
   name: string;
   purchase_price: number; // centavos. Lo que la dueña pagó por la "tanda"
   servings: number; // para cuántas clientas alcanza esa tanda (>0)
+}
+
+// Relación N↔N entre servicios e insumos. Editar un insumo compartido recalcula
+// el cache supply_cost de TODOS los servicios que lo usan (INVARIANTE 6).
+export interface ServiceSupply {
+  business_id: number; // INVARIANTE 1
+  service_id: number;
+  supply_id: number;
 }
 
 export interface Service {

@@ -18,7 +18,7 @@ export function AddSupplyForm({ serviceId }: { serviceId: number }) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canAdd || paid === null) return;
-    store.addSupply(serviceId, { name: name.trim(), purchase_price: paid, servings });
+    store.addSupplyToService(serviceId, { name: name.trim(), purchase_price: paid, servings });
     setName('');
     setPaidText('');
     setServingsText('');

@@ -6,7 +6,7 @@ import type { Supply } from './types';
 function supply(partial: Partial<Supply>): Supply {
   return {
     id: 1,
-    service_id: 1,
+    business_id: 1,
     name: 'insumo',
     purchase_price: 0,
     servings: 1,

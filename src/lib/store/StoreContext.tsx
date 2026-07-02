@@ -4,17 +4,33 @@
 // En el Slice 4 cambiamos el cuerpo de estas funciones por llamadas a Supabase
 // sin tocar la UI (la fachada `Store` se mantiene igual).
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import type { Appointment, Service, Supply } from '../domain/types';
-import { completeAppointment as completeAppointmentDomain } from '../domain/appointments';
+import type { Appointment, FixedExpense, Service, ServiceSupply, Supply } from '../domain/types';
+import { completeAppointment as completeAppointmentDomain, transition } from '../domain/appointments';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
-import { weekSummary, type WeekSummary } from '../domain/reports';
-import { CURRENT_BUSINESS_ID, SEED_APPOINTMENTS, SEED_SERVICES, SEED_SUPPLIES } from './seed';
+import { sumFixedExpenses, weekSummary, type WeekSummary } from '../domain/reports';
+import { dayRange } from '../format';
+import {
+  CURRENT_BUSINESS_ID,
+  SEED_APPOINTMENTS,
+  SEED_FIXED_EXPENSES,
+  SEED_SERVICES,
+  SEED_SERVICE_SUPPLIES,
+  SEED_SUPPLIES,
+} from './seed';
 
 // Lo que la UI necesita para agendar. Sin dinero: la cita nace PENDING (INVARIANTE 2).
 export interface ScheduleInput {
   service_id: number;
   client: string;
   datetime: string; // ISO 8601
+}
+
+// Walk-in: atención al paso que se registra YA completada (crear + completar).
+export interface WalkInInput {
+  service_id: number;
+  client: string;
+  datetime: string;
+  price?: number; // requerido en la práctica para servicios de precio variable
 }
 
 // Vista previa del cobro ANTES de completar (no muta nada): lo que la dueña verá.
@@ -37,6 +53,7 @@ export interface ServicePatch {
   name?: string;
   price?: number; // centavos
   duration_min?: number;
+  variable_price?: boolean;
 }
 
 // Números en vivo de la calculadora: costo y margen de un servicio.
@@ -46,26 +63,42 @@ export interface ServiceEconomics {
   margin: number; // price − effective_cost (centavos)
 }
 
+export interface FixedExpenseInput {
+  concept: string;
+  amount: number; // centavos
+}
+
 // La fachada del store: el contrato que consume la UI. Lo permanente del diseño.
 export interface Store {
   services: readonly Service[];
+  // --- Agenda / citas ---
   appointmentsForDay: (isoDate: string) => Appointment[];
   projectedProfitForDay: (isoDate: string) => number;
+  dayReport: (isoDate: string) => WeekSummary;
   completionPreview: (appointmentId: number, overridePrice?: number) => CompletionPreview | null;
   schedule: (input: ScheduleInput) => void;
   complete: (appointmentId: number, overridePrice?: number) => void;
-  // --- Slice 2: calculadora "por tandas" ---
+  cancel: (appointmentId: number) => void;
+  markNoShow: (appointmentId: number) => void;
+  registerWalkIn: (input: WalkInInput) => void;
+  // --- Servicios y calculadora ---
   suppliesForService: (serviceId: number) => Supply[];
+  allSupplies: () => Supply[];
   serviceEconomics: (serviceId: number) => ServiceEconomics | null;
-  addService: () => number; // crea un servicio vacío y devuelve su id (para editarlo)
-  addSupply: (serviceId: number, input: SupplyInput) => void;
-  updateSupply: (supplyId: number, patch: Partial<SupplyInput>) => void;
-  removeSupply: (supplyId: number) => void;
+  addService: () => number;
   updateService: (serviceId: number, patch: ServicePatch) => void;
   deleteService: (serviceId: number) => void;
   setServiceCostOverride: (serviceId: number, cents: number | null) => void;
-  // --- Slice 3: reporte de ganancias ---
+  addSupplyToService: (serviceId: number, input: SupplyInput) => void;
+  linkExistingSupply: (serviceId: number, supplyId: number) => void;
+  unlinkSupply: (serviceId: number, supplyId: number) => void;
+  updateSupply: (supplyId: number, patch: Partial<SupplyInput>) => void;
+  // --- Reporte y gastos fijos ---
   weekReport: (from: string, to: string) => WeekSummary;
+  fixedExpenses: readonly FixedExpense[];
+  fixedExpensesTotal: () => number;
+  addFixedExpense: (input: FixedExpenseInput) => void;
+  removeFixedExpense: (id: number) => void;
 }
 
 // El "token de inyección": empieza en null para detectar el uso fuera del Provider.
@@ -75,21 +108,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const businessId = CURRENT_BUSINESS_ID;
   const [services, setServices] = useState<readonly Service[]>(SEED_SERVICES);
   const [supplies, setSupplies] = useState<readonly Supply[]>(SEED_SUPPLIES);
+  const [serviceSupplies, setServiceSupplies] = useState<readonly ServiceSupply[]>(SEED_SERVICE_SUPPLIES);
   const [appointments, setAppointments] = useState<readonly Appointment[]>(SEED_APPOINTMENTS);
+  const [fixedExpenses, setFixedExpenses] = useState<readonly FixedExpense[]>(SEED_FIXED_EXPENSES);
+
+  // ---------------- Agenda / citas ----------------
 
   // Citas de un día, ya filtradas por tenant (INVARIANTE 1) y ordenadas por hora.
   function appointmentsForDay(isoDate: string): Appointment[] {
-    const dayKey = isoDate.slice(0, 10); // 'YYYY-MM-DD'
+    const dayKey = isoDate.slice(0, 10);
     return appointments
       .filter((a) => a.business_id === businessId)
       .filter((a) => a.datetime.slice(0, 10) === dayKey)
       .sort((a, b) => a.datetime.localeCompare(b.datetime));
   }
 
-  // Ganancia PROYECTADA del día: suma de la ganancia potencial de las citas aún
-  // abiertas (PENDING/IN_PROGRESS). No es dinero realizado; las completadas no cuentan
-  // aquí (esas ya están congeladas y van al reporte real del Slice 3).
-  // La fórmula de dinero (profit/effectiveCost) vive en el dominio (INVARIANTE 5).
+  // Ganancia PROYECTADA del día: ganancia potencial de las citas aún abiertas.
+  // No es dinero realizado (eso lo da dayReport). La fórmula vive en el dominio.
   function projectedProfitForDay(isoDate: string): number {
     return appointmentsForDay(isoDate)
       .filter((a) => a.status === 'PENDING' || a.status === 'IN_PROGRESS')
@@ -100,19 +135,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }, 0);
   }
 
-  // Vista previa del cobro de una cita SIN mutarla: calcula lo que se congelaría
-  // si se completara ahora (con un override opcional de precio). Delega en el dominio.
+  // Resumen REALIZADO de un día (citas ya COMPLETED). Reusa el dominio.
+  function dayReport(isoDate: string): WeekSummary {
+    const { from, to } = dayRange(isoDate);
+    return weekSummary(appointments, businessId, from, to);
+  }
+
   function completionPreview(appointmentId: number, overridePrice?: number): CompletionPreview | null {
-    const appointment = appointments.find((a: Appointment) => a.id === appointmentId);
+    const appointment = appointments.find((a) => a.id === appointmentId);
     if (!appointment) return null;
-    const service = services.find((s: Service) => s.id === appointment.service_id);
+    const service = services.find((s) => s.id === appointment.service_id);
     if (!service) return null;
     const charged_price = overridePrice ?? service.price;
     const actual_cost = effectiveCost(service);
     return { charged_price, actual_cost, profit: profit(charged_price, actual_cost) };
   }
 
-  // Crea una cita PENDING. Los tres campos de dinero nacen en null (INVARIANTE 2).
   function schedule(input: ScheduleInput): void {
     setAppointments((prev) => {
       const nextId = prev.reduce((max, a) => Math.max(max, a.id), 0) + 1;
@@ -131,7 +169,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  // Completa una cita delegando en el dominio puro, que congela el dinero.
   function complete(appointmentId: number, overridePrice?: number): void {
     setAppointments((prev) =>
       prev.map((a) => {
@@ -143,16 +180,48 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  // --- Slice 2: calculadora "por tandas" ---
-
-  // Insumos de un servicio (INVARIANTE 1: solo del tenant, vía el servicio).
-  function suppliesForService(serviceId: number): Supply[] {
-    return supplies.filter((su: Supply) => su.service_id === serviceId);
+  function cancel(appointmentId: number): void {
+    setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? transition(a, 'CANCELED') : a)));
   }
 
-  // Costo y margen en vivo. Reusa el dominio: margin = profit(price, effectiveCost).
+  function markNoShow(appointmentId: number): void {
+    setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? transition(a, 'NO_SHOW') : a)));
+  }
+
+  // Atención al paso: crea la cita y la completa en el acto (congela el dinero).
+  function registerWalkIn(input: WalkInInput): void {
+    const service = services.find((s) => s.id === input.service_id);
+    if (!service) throw new Error(`Servicio ${input.service_id} no encontrado.`);
+    setAppointments((prev) => {
+      const nextId = prev.reduce((max, a) => Math.max(max, a.id), 0) + 1;
+      const pending: Appointment = {
+        id: nextId,
+        business_id: businessId,
+        service_id: input.service_id,
+        client: input.client,
+        datetime: input.datetime,
+        status: 'PENDING',
+        charged_price: null,
+        actual_cost: null,
+        profit: null,
+      };
+      return [...prev, completeAppointmentDomain(pending, service, input.price)];
+    });
+  }
+
+  // ---------------- Servicios y calculadora ----------------
+
+  function suppliesForService(serviceId: number): Supply[] {
+    const linkedIds = serviceSupplies.filter((l) => l.service_id === serviceId).map((l) => l.supply_id);
+    return supplies.filter((s) => linkedIds.includes(s.id));
+  }
+
+  function allSupplies(): Supply[] {
+    return supplies.filter((s) => s.business_id === businessId);
+  }
+
   function serviceEconomics(serviceId: number): ServiceEconomics | null {
-    const service = services.find((s: Service) => s.id === serviceId);
+    const service = services.find((s) => s.id === serviceId);
     if (!service) return null;
     const effective_cost = effectiveCost(service);
     return {
@@ -162,43 +231,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }
 
-  // Recalcula y GUARDA el cache supply_cost de un servicio (INVARIANTE 6).
-  // Se llama SOLO al tocar un insumo, nunca en cada render.
-  function recomputeServiceCache(serviceId: number, nextSupplies: readonly Supply[]): void {
-    const cost = suppliesCost(nextSupplies.filter((su: Supply) => su.service_id === serviceId));
+  // Recalcula y GUARDA el cache supply_cost de TODOS los servicios a partir de los
+  // insumos y enlaces dados (INVARIANTE 6). Se llama solo al tocar insumos/enlaces.
+  function recomputeCaches(nextSupplies: readonly Supply[], nextLinks: readonly ServiceSupply[]): void {
     setServices((prev) =>
-      prev.map((s) => (s.id === serviceId ? { ...s, supply_cost: cost } : s)),
+      prev.map((s) => {
+        const linkedIds = nextLinks.filter((l) => l.service_id === s.id).map((l) => l.supply_id);
+        const linked = nextSupplies.filter((x) => linkedIds.includes(x.id));
+        return { ...s, supply_cost: suppliesCost(linked) };
+      }),
     );
   }
 
-  function addSupply(serviceId: number, input: SupplyInput): void {
-    const nextId = supplies.reduce((max: number, su: Supply) => Math.max(max, su.id), 0) + 1;
-    const next: readonly Supply[] = [...supplies, { id: nextId, service_id: serviceId, ...input }];
-    setSupplies(next);
-    recomputeServiceCache(serviceId, next);
-  }
-
-  function updateSupply(supplyId: number, patch: Partial<SupplyInput>): void {
-    const next = supplies.map((su) => (su.id === supplyId ? { ...su, ...patch } : su));
-    setSupplies(next);
-    const target = next.find((su) => su.id === supplyId);
-    if (target) recomputeServiceCache(target.service_id, next);
-  }
-
-  function removeSupply(supplyId: number): void {
-    const target = supplies.find((su: Supply) => su.id === supplyId);
-    const next = supplies.filter((su) => su.id !== supplyId);
-    setSupplies(next);
-    if (target) recomputeServiceCache(target.service_id, next);
-  }
-
-  function updateService(serviceId: number, patch: ServicePatch): void {
-    setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, ...patch } : s)));
-  }
-
-  // Crea un servicio vacío (sin insumos) y devuelve su id para abrirlo en el editor.
   function addService(): number {
-    const nextId = services.reduce((max: number, s: Service) => Math.max(max, s.id), 0) + 1;
+    const nextId = services.reduce((max, s) => Math.max(max, s.id), 0) + 1;
     const service: Service = {
       id: nextId,
       business_id: businessId,
@@ -212,44 +258,109 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setServices((prev) => [...prev, service]);
     return nextId;
   }
-  
+
+  function updateService(serviceId: number, patch: ServicePatch): void {
+    setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, ...patch } : s)));
+  }
+
+  // Borra el servicio y sus enlaces a insumos (NO borra los insumos globales,
+  // que pueden estar en uso por otros servicios).
   function deleteService(serviceId: number): void {
     setServices((prev) => prev.filter((s) => s.id !== serviceId));
-    setSupplies((prev) => prev.filter((s) => s.service_id !== serviceId));
+    setServiceSupplies((prev) => prev.filter((l) => l.service_id !== serviceId));
   }
 
-  // El override manual gana sobre el cache (INVARIANTE 6). null = volver al cache.
   function setServiceCostOverride(serviceId: number, cents: number | null): void {
-    setServices((prev) =>
-      prev.map((s) => (s.id === serviceId ? { ...s, cost_override: cents } : s)),
-    );
+    setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, cost_override: cents } : s)));
   }
 
-  // --- Slice 3: reporte de ganancias ---
+  // Crea un insumo nuevo y lo enlaza al servicio (caso común de la UI).
+  function addSupplyToService(serviceId: number, input: SupplyInput): void {
+    const nextId = supplies.reduce((max, su) => Math.max(max, su.id), 0) + 1;
+    const nextSupplies: readonly Supply[] = [...supplies, { id: nextId, business_id: businessId, ...input }];
+    const nextLinks: readonly ServiceSupply[] = [
+      ...serviceSupplies,
+      { business_id: businessId, service_id: serviceId, supply_id: nextId },
+    ];
+    setSupplies(nextSupplies);
+    setServiceSupplies(nextLinks);
+    recomputeCaches(nextSupplies, nextLinks);
+  }
 
-  // Resumen del periodo [from, to). Solo lectura: agrega valores ya congelados de
-  // citas COMPLETED. El business_id sale del store (INVARIANTE 1), no de la UI.
+  // Enlaza un insumo YA existente a otro servicio (insumo compartido).
+  function linkExistingSupply(serviceId: number, supplyId: number): void {
+    const exists = serviceSupplies.some((l) => l.service_id === serviceId && l.supply_id === supplyId);
+    if (exists) return;
+    const nextLinks: readonly ServiceSupply[] = [
+      ...serviceSupplies,
+      { business_id: businessId, service_id: serviceId, supply_id: supplyId },
+    ];
+    setServiceSupplies(nextLinks);
+    recomputeCaches(supplies, nextLinks);
+  }
+
+  // Quita el insumo de ESTE servicio (no lo borra globalmente).
+  function unlinkSupply(serviceId: number, supplyId: number): void {
+    const nextLinks = serviceSupplies.filter((l) => !(l.service_id === serviceId && l.supply_id === supplyId));
+    setServiceSupplies(nextLinks);
+    recomputeCaches(supplies, nextLinks);
+  }
+
+  // Edita un insumo. Recalcula el cache de TODOS los servicios que lo usan.
+  function updateSupply(supplyId: number, patch: Partial<SupplyInput>): void {
+    const nextSupplies = supplies.map((su) => (su.id === supplyId ? { ...su, ...patch } : su));
+    setSupplies(nextSupplies);
+    recomputeCaches(nextSupplies, serviceSupplies);
+  }
+
+  // ---------------- Reporte y gastos fijos ----------------
+
   function weekReport(from: string, to: string): WeekSummary {
     return weekSummary(appointments, businessId, from, to);
+  }
+
+  function fixedExpensesTotal(): number {
+    return sumFixedExpenses(fixedExpenses, businessId);
+  }
+
+  function addFixedExpense(input: FixedExpenseInput): void {
+    setFixedExpenses((prev) => {
+      const nextId = prev.reduce((max, e) => Math.max(max, e.id), 0) + 1;
+      return [...prev, { id: nextId, business_id: businessId, concept: input.concept, amount: input.amount, period: 'MONTHLY' }];
+    });
+  }
+
+  function removeFixedExpense(id: number): void {
+    setFixedExpenses((prev) => prev.filter((e) => e.id !== id));
   }
 
   const store: Store = {
     services,
     appointmentsForDay,
     projectedProfitForDay,
+    dayReport,
     completionPreview,
     schedule,
     complete,
+    cancel,
+    markNoShow,
+    registerWalkIn,
     suppliesForService,
+    allSupplies,
     serviceEconomics,
     addService,
-    addSupply,
-    updateSupply,
-    removeSupply,
     updateService,
     deleteService,
     setServiceCostOverride,
+    addSupplyToService,
+    linkExistingSupply,
+    unlinkSupply,
+    updateSupply,
     weekReport,
+    fixedExpenses,
+    fixedExpensesTotal,
+    addFixedExpense,
+    removeFixedExpense,
   };
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }
