@@ -10,6 +10,7 @@ import { sumFixedExpenses, weekSummary, type WeekSummary } from '../domain/repor
 import { dayRange } from '../format';
 import { supabase } from '../supabase/client';
 import { useAuth } from '../auth/AuthContext';
+import { Onboarding } from '../../components/Onboarding';
 
 // ── Tipos de la fachada (idénticos a las fases en memoria) ──────────────────
 export interface ScheduleInput {
@@ -107,6 +108,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const { signOut } = useAuth();
   const [data, setData] = useState<LoadedData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [noBusiness, setNoBusiness] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -121,7 +123,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (!members || members.length === 0) {
-        setError('Tu cuenta no está enlazada a un negocio. Corre supabase/bootstrap.sql con tu correo.');
+        setNoBusiness(true); // sin negocio → pantalla de onboarding
         return;
       }
       const businessId = (members[0] as { business_id: number }).business_id;
@@ -159,6 +161,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       </div>
     );
   }
+  if (noBusiness) return <Onboarding />;
   if (!data) {
     return <div className="grid min-h-screen place-items-center bg-neutral-50 text-neutral-500">Cargando tus datos…</div>;
   }
