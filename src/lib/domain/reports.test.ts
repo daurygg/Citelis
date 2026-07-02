@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { weekSummary } from './reports';
-import type { Appointment } from './types';
+import { weekSummary, sumFixedExpenses, netProfit } from './reports';
+import type { Appointment, FixedExpense } from './types';
 
 // Cita COMPLETED con valores ya congelados.
 function completed(partial: Partial<Appointment>): Appointment {
@@ -32,7 +32,7 @@ describe('weekSummary', () => {
     expect(r.completed_count).toBe(2);
     expect(r.total_income).toBe(8000);
     expect(r.total_cost).toBe(2200);
-    expect(r.net_profit).toBe(5800);
+    expect(r.gross_profit).toBe(5800);
   });
 
   // DoD Slice 3: solo cuenta citas COMPLETED dentro del rango
@@ -45,7 +45,7 @@ describe('weekSummary', () => {
     ];
     const r = weekSummary(appointments, 1, FROM, TO);
     expect(r.completed_count).toBe(1);
-    expect(r.net_profit).toBe(4000);
+    expect(r.gross_profit).toBe(4000);
   });
 
   it('ignora citas fuera del rango [from, to)', () => {
@@ -67,7 +67,7 @@ describe('weekSummary', () => {
     ];
     const r = weekSummary(appointments, 1, FROM, TO);
     expect(r.completed_count).toBe(1);
-    expect(r.net_profit).toBe(4000);
+    expect(r.gross_profit).toBe(4000);
   });
 
   it('identifica el servicio más rentable del periodo', () => {
@@ -94,7 +94,44 @@ describe('weekSummary', () => {
     expect(r.completed_count).toBe(0);
     expect(r.total_income).toBe(0);
     expect(r.total_cost).toBe(0);
-    expect(r.net_profit).toBe(0);
+    expect(r.gross_profit).toBe(0);
     expect(r.most_profitable_service).toBeNull();
+  });
+});
+
+function expense(partial: Partial<FixedExpense>): FixedExpense {
+  return { id: 1, business_id: 1, concept: 'Luz', amount: 0, period: 'MONTHLY', ...partial };
+}
+
+describe('sumFixedExpenses', () => {
+  it('suma los gastos fijos del negocio indicado', () => {
+    const expenses = [
+      expense({ id: 1, business_id: 1, amount: 5000 }),
+      expense({ id: 2, business_id: 1, amount: 3000 }),
+    ];
+    expect(sumFixedExpenses(expenses, 1)).toBe(8000);
+  });
+
+  // INVARIANTE 1: filtrado por business_id
+  it('ignora gastos de otro negocio', () => {
+    const expenses = [
+      expense({ id: 1, business_id: 1, amount: 5000 }),
+      expense({ id: 2, business_id: 2, amount: 9999 }),
+    ];
+    expect(sumFixedExpenses(expenses, 1)).toBe(5000);
+  });
+
+  it('sin gastos devuelve 0', () => {
+    expect(sumFixedExpenses([], 1)).toBe(0);
+  });
+});
+
+describe('netProfit', () => {
+  it('neta = bruta − gastos fijos', () => {
+    expect(netProfit(10000, 3000)).toBe(7000);
+  });
+
+  it('puede ser negativa si los gastos superan la ganancia', () => {
+    expect(netProfit(2000, 5000)).toBe(-3000);
   });
 });

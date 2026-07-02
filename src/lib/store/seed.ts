@@ -17,6 +17,7 @@ export const SEED_SERVICES: readonly Service[] = [
     supply_cost: 11000, // $110.00 = 6000 + 5000 (ver insumos 1 y 2)
     cost_override: null,
     duration_min: 120,
+    variable_price: false,
   },
   {
     id: 2,
@@ -26,6 +27,7 @@ export const SEED_SERVICES: readonly Service[] = [
     supply_cost: 10000, // $100.00 = 60000 / 6 (ver insumo 3)
     cost_override: null,
     duration_min: 90,
+    variable_price: false,
   },
   {
     id: 3,
@@ -35,6 +37,7 @@ export const SEED_SERVICES: readonly Service[] = [
     supply_cost: 17000, // $170.00 = 15000 + 2000 (ver insumos 4 y 5)
     cost_override: null,
     duration_min: 75,
+    variable_price: false,
   },
 ];
 

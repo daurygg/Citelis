@@ -11,6 +11,7 @@ function service(partial: Partial<Service> = {}): Service {
     supply_cost: 1000, // $10
     cost_override: null,
     duration_min: 60,
+    variable_price: false,
     ...partial,
   };
 }
@@ -35,6 +36,7 @@ describe('isValidTransition', () => {
     expect(isValidTransition('PENDING', 'IN_PROGRESS')).toBe(true);
     expect(isValidTransition('PENDING', 'CANCELED')).toBe(true);
     expect(isValidTransition('PENDING', 'COMPLETED')).toBe(true); // atajo
+    expect(isValidTransition('PENDING', 'NO_SHOW')).toBe(true); // no llegó
     expect(isValidTransition('IN_PROGRESS', 'COMPLETED')).toBe(true);
   });
 
@@ -43,6 +45,8 @@ describe('isValidTransition', () => {
     expect(isValidTransition('COMPLETED', 'IN_PROGRESS')).toBe(false);
     expect(isValidTransition('CANCELED', 'PENDING')).toBe(false);
     expect(isValidTransition('IN_PROGRESS', 'CANCELED')).toBe(false);
+    expect(isValidTransition('IN_PROGRESS', 'NO_SHOW')).toBe(false); // ya empezó, no es no-show
+    expect(isValidTransition('NO_SHOW', 'PENDING')).toBe(false);
     expect(isValidTransition('PENDING', 'PENDING')).toBe(false);
   });
 });

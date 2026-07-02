@@ -2,7 +2,7 @@
 // Solo LECTURA: agrega valores ya congelados de citas COMPLETED. No recalcula nada.
 // CERO dependencias de React. Todo en centavos enteros.
 
-import type { Appointment } from './types';
+import type { Appointment, FixedExpense } from './types';
 
 export interface MostProfitableService {
   service_id: number;
@@ -15,8 +15,8 @@ export interface WeekSummary {
   to: string; // ISO 8601 (exclusive)
   completed_count: number;
   total_income: number; // Σ charged_price (centavos)
-  total_cost: number; // Σ actual_cost (centavos)
-  net_profit: number; // Σ profit (centavos)
+  total_cost: number; // Σ actual_cost de insumos (centavos)
+  gross_profit: number; // Σ profit de las citas (centavos) — ANTES de gastos fijos
   most_profitable_service: MostProfitableService | null;
 }
 
@@ -46,7 +46,7 @@ export function weekSummary(
 
   let total_income = 0;
   let total_cost = 0;
-  let net_profit = 0;
+  let gross_profit = 0;
   const profitByService = new Map<number, number>();
 
   for (const a of inScope) {
@@ -54,7 +54,7 @@ export function weekSummary(
     // el contrato los tipa como `number | null`; el `?? 0` es defensivo.
     total_income += a.charged_price ?? 0;
     total_cost += a.actual_cost ?? 0;
-    net_profit += a.profit ?? 0;
+    gross_profit += a.profit ?? 0;
 
     const acc = profitByService.get(a.service_id) ?? 0;
     profitByService.set(a.service_id, acc + (a.profit ?? 0));
@@ -80,7 +80,22 @@ export function weekSummary(
     completed_count: inScope.length,
     total_income,
     total_cost,
-    net_profit,
+    gross_profit,
     most_profitable_service,
   };
+}
+
+/** Suma los gastos fijos de un negocio (INVARIANTE 1). Todo en centavos. */
+export function sumFixedExpenses(expenses: readonly FixedExpense[], businessId: number): number {
+  return expenses
+    .filter((e) => e.business_id === businessId)
+    .reduce((total, e) => total + e.amount, 0);
+}
+
+/**
+ * Ganancia NETA = ganancia bruta (de las citas) − gastos fijos del periodo.
+ * Responde a lo que la dueña quiere ver: "cuánto gané en limpio".
+ */
+export function netProfit(grossProfit: number, fixedExpensesTotal: number): number {
+  return grossProfit - fixedExpensesTotal;
 }

@@ -13,10 +13,11 @@ import { effectiveCost, profit } from './costs';
 
 /** Transiciones permitidas, indexadas por estado de origen. */
 const VALID_TRANSITIONS: Readonly<Record<AppointmentStatus, readonly AppointmentStatus[]>> = {
-  PENDING: ['IN_PROGRESS', 'CANCELED', 'COMPLETED'],
+  PENDING: ['IN_PROGRESS', 'CANCELED', 'COMPLETED', 'NO_SHOW'],
   IN_PROGRESS: ['COMPLETED'],
   COMPLETED: [],
   CANCELED: [],
+  NO_SHOW: [],
 };
 
 /** ¿Es válida la transición `from → to` según la máquina de estados? */

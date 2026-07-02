@@ -1,7 +1,9 @@
 // Contrato de datos — fuente de verdad (PLAN.md §3.1, traducido a inglés).
 // No inventar otras formas. El dinero SIEMPRE en centavos enteros.
 
-export type AppointmentStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED';
+// NO_SHOW: la clienta no llegó. Se distingue de CANCELED para reportes
+// (cancelar es una decisión; no presentarse es un incumplimiento).
+export type AppointmentStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW';
 
 export interface Business {
   id: number; // el tenant. MVP: siempre 1
@@ -21,10 +23,13 @@ export interface Service {
   id: number;
   business_id: number; // INVARIANTE 1
   name: string;
-  price: number; // centavos. Precio de venta al cliente
+  price: number; // centavos. Precio de venta (0 o referencia si variable_price)
   supply_cost: number; // centavos. CACHE: suma de costos unitarios (INVARIANTE 6)
   cost_override: number | null; // si no es null, reemplaza a supply_cost
   duration_min: number;
+  // Si true, el precio no es fijo (trenzas, maquillaje…): la UI PIDE el precio en
+  // la cita en vez de heredarlo del servicio. El dinero igual se congela al COMPLETAR.
+  variable_price: boolean;
 }
 
 export interface Appointment {
@@ -38,4 +43,17 @@ export interface Appointment {
   charged_price: number | null;
   actual_cost: number | null;
   profit: number | null;
+}
+
+// Gasto fijo del negocio (luz, agua, transporte…) NO atribuible a una cita.
+// Se resta a nivel de REPORTE para pasar de ganancia bruta a neta (no toca la
+// inmutabilidad por cita, INVARIANTE 2).
+export type ExpensePeriod = 'MONTHLY';
+
+export interface FixedExpense {
+  id: number;
+  business_id: number; // INVARIANTE 1
+  concept: string;
+  amount: number; // centavos
+  period: ExpensePeriod;
 }

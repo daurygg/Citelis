@@ -32,9 +32,9 @@ export function WeekReport() {
           <div className="text-xl font-bold">{formatMoney(summary.total_cost)}</div>
         </div>
         <div className={card + ' col-span-2'}>
-          <div className="text-sm text-neutral-500">Ganancia neta</div>
-          <div className={'text-2xl font-bold ' + (summary.net_profit >= 0 ? 'text-green-700' : 'text-red-700')}>
-            {formatMoney(summary.net_profit)}
+          <div className="text-sm text-neutral-500">Ganancia de servicios</div>
+          <div className={'text-2xl font-bold ' + (summary.gross_profit >= 0 ? 'text-green-700' : 'text-red-700')}>
+            {formatMoney(summary.gross_profit)}
           </div>
         </div>
       </div>

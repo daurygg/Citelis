@@ -207,6 +207,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       supply_cost: 0,
       cost_override: null,
       duration_min: 60,
+      variable_price: false,
     };
     setServices((prev) => [...prev, service]);
     return nextId;
