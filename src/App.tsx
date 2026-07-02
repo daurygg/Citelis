@@ -5,7 +5,7 @@ import { StoreProvider } from './lib/store/StoreContext';
 import { DayAgenda } from './components/DayAgenda';
 import { ScheduleForm } from './components/ScheduleForm';
 import { ServicesScreen } from './components/ServicesScreen';
-import { WeekReport } from './components/WeekReport';
+import { PeriodReport } from './components/PeriodReport';
 
 type View = 'agenda' | 'services' | 'report';
 
@@ -52,7 +52,7 @@ export function App() {
             </div>
           )}
           {view === 'services' && <ServicesScreen />}
-          {view === 'report' && <WeekReport />}
+          {view === 'report' && <PeriodReport />}
         </main>
       </div>
     </StoreProvider>

@@ -99,3 +99,11 @@ export function sumFixedExpenses(expenses: readonly FixedExpense[], businessId: 
 export function netProfit(grossProfit: number, fixedExpensesTotal: number): number {
   return grossProfit - fixedExpensesTotal;
 }
+
+/**
+ * Prorratea un total de gastos fijos MENSUAL a un periodo de `days` días.
+ * Base de 30 días/mes. Así la ganancia neta es comparable en día/semana/mes/rango.
+ */
+export function proratedFixedExpenses(monthlyTotal: number, days: number): number {
+  return Math.round((monthlyTotal * days) / 30);
+}

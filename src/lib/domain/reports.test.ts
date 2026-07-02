@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { weekSummary, sumFixedExpenses, netProfit } from './reports';
+import { weekSummary, sumFixedExpenses, netProfit, proratedFixedExpenses } from './reports';
 import type { Appointment, FixedExpense } from './types';
 
 // Cita COMPLETED con valores ya congelados.
@@ -133,5 +133,19 @@ describe('netProfit', () => {
 
   it('puede ser negativa si los gastos superan la ganancia', () => {
     expect(netProfit(2000, 5000)).toBe(-3000);
+  });
+});
+
+describe('proratedFixedExpenses', () => {
+  it('un mes (30 días) devuelve el total mensual', () => {
+    expect(proratedFixedExpenses(30000, 30)).toBe(30000);
+  });
+
+  it('una semana (7 días) devuelve ~1/4 del mes', () => {
+    expect(proratedFixedExpenses(30000, 7)).toBe(7000);
+  });
+
+  it('un día devuelve 1/30 del mes', () => {
+    expect(proratedFixedExpenses(30000, 1)).toBe(1000);
   });
 });

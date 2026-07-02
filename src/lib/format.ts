@@ -58,6 +58,35 @@ export function shiftISODate(isoDate: string, days: number): string {
   return toISODate(new Date(year, month - 1, day + days));
 }
 
+/** Desplaza N meses, anclando al día 1 (evita desbordes como 31 → mes corto). */
+export function shiftMonthISODate(isoDate: string, months: number): string {
+  const [year, month] = isoDate.slice(0, 10).split('-').map(Number);
+  return toISODate(new Date(year, month - 1 + months, 1));
+}
+
+/** Rango del MES que contiene la fecha dada: [día 1, día 1 del mes siguiente). */
+export function monthRange(isoDate: string): { from: string; to: string } {
+  const [year, month] = isoDate.slice(0, 10).split('-').map(Number);
+  const first = new Date(year, month - 1, 1);
+  const nextFirst = new Date(year, month, 1);
+  return { from: `${toISODate(first)}T00:00:00`, to: `${toISODate(nextFirst)}T00:00:00` };
+}
+
+/** Cantidad de días (enteros) en un rango [from, to). */
+export function daysBetween(fromISO: string, toISO: string): number {
+  return Math.round((new Date(toISO).getTime() - new Date(fromISO).getTime()) / 86_400_000);
+}
+
+/** "2026-07-02" → "julio 2026". */
+export function monthLabel(isoDate: string): string {
+  const months = [
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+  ];
+  const [year, month] = isoDate.slice(0, 10).split('-').map(Number);
+  return `${months[month - 1]} ${year}`;
+}
+
 /** Rango de UN día como ISO local: [inicio, inicio del día siguiente). */
 export function dayRange(isoDate: string): { from: string; to: string } {
   const [year, month, day] = isoDate.slice(0, 10).split('-').map(Number);
