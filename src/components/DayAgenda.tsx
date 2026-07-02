@@ -1,24 +1,64 @@
-// Pantalla de inicio: la agenda de HOY. Solo lee del store y muestra.
-// No calcula dinero en el JSX (INVARIANTE 5): pide los valores ya calculados.
+// Pantalla de inicio: la agenda de un día (por defecto hoy, con navegación a
+// otros días). Solo lee del store y muestra. No calcula dinero en el JSX
+// (INVARIANTE 5): pide los valores ya calculados.
+import { useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
-import { formatMoney, todayISODate } from '../lib/format';
+import { formatDateShort, formatMoney, shiftISODate, todayISODate } from '../lib/format';
 import { AppointmentRow } from './AppointmentRow';
-import { card } from './ui';
+import { btnGhost, card } from './ui';
 
 export function DayAgenda() {
   const store = useStore();
   const today = todayISODate();
-  const appointments = store.appointmentsForDay(today);
-  const projected = store.projectedProfitForDay(today);
-  const realized = store.dayReport(today); // lo YA ganado hoy (citas completadas)
+  const [date, setDate] = useState(today);
+
+  const appointments = store.appointmentsForDay(date);
+  const projected = store.projectedProfitForDay(date);
+  const realized = store.dayReport(date); // lo YA ganado ese día (citas completadas)
+  const isToday = date === today;
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-lg font-semibold">Agenda de hoy</h2>
+      {/* Navegador de día */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className={btnGhost + ' px-3 py-1.5'}
+          onClick={() => setDate((d) => shiftISODate(d, -1))}
+          aria-label="Día anterior"
+        >
+          ‹
+        </button>
+        <div className="flex-1 text-center">
+          <div className="font-semibold">
+            {formatDateShort(date)} {isToday && <span className="text-rose-700">(hoy)</span>}
+          </div>
+          <input
+            type="date"
+            className="mt-1 text-sm text-neutral-500 outline-none"
+            value={date}
+            onChange={(e) => setDate(e.target.value || today)}
+          />
+        </div>
+        <button
+          type="button"
+          className={btnGhost + ' px-3 py-1.5'}
+          onClick={() => setDate((d) => shiftISODate(d, 1))}
+          aria-label="Día siguiente"
+        >
+          ›
+        </button>
+      </div>
+
+      {!isToday && (
+        <button type="button" className="self-center text-sm text-rose-700 hover:underline" onClick={() => setDate(today)}>
+          Volver a hoy
+        </button>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div className={card}>
-          <div className="text-xs text-neutral-400">Ganado hoy</div>
+          <div className="text-xs text-neutral-400">Ganado</div>
           <div className="text-xl font-bold text-green-700">{formatMoney(realized.gross_profit)}</div>
           <div className="text-xs text-neutral-500">{realized.completed_count} completada(s)</div>
         </div>
@@ -30,7 +70,9 @@ export function DayAgenda() {
       </div>
 
       {appointments.length === 0 ? (
-        <p className={card + ' text-neutral-500'}>No hay citas para hoy. Agenda la primera arriba.</p>
+        <p className={card + ' text-neutral-500'}>
+          {isToday ? 'No hay citas para hoy. Agenda la primera arriba.' : 'No hay citas para este día.'}
+        </p>
       ) : (
         <ul className="flex flex-col gap-3">
           {appointments.map((appointment) => (

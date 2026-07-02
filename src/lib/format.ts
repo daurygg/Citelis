@@ -52,6 +52,12 @@ export function nowLocalDatetime(): string {
   return `${toISODate(now)}T${hours}:${minutes}`;
 }
 
+/** Desplaza una fecha "YYYY-MM-DD" un número de días (positivo o negativo). */
+export function shiftISODate(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.slice(0, 10).split('-').map(Number);
+  return toISODate(new Date(year, month - 1, day + days));
+}
+
 /** Rango de UN día como ISO local: [inicio, inicio del día siguiente). */
 export function dayRange(isoDate: string): { from: string; to: string } {
   const [year, month, day] = isoDate.slice(0, 10).split('-').map(Number);
