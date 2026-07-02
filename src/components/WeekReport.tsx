@@ -1,13 +1,18 @@
 // Reporte semanal de ganancias. Solo lectura: muestra valores ya agregados por
 // weekSummary (dominio). No recalcula nada (INVARIANTE 2/5).
+// Distingue ganancia BRUTA (servicios) de NETA (bruta − gastos fijos del negocio).
 import { useStore } from '../lib/store/StoreContext';
+import { netProfit } from '../lib/domain/reports';
 import { currentWeekRange, formatDateShort, formatMoney } from '../lib/format';
+import { FixedExpenses } from './FixedExpenses';
 import { card } from './ui';
 
 export function WeekReport() {
   const store = useStore();
   const { from, to } = currentWeekRange();
   const summary = store.weekReport(from, to);
+  const fixedTotal = store.fixedExpensesTotal();
+  const net = netProfit(summary.gross_profit, fixedTotal);
 
   const topService =
     summary.most_profitable_service &&
@@ -28,13 +33,21 @@ export function WeekReport() {
           <div className="text-xl font-bold">{formatMoney(summary.total_income)}</div>
         </div>
         <div className={card}>
-          <div className="text-sm text-neutral-500">Costos</div>
+          <div className="text-sm text-neutral-500">Costo de insumos</div>
           <div className="text-xl font-bold">{formatMoney(summary.total_cost)}</div>
         </div>
-        <div className={card + ' col-span-2'}>
+        <div className={card}>
           <div className="text-sm text-neutral-500">Ganancia de servicios</div>
-          <div className={'text-2xl font-bold ' + (summary.gross_profit >= 0 ? 'text-green-700' : 'text-red-700')}>
-            {formatMoney(summary.gross_profit)}
+          <div className="text-xl font-bold text-green-700">{formatMoney(summary.gross_profit)}</div>
+        </div>
+        <div className={card}>
+          <div className="text-sm text-neutral-500">Gastos fijos (mes)</div>
+          <div className="text-xl font-bold text-neutral-700">−{formatMoney(fixedTotal)}</div>
+        </div>
+        <div className={card + ' col-span-2'}>
+          <div className="text-sm text-neutral-500">Ganancia neta (después de gastos fijos)</div>
+          <div className={'text-2xl font-bold ' + (net >= 0 ? 'text-green-700' : 'text-red-700')}>
+            {formatMoney(net)}
           </div>
         </div>
       </div>
@@ -50,6 +63,8 @@ export function WeekReport() {
           <div className="text-neutral-500">Aún no hay citas completadas esta semana.</div>
         )}
       </div>
+
+      <FixedExpenses />
     </section>
   );
 }

@@ -10,14 +10,22 @@ export function DayAgenda() {
   const today = todayISODate();
   const appointments = store.appointmentsForDay(today);
   const projected = store.projectedProfitForDay(today);
+  const realized = store.dayReport(today); // lo YA ganado hoy (citas completadas)
 
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Agenda de hoy</h2>
-        <div className="text-right">
-          <div className="text-xs text-neutral-400">Ganancia proyectada</div>
-          <div className="font-semibold text-rose-700">{formatMoney(projected)}</div>
+      <h2 className="text-lg font-semibold">Agenda de hoy</h2>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className={card}>
+          <div className="text-xs text-neutral-400">Ganado hoy</div>
+          <div className="text-xl font-bold text-green-700">{formatMoney(realized.gross_profit)}</div>
+          <div className="text-xs text-neutral-500">{realized.completed_count} completada(s)</div>
+        </div>
+        <div className={card}>
+          <div className="text-xs text-neutral-400">Proyectado (pendientes)</div>
+          <div className="text-xl font-bold text-rose-700">{formatMoney(projected)}</div>
+          <div className="text-xs text-neutral-500">aún no realizado</div>
         </div>
       </div>
 

@@ -13,8 +13,11 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
   const service = store.services.find((s) => s.id === serviceId);
   const supplies = store.suppliesForService(serviceId);
   const economics = store.serviceEconomics(serviceId);
+  // Insumos del negocio que aún NO están enlazados a este servicio (para compartir).
+  const availableToLink = store.allSupplies().filter((s) => !supplies.some((x) => x.id === s.id));
 
   const [showSupplies, setShowSupplies] = useState(true);
+  const [linkId, setLinkId] = useState(0);
   const [priceText, setPriceText] = useState(service ? String(service.price / 100) : '');
   const [overrideText, setOverrideText] = useState(
     service?.cost_override == null ? '' : String(service.cost_override / 100),
@@ -104,6 +107,33 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
               supplies.map((supply) => <SupplyRow key={supply.id} supply={supply} serviceId={serviceId} />)
             )}
             <AddSupplyForm serviceId={serviceId} />
+
+            {availableToLink.length > 0 && (
+              <div className="mt-3 flex items-end gap-2 rounded-xl bg-neutral-50 p-3">
+                <label className={field + ' flex-1'}>
+                  <span className={fieldLabel}>…o usa un insumo que ya tienes (compartido)</span>
+                  <select className={input} value={linkId} onChange={(e) => setLinkId(Number(e.target.value))}>
+                    <option value={0}>Elegir…</option>
+                    {availableToLink.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className={btnGhost}
+                  disabled={linkId === 0}
+                  onClick={() => {
+                    store.linkExistingSupply(serviceId, linkId);
+                    setLinkId(0);
+                  }}
+                >
+                  Enlazar
+                </button>
+              </div>
+            )}
           </div>
         )}
 
