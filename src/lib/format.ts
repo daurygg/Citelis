@@ -44,6 +44,14 @@ export function todayISODate(): string {
   return toISODate(new Date());
 }
 
+/** Ahora mismo en formato de <input type="datetime-local">: "YYYY-MM-DDTHH:MM". */
+export function nowLocalDatetime(): string {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  return `${toISODate(now)}T${hours}:${minutes}`;
+}
+
 /** Rango de UN día como ISO local: [inicio, inicio del día siguiente). */
 export function dayRange(isoDate: string): { from: string; to: string } {
   const [year, month, day] = isoDate.slice(0, 10).split('-').map(Number);
