@@ -5,6 +5,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Appointment, FixedExpense, Service, ServiceSupply, Supply } from '../domain/types';
 import { completeAppointment as completeAppointmentDomain, transition } from '../domain/appointments';
+import { findScheduleConflict } from '../domain/scheduling';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
 import { sumFixedExpenses, weekSummary, type WeekSummary } from '../domain/reports';
 import { dayRange } from '../format';
@@ -56,6 +57,7 @@ export interface Store {
   projectedProfitForDay: (isoDate: string) => number;
   dayReport: (isoDate: string) => WeekSummary;
   completionPreview: (appointmentId: number, overridePrice?: number) => CompletionPreview | null;
+  scheduleConflict: (datetime: string, serviceId: number) => Appointment | null;
   schedule: (input: ScheduleInput) => void;
   complete: (appointmentId: number, overridePrice?: number) => void;
   cancel: (appointmentId: number) => void;
@@ -235,6 +237,12 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   }
 
   // ── Escrituras (estado local + persistencia) ──────────────────────────────
+  // Devuelve una cita que choca con el horario propuesto, o null si está libre.
+  function scheduleConflict(datetime: string, serviceId: number): Appointment | null {
+    const scoped = appointments.filter((a) => a.business_id === businessId);
+    return findScheduleConflict({ datetime, service_id: serviceId }, scoped, services);
+  }
+
   function schedule(input: ScheduleInput): void {
     const appointment: Appointment = {
       id: newId(),
@@ -406,6 +414,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     projectedProfitForDay,
     dayReport,
     completionPreview,
+    scheduleConflict,
     schedule,
     complete,
     cancel,
