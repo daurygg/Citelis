@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, parseMoneyToCents, statusLabel } from '../lib/format';
 import type { AppointmentStatus, Appointment } from '../lib/domain/types';
+import { useToast } from './Toast';
 import { btnGhost, btnPrimary, card, field, fieldLabel, input } from './ui';
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
@@ -17,6 +18,7 @@ const STATUS_BADGE: Record<AppointmentStatus, string> = {
 
 export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const store = useStore();
+  const { notify } = useToast();
   const service = store.services.find((s) => s.id === appointment.service_id);
   const isVariable = service?.variable_price ?? false;
 
@@ -35,6 +37,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
     store.complete(appointment.id, priceCents);
     setCharging(false);
     setPriceText('');
+    notify('✓ Cita completada');
   }
 
   return (
@@ -61,7 +64,10 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
           <button
             type="button"
             className={btnGhost + ' px-3 py-1.5 text-sm'}
-            onClick={() => store.markNoShow(appointment.id)}
+            onClick={() => {
+              store.markNoShow(appointment.id);
+              notify('Marcada como “no llegó”');
+            }}
           >
             No llegó
           </button>
@@ -69,7 +75,10 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             type="button"
             className="px-3 py-1.5 text-sm text-red-600 hover:underline"
             onClick={() => {
-              if (window.confirm('¿Cancelar esta cita?')) store.cancel(appointment.id);
+              if (window.confirm('¿Cancelar esta cita?')) {
+                store.cancel(appointment.id);
+                notify('Cita cancelada');
+              }
             }}
           >
             Cancelar

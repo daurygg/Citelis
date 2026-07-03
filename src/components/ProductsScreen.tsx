@@ -3,10 +3,12 @@ import { useState, type FormEvent } from 'react';
 import { useInventory } from '../lib/store/InventoryContext';
 import { parseMoneyToCents } from '../lib/format';
 import { ProductRow } from './ProductRow';
+import { useToast } from './Toast';
 import { btnPrimary, card, field, fieldLabel, input } from './ui';
 
 export function ProductsScreen() {
   const inv = useInventory();
+  const { notify } = useToast();
   const [name, setName] = useState('');
   const [priceText, setPriceText] = useState('');
   const [costText, setCostText] = useState('');
@@ -21,6 +23,7 @@ export function ProductsScreen() {
     event.preventDefault();
     if (!canAdd || price === null || cost === null) return;
     inv.addProduct({ name: name.trim(), price, cost, stock: Math.floor(stock) });
+    notify('✓ Producto añadido');
     setName('');
     setPriceText('');
     setCostText('');

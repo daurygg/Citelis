@@ -3,14 +3,15 @@
 import { useState, type FormEvent } from 'react';
 import { useInventory } from '../lib/store/InventoryContext';
 import { formatMoney, parseMoneyToCents } from '../lib/format';
+import { useToast } from './Toast';
 import { btnPrimary, card, field, fieldLabel, input } from './ui';
 
 export function SellForm() {
   const inv = useInventory();
+  const { notify } = useToast();
   const [productId, setProductId] = useState<number>(inv.products[0]?.id ?? 0);
   const [qtyText, setQtyText] = useState('1');
   const [priceText, setPriceText] = useState('');
-  const [notice, setNotice] = useState<string | null>(null);
 
   const product = inv.products.find((p) => p.id === productId);
   const quantity = Number(qtyText);
@@ -27,11 +28,11 @@ export function SellForm() {
     if (!canSell) return;
     const ok = inv.registerSale(productId, Math.floor(quantity), override);
     if (ok) {
-      setNotice(`Venta registrada: ${Math.floor(quantity)} × ${product?.name}.`);
+      notify(`✓ Venta registrada: ${Math.floor(quantity)} × ${product?.name}`);
       setQtyText('1');
       setPriceText('');
     } else {
-      setNotice('No se pudo registrar (sin stock suficiente).');
+      notify('No se pudo registrar (sin stock suficiente).', 'error');
     }
   }
 
@@ -75,7 +76,6 @@ export function SellForm() {
       )}
 
       {product && !enoughStock && validQty && <p className="text-sm text-red-600">No hay stock suficiente.</p>}
-      {notice && <p className="text-sm text-neutral-600">{notice}</p>}
 
       <button type="submit" className={btnPrimary} disabled={!canSell}>
         Registrar venta

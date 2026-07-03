@@ -5,10 +5,12 @@
 import { useState, type FormEvent } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { nowLocalDatetime, parseMoneyToCents } from '../lib/format';
+import { useToast } from './Toast';
 import { btnPrimary, card, field, fieldLabel, input } from './ui';
 
 export function ScheduleForm() {
   const store = useStore();
+  const { notify } = useToast();
   const [client, setClient] = useState('');
   const [serviceId, setServiceId] = useState<number>(store.services[0]?.id ?? 0);
   const [datetime, setDatetime] = useState('');
@@ -35,8 +37,10 @@ export function ScheduleForm() {
         datetime: datetime || nowLocalDatetime(),
         price: priceCents,
       });
+      notify('✓ Atención registrada y cobrada');
     } else {
       store.schedule({ client: client.trim(), service_id: serviceId, datetime });
+      notify('✓ Cita agendada');
     }
     setClient('');
     setDatetime('');

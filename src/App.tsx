@@ -13,6 +13,7 @@ import { ProductsScreen } from './components/ProductsScreen';
 import { SellForm } from './components/SellForm';
 import { ClothingReport } from './components/ClothingReport';
 import { Login } from './components/Login';
+import { ToastProvider } from './components/Toast';
 
 type Mode = 'services' | 'clothing';
 type ServiceView = 'agenda' | 'services' | 'report';
@@ -31,9 +32,11 @@ const CLOTHING_TABS: { id: ClothingView; label: string }[] = [
 
 export function App() {
   return (
-    <AuthProvider>
-      <Root />
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <Root />
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 
