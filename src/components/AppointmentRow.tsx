@@ -43,7 +43,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   return (
     <li className={card + ' flex flex-col gap-3'}>
       <div className="flex items-center gap-3">
-        <span className="w-14 shrink-0 font-semibold tabular-nums">{formatTime(appointment.datetime)}</span>
+        <span className="w-20 shrink-0 font-semibold tabular-nums">{formatTime(appointment.datetime)}</span>
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium">{appointment.client}</div>
           <div className="truncate text-sm text-neutral-500">{service?.name ?? 'Servicio desconocido'}</div>

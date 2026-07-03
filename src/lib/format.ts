@@ -14,9 +14,13 @@ export function formatMoney(cents: number): string {
   return `${sign}$${wholeWithSeparators}.${frac}`;
 }
 
-/** ISO 8601 → "HH:MM" usando el texto literal (sin saltos de zona horaria). */
+/** ISO 8601 → hora de 12h con AM/PM. Ej: "2026-07-02T14:30" → "2:30 PM". */
 export function formatTime(iso: string): string {
-  return iso.slice(11, 16);
+  const [hourStr, minute] = iso.slice(11, 16).split(':');
+  const hour = Number(hourStr);
+  const period = hour < 12 ? 'AM' : 'PM';
+  const hour12 = hour % 12 === 0 ? 12 : hour % 12;
+  return `${hour12}:${minute} ${period}`;
 }
 
 /**
