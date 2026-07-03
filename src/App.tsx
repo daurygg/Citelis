@@ -1,19 +1,31 @@
 // Raíz de la app. Puerta de autenticación: sin sesión → Login; con sesión → la app.
+// Dos modos separados (INVARIANTE 3): Servicios y Ropa, cada uno con sus pestañas.
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './lib/auth/AuthContext';
 import { supabase } from './lib/supabase/client';
 import { StoreProvider } from './lib/store/StoreContext';
+import { InventoryProvider } from './lib/store/InventoryContext';
 import { DayAgenda } from './components/DayAgenda';
 import { ScheduleForm } from './components/ScheduleForm';
 import { ServicesScreen } from './components/ServicesScreen';
 import { PeriodReport } from './components/PeriodReport';
+import { ProductsScreen } from './components/ProductsScreen';
+import { SellForm } from './components/SellForm';
+import { ClothingReport } from './components/ClothingReport';
 import { Login } from './components/Login';
 
-type View = 'agenda' | 'services' | 'report';
+type Mode = 'services' | 'clothing';
+type ServiceView = 'agenda' | 'services' | 'report';
+type ClothingView = 'sell' | 'products' | 'report';
 
-const TABS: { id: View; label: string }[] = [
+const SERVICE_TABS: { id: ServiceView; label: string }[] = [
   { id: 'agenda', label: 'Agenda' },
   { id: 'services', label: 'Servicios' },
+  { id: 'report', label: 'Reporte' },
+];
+const CLOTHING_TABS: { id: ClothingView; label: string }[] = [
+  { id: 'sell', label: 'Vender' },
+  { id: 'products', label: 'Productos' },
   { id: 'report', label: 'Reporte' },
 ];
 
@@ -25,7 +37,6 @@ export function App() {
   );
 }
 
-// Decide qué mostrar según la sesión.
 function Root() {
   const { session, loading } = useAuth();
   if (loading) {
@@ -39,10 +50,18 @@ function Root() {
   );
 }
 
-// La app autenticada: cabecera con pestañas + salir, y la pantalla activa.
+function tabButtonClass(active: boolean): string {
+  return (
+    'flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ' +
+    (active ? 'bg-white text-rose-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800')
+  );
+}
+
 function AppShell() {
   const { signOut } = useAuth();
-  const [view, setView] = useState<View>('agenda');
+  const [mode, setMode] = useState<Mode>('services');
+  const [serviceView, setServiceView] = useState<ServiceView>('agenda');
+  const [clothingView, setClothingView] = useState<ClothingView>('sell');
   const [inviteCode, setInviteCode] = useState<string | null>(null);
 
   async function invite() {
@@ -80,33 +99,53 @@ function AppShell() {
               </button>
             </div>
           )}
-          <nav className="mt-3 flex gap-1 rounded-xl bg-neutral-100 p-1">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setView(tab.id)}
-                className={
-                  'flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ' +
-                  (view === tab.id ? 'bg-white text-rose-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800')
-                }
-              >
-                {tab.label}
-              </button>
-            ))}
+
+          {/* Cambio de modo: Servicios / Ropa (líneas de negocio separadas) */}
+          <div className="mt-3 flex gap-1 rounded-xl bg-neutral-100 p-1">
+            <button type="button" className={tabButtonClass(mode === 'services')} onClick={() => setMode('services')}>
+              Servicios
+            </button>
+            <button type="button" className={tabButtonClass(mode === 'clothing')} onClick={() => setMode('clothing')}>
+              Ropa
+            </button>
+          </div>
+
+          {/* Pestañas del modo activo */}
+          <nav className="mt-2 flex gap-1 rounded-xl bg-neutral-100 p-1">
+            {mode === 'services'
+              ? SERVICE_TABS.map((tab) => (
+                  <button key={tab.id} type="button" className={tabButtonClass(serviceView === tab.id)} onClick={() => setServiceView(tab.id)}>
+                    {tab.label}
+                  </button>
+                ))
+              : CLOTHING_TABS.map((tab) => (
+                  <button key={tab.id} type="button" className={tabButtonClass(clothingView === tab.id)} onClick={() => setClothingView(tab.id)}>
+                    {tab.label}
+                  </button>
+                ))}
           </nav>
         </div>
       </header>
 
       <main className="mx-auto max-w-xl px-4 py-6">
-        {view === 'agenda' && (
-          <div className="flex flex-col gap-6">
-            <ScheduleForm />
-            <DayAgenda />
-          </div>
+        {mode === 'services' ? (
+          <>
+            {serviceView === 'agenda' && (
+              <div className="flex flex-col gap-6">
+                <ScheduleForm />
+                <DayAgenda />
+              </div>
+            )}
+            {serviceView === 'services' && <ServicesScreen />}
+            {serviceView === 'report' && <PeriodReport />}
+          </>
+        ) : (
+          <InventoryProvider>
+            {clothingView === 'sell' && <SellForm />}
+            {clothingView === 'products' && <ProductsScreen />}
+            {clothingView === 'report' && <ClothingReport />}
+          </InventoryProvider>
         )}
-        {view === 'services' && <ServicesScreen />}
-        {view === 'report' && <PeriodReport />}
       </main>
     </div>
   );
