@@ -2,10 +2,12 @@
 // agrega valores ya congelados (salesSummary del dominio de inventario).
 import { useState } from 'react';
 import { useInventory } from '../lib/store/InventoryContext';
+import { saleRevenue } from '../lib/domain/inventory/sales';
 import {
   dayRange,
   formatDateShort,
   formatMoney,
+  formatTime,
   monthLabel,
   monthRange,
   shiftISODate,
@@ -13,6 +15,7 @@ import {
   todayISODate,
   weekRange,
 } from '../lib/format';
+import { useToast } from './Toast';
 import { btnGhost, card, field, fieldLabel, input } from './ui';
 
 type Mode = 'day' | 'week' | 'month' | 'range';
@@ -25,6 +28,7 @@ const MODES: { id: Mode; label: string }[] = [
 
 export function ClothingReport() {
   const inv = useInventory();
+  const { notify } = useToast();
   const today = todayISODate();
   const [mode, setMode] = useState<Mode>('month');
   const [anchor, setAnchor] = useState(today);
@@ -50,8 +54,19 @@ export function ClothingReport() {
   }
 
   const summary = inv.salesReport(from, to);
+  const periodSales = inv.salesInPeriod(from, to);
   const topProduct =
     summary.best_seller && inv.products.find((p) => p.id === summary.best_seller?.product_id);
+
+  function productName(id: number): string {
+    return inv.products.find((p) => p.id === id)?.name ?? `Producto ${id}`;
+  }
+
+  function handleDeleteSale(saleId: number) {
+    if (!window.confirm('¿Eliminar esta venta? El stock volverá a su lugar.')) return;
+    inv.deleteSale(saleId);
+    notify('Venta eliminada, stock restaurado');
+  }
 
   function navigate(direction: -1 | 1) {
     if (mode === 'day') setAnchor((a) => shiftISODate(a, direction));
@@ -132,6 +147,31 @@ export function ClothingReport() {
           </div>
         ) : (
           <div className="text-neutral-500">Sin ventas en este periodo.</div>
+        )}
+      </div>
+
+      <div className={card + ' flex flex-col gap-2'}>
+        <h3 className="font-semibold">Ventas del periodo</h3>
+        {periodSales.length === 0 ? (
+          <p className="text-sm text-neutral-500">No hay ventas registradas en este periodo.</p>
+        ) : (
+          <ul className="flex flex-col divide-y divide-neutral-100">
+            {periodSales.map((sale) => (
+              <li key={sale.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">
+                    {sale.quantity} × {productName(sale.product_id)}
+                  </div>
+                  <div className="text-xs text-neutral-500">
+                    {formatDateShort(sale.datetime)} · {formatTime(sale.datetime)} · {formatMoney(saleRevenue(sale))}
+                  </div>
+                </div>
+                <button type="button" className="shrink-0 text-sm text-red-600 hover:underline" onClick={() => handleDeleteSale(sale.id)}>
+                  Eliminar
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </section>

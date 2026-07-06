@@ -22,6 +22,8 @@ export interface ProductPatch {
 export interface Inventory {
   products: readonly Product[];
   salesReport: (from: string, to: string) => SalesSummary;
+  salesInPeriod: (from: string, to: string) => Sale[];
+  deleteSale: (saleId: number) => void; // borra una venta y restaura el stock
   addProduct: (input: ProductInput) => void;
   updateProduct: (id: number, patch: ProductPatch) => void;
   deleteProduct: (id: number) => void;
@@ -82,6 +84,33 @@ function InventoryReady({ loaded, children }: { loaded: Loaded; children: ReactN
     return salesSummary(sales, businessId, from, to);
   }
 
+  // Ventas del periodo (más recientes primero), para revisarlas o corregirlas.
+  function salesInPeriod(from: string, to: string): Sale[] {
+    const fromTime = new Date(from).getTime();
+    const toTime = new Date(to).getTime();
+    return sales
+      .filter((s) => s.business_id === businessId)
+      .filter((s) => {
+        const t = new Date(s.datetime).getTime();
+        return t >= fromTime && t < toTime;
+      })
+      .sort((a, b) => b.datetime.localeCompare(a.datetime));
+  }
+
+  // Borra una venta registrada por error y DEVUELVE su cantidad al stock.
+  function deleteSale(saleId: number): void {
+    const sale = sales.find((s) => s.id === saleId);
+    if (!sale) return;
+    const product = products.find((p) => p.id === sale.product_id);
+    setSales((prev) => prev.filter((s) => s.id !== saleId));
+    if (product) {
+      const stock = product.stock + sale.quantity;
+      setProducts((prev) => prev.map((p) => (p.id === sale.product_id ? { ...p, stock } : p)));
+      persist(supabase.from('product').update({ stock }).eq('id', sale.product_id));
+    }
+    persist(supabase.from('sale').delete().eq('id', saleId));
+  }
+
   function addProduct(input: ProductInput): void {
     const product: Product = { id: newId(), business_id: businessId, ...input };
     setProducts((prev) => [...prev, product]);
@@ -132,6 +161,8 @@ function InventoryReady({ loaded, children }: { loaded: Loaded; children: ReactN
   const inventory: Inventory = {
     products,
     salesReport,
+    salesInPeriod,
+    deleteSale,
     addProduct,
     updateProduct,
     deleteProduct,
