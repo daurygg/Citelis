@@ -17,7 +17,17 @@ export function ProductsScreen() {
   const price = parseMoneyToCents(priceText);
   const cost = parseMoneyToCents(costText);
   const stock = Number(stockText);
-  const canAdd = name.trim() !== '' && price !== null && cost !== null && Number.isFinite(stock) && stock >= 0;
+
+  // Duplicado: mismo nombre (ignorando mayúsculas/espacios), precio y costo.
+  const isDuplicate =
+    price !== null &&
+    cost !== null &&
+    inv.products.some(
+      (p) => p.name.trim().toLowerCase() === name.trim().toLowerCase() && p.price === price && p.cost === cost,
+    );
+
+  const canAdd =
+    name.trim() !== '' && price !== null && cost !== null && Number.isFinite(stock) && stock >= 0 && !isDuplicate;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -54,6 +64,11 @@ export function ProductsScreen() {
             <input className={input} type="number" min={0} value={stockText} onChange={(e) => setStockText(e.target.value)} />
           </label>
         </div>
+        {isDuplicate && (
+          <p className="text-sm text-red-600">
+            Ya existe un producto con ese nombre, precio y costo. Si necesitas más unidades, usa "Añadir stock".
+          </p>
+        )}
         <button type="submit" className={btnPrimary} disabled={!canAdd}>
           Añadir producto
         </button>
