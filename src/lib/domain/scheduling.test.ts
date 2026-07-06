@@ -24,6 +24,8 @@ function appointment(partial: Partial<Appointment> = {}): Appointment {
     client: 'Ana',
     datetime: '2026-07-02T10:00',
     status: 'PENDING',
+    quoted_price: null,
+    deposit: null,
     charged_price: null,
     actual_cost: null,
     profit: null,

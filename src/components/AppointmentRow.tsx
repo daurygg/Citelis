@@ -23,7 +23,10 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const isVariable = service?.variable_price ?? false;
 
   const [charging, setCharging] = useState(false);
-  const [priceText, setPriceText] = useState('');
+  // Prefija el precio del cobro con el acordado al agendar (si lo hay).
+  const [priceText, setPriceText] = useState(
+    appointment.quoted_price != null ? String(appointment.quoted_price / 100) : '',
+  );
 
   const isOpen = appointment.status === 'PENDING' || appointment.status === 'IN_PROGRESS';
   const parsed = parseMoneyToCents(priceText);
@@ -47,6 +50,9 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium">{appointment.client}</div>
           <div className="truncate text-sm text-neutral-500">{service?.name ?? 'Servicio desconocido'}</div>
+          {appointment.deposit != null && appointment.deposit > 0 && appointment.status !== 'COMPLETED' && (
+            <div className="text-xs text-rose-700">Abonó {formatMoney(appointment.deposit)}</div>
+          )}
         </div>
         <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + STATUS_BADGE[appointment.status]}>
           {statusLabel(appointment.status)}
@@ -114,6 +120,19 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             <span className="text-neutral-600">Ganancia</span>
             <strong className="text-green-700">{formatMoney(preview.profit)}</strong>
           </div>
+
+          {appointment.deposit != null && appointment.deposit > 0 && (
+            <>
+              <div className="flex justify-between border-t border-neutral-200 pt-2">
+                <span className="text-neutral-600">Abono ya pagado</span>
+                <span>−{formatMoney(appointment.deposit)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-600">Resto por cobrar</span>
+                <strong>{formatMoney(preview.charged_price - appointment.deposit)}</strong>
+              </div>
+            </>
+          )}
 
           {!isVariable && (
             <label className={field + ' mt-1'}>

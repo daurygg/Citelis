@@ -24,6 +24,8 @@ function appointment(partial: Partial<Appointment> = {}): Appointment {
     client: 'Ana',
     datetime: '2026-06-29T10:00:00.000Z',
     status: 'PENDING',
+    quoted_price: null,
+    deposit: null,
     charged_price: null,
     actual_cost: null,
     profit: null,
@@ -102,6 +104,18 @@ describe('completeAppointment', () => {
     const done = completeAppointment(appointment(), svc, 4000); // descuento
     expect(done.charged_price).toBe(4000);
     expect(done.profit).toBe(3000);
+  });
+
+  it('usa el precio acordado (quoted_price) si no hay override', () => {
+    const svc = service({ price: 5000, supply_cost: 1000, variable_price: true });
+    const done = completeAppointment(appointment({ quoted_price: 7000 }), svc);
+    expect(done.charged_price).toBe(7000); // acordado manda sobre el precio del servicio
+    expect(done.profit).toBe(6000);
+  });
+
+  it('el override del cobro manda sobre el precio acordado', () => {
+    const done = completeAppointment(appointment({ quoted_price: 7000 }), service({ price: 5000, supply_cost: 1000 }), 8000);
+    expect(done.charged_price).toBe(8000);
   });
 
   it('usa el cost_override del servicio como costo real si existe', () => {

@@ -18,6 +18,8 @@ export interface ScheduleInput {
   service_id: number;
   client: string;
   datetime: string;
+  quoted_price?: number; // precio acordado (servicios variables), opcional
+  deposit?: number; // abono/adelanto pagado al reservar, opcional
 }
 export interface WalkInInput {
   service_id: number;
@@ -207,7 +209,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     if (!appointment) return null;
     const service = services.find((s) => s.id === appointment.service_id);
     if (!service) return null;
-    const charged_price = overridePrice ?? service.price;
+    const charged_price = overridePrice ?? appointment.quoted_price ?? service.price;
     const actual_cost = effectiveCost(service);
     return { charged_price, actual_cost, profit: profit(charged_price, actual_cost) };
   }
@@ -251,6 +253,8 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       client: input.client,
       datetime: input.datetime,
       status: 'PENDING',
+      quoted_price: input.quoted_price ?? null,
+      deposit: input.deposit ?? null,
       charged_price: null,
       actual_cost: null,
       profit: null,
@@ -300,6 +304,8 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       client: input.client,
       datetime: input.datetime,
       status: 'PENDING',
+      quoted_price: null,
+      deposit: null,
       charged_price: null,
       actual_cost: null,
       profit: null,

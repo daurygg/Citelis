@@ -49,6 +49,9 @@ export interface Appointment {
   client: string;
   datetime: string; // ISO 8601
   status: AppointmentStatus;
+  // Datos operativos capturados al AGENDAR (no son el resultado congelado):
+  quoted_price: number | null; // precio acordado (útil en servicios de precio variable)
+  deposit: number | null; // abono/adelanto pagado por la clienta al reservar
   // CONGELADOS al completar (INVARIANTE 2). null mientras no esté COMPLETED:
   charged_price: number | null;
   actual_cost: number | null;

@@ -11,6 +11,8 @@ function completed(partial: Partial<Appointment>): Appointment {
     client: 'Ana',
     datetime: '2026-06-29T10:00:00.000Z',
     status: 'COMPLETED',
+    quoted_price: null,
+    deposit: null,
     charged_price: 5000,
     actual_cost: 1000,
     profit: 4000,

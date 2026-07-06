@@ -74,7 +74,8 @@ export function completeAppointment(
     );
   }
 
-  const charged_price = overridePrice ?? service.price;
+  // Prioridad: precio del cobro (override) > precio acordado al agendar > precio del servicio.
+  const charged_price = overridePrice ?? appointment.quoted_price ?? service.price;
   const actual_cost = effectiveCost(service);
 
   return {

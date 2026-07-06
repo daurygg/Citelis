@@ -16,11 +16,15 @@ export function ScheduleForm() {
   const [datetime, setDatetime] = useState('');
   const [walkIn, setWalkIn] = useState(false);
   const [priceText, setPriceText] = useState('');
+  const [quotedText, setQuotedText] = useState(''); // precio acordado (al agendar)
+  const [depositText, setDepositText] = useState(''); // abono/adelanto (al agendar)
 
   const selectedService = store.services.find((s) => s.id === serviceId);
   const isVariable = selectedService?.variable_price ?? false;
   const parsedPrice = parseMoneyToCents(priceText);
   const priceCents = priceText.trim() === '' ? undefined : (parsedPrice ?? undefined);
+  const quotedCents = quotedText.trim() === '' ? undefined : (parseMoneyToCents(quotedText) ?? undefined);
+  const depositCents = depositText.trim() === '' ? undefined : (parseMoneyToCents(depositText) ?? undefined);
 
   const baseValid = client.trim() !== '' && serviceId > 0;
   // Al cobrar (walk-in) un servicio de precio variable, el precio es obligatorio.
@@ -44,12 +48,20 @@ export function ScheduleForm() {
         notify(`Ese horario choca con ${conflict.client} (${formatTime(conflict.datetime)})`, 'error');
         return;
       }
-      store.schedule({ client: client.trim(), service_id: serviceId, datetime });
+      store.schedule({
+        client: client.trim(),
+        service_id: serviceId,
+        datetime,
+        quoted_price: quotedCents,
+        deposit: depositCents,
+      });
       notify('✓ Cita agendada');
     }
     setClient('');
     setDatetime('');
     setPriceText('');
+    setQuotedText('');
+    setDepositText('');
   }
 
   return (
@@ -97,6 +109,34 @@ export function ScheduleForm() {
             value={priceText}
             onChange={(e) => setPriceText(e.target.value)}
             placeholder={isVariable ? 'Precio de esta cita' : 'Dejar vacío para el precio normal'}
+          />
+        </label>
+      )}
+
+      {!walkIn && isVariable && (
+        <label className={field}>
+          <span className={fieldLabel}>Precio acordado (opcional; puedes ponerlo al cobrar)</span>
+          <input
+            className={input}
+            type="text"
+            inputMode="decimal"
+            value={quotedText}
+            onChange={(e) => setQuotedText(e.target.value)}
+            placeholder="Ej: para maquillaje, el precio pactado"
+          />
+        </label>
+      )}
+
+      {!walkIn && (
+        <label className={field}>
+          <span className={fieldLabel}>Abono / adelanto (opcional)</span>
+          <input
+            className={input}
+            type="text"
+            inputMode="decimal"
+            value={depositText}
+            onChange={(e) => setDepositText(e.target.value)}
+            placeholder="Lo que dejó pagado por adelantado"
           />
         </label>
       )}

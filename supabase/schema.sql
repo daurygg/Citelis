@@ -64,6 +64,8 @@ create table if not exists appointment (
   client        text   not null,
   datetime      text   not null,   -- ISO 8601 (coherente con el dominio)
   status        text   not null,   -- PENDING | IN_PROGRESS | COMPLETED | CANCELED | NO_SHOW
+  quoted_price  bigint,            -- precio acordado al agendar (opcional)
+  deposit       bigint,            -- abono/adelanto pagado al reservar (opcional)
   charged_price bigint,            -- congelados al COMPLETAR (INVARIANTE 2)
   actual_cost   bigint,
   profit        bigint
