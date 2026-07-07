@@ -1,6 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { weekSummary, sumFixedExpenses, netProfit, proratedFixedExpenses } from './reports';
-import type { Appointment, FixedExpense } from './types';
+import { weekSummary, sumFixedExpenses, netProfit, proratedFixedExpenses, expectedProfit } from './reports';
+import type { Appointment, FixedExpense, Service } from './types';
+
+function svc(partial: Partial<Service> = {}): Service {
+  return {
+    id: 1,
+    business_id: 1,
+    name: 'Servicio',
+    price: 0,
+    supply_cost: 0,
+    cost_override: null,
+    duration_min: 60,
+    variable_price: false,
+    ...partial,
+  };
+}
 
 // Cita COMPLETED con valores ya congelados.
 function completed(partial: Partial<Appointment>): Appointment {
@@ -135,6 +149,23 @@ describe('netProfit', () => {
 
   it('puede ser negativa si los gastos superan la ganancia', () => {
     expect(netProfit(2000, 5000)).toBe(-3000);
+  });
+});
+
+describe('expectedProfit (proyección de citas abiertas)', () => {
+  it('servicio de precio fijo: precio − costo', () => {
+    const service = svc({ price: 5000, supply_cost: 1000 });
+    expect(expectedProfit(completed({ quoted_price: null }), service)).toBe(4000);
+  });
+
+  it('servicio variable SIN precio acordado: null (no se proyecta)', () => {
+    const service = svc({ price: 0, supply_cost: 2000, variable_price: true });
+    expect(expectedProfit(completed({ quoted_price: null }), service)).toBeNull();
+  });
+
+  it('servicio variable CON precio acordado: usa el acordado', () => {
+    const service = svc({ price: 0, supply_cost: 2000, variable_price: true });
+    expect(expectedProfit(completed({ quoted_price: 7000 }), service)).toBe(5000);
   });
 });
 

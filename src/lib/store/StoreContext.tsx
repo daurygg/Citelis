@@ -7,7 +7,7 @@ import type { Appointment, FixedExpense, Service, ServiceSupply, Supply } from '
 import { completeAppointment as completeAppointmentDomain, transition } from '../domain/appointments';
 import { findScheduleConflict } from '../domain/scheduling';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
-import { sumFixedExpenses, weekSummary, type WeekSummary } from '../domain/reports';
+import { expectedProfit, sumFixedExpenses, weekSummary, type WeekSummary } from '../domain/reports';
 import { dayRange } from '../format';
 import { supabase } from '../supabase/client';
 import { useAuth } from '../auth/AuthContext';
@@ -195,7 +195,9 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       .reduce((sum: number, a) => {
         const service = services.find((s) => s.id === a.service_id);
         if (!service) return sum;
-        return sum + profit(service.price, effectiveCost(service));
+        // Usa el precio acordado si lo hay; ignora precios desconocidos (null).
+        const expected = expectedProfit(a, service);
+        return expected === null ? sum : sum + expected;
       }, 0);
   }
 

@@ -2,7 +2,8 @@
 // Solo LECTURA: agrega valores ya congelados de citas COMPLETED. No recalcula nada.
 // CERO dependencias de React. Todo en centavos enteros.
 
-import type { Appointment, FixedExpense } from './types';
+import type { Appointment, FixedExpense, Service } from './types';
+import { effectiveCost, profit } from './costs';
 
 export interface MostProfitableService {
   service_id: number;
@@ -98,6 +99,18 @@ export function sumFixedExpenses(expenses: readonly FixedExpense[], businessId: 
  */
 export function netProfit(grossProfit: number, fixedExpensesTotal: number): number {
   return grossProfit - fixedExpensesTotal;
+}
+
+/**
+ * Ganancia ESPERADA de una cita aún abierta (para la proyección del día).
+ * Usa el precio acordado (quoted_price) si existe; si el precio efectivo queda
+ * en 0 (servicio variable sin precio acordado) devuelve null → NO se proyecta
+ * (precio desconocido, mejor que estimar en negativo por el costo de insumos).
+ */
+export function expectedProfit(appointment: Appointment, service: Service): number | null {
+  const price = appointment.quoted_price ?? service.price;
+  if (price <= 0) return null;
+  return profit(price, effectiveCost(service));
 }
 
 /**
