@@ -186,6 +186,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     const dayKey = isoDate.slice(0, 10);
     return appointments
       .filter((a) => a.business_id === businessId)
+      .filter((a) => a.status !== 'CANCELED') // las canceladas no se muestran en la agenda
       .filter((a) => a.datetime.slice(0, 10) === dayKey)
       .sort((a, b) => a.datetime.localeCompare(b.datetime));
   }
