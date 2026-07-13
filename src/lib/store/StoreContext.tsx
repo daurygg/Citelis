@@ -59,8 +59,9 @@ export interface Store {
   projectedProfitForDay: (isoDate: string) => number;
   dayReport: (isoDate: string) => WeekSummary;
   completionPreview: (appointmentId: number, overridePrice?: number) => CompletionPreview | null;
-  scheduleConflict: (datetime: string, serviceId: number) => Appointment | null;
+  scheduleConflict: (datetime: string, serviceId: number, excludeId?: number) => Appointment | null;
   schedule: (input: ScheduleInput) => void;
+  reschedule: (appointmentId: number, datetime: string) => void;
   complete: (appointmentId: number, overridePrice?: number) => void;
   cancel: (appointmentId: number) => void;
   markNoShow: (appointmentId: number) => void;
@@ -242,9 +243,15 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
 
   // ── Escrituras (estado local + persistencia) ──────────────────────────────
   // Devuelve una cita que choca con el horario propuesto, o null si está libre.
-  function scheduleConflict(datetime: string, serviceId: number): Appointment | null {
+  function scheduleConflict(datetime: string, serviceId: number, excludeId?: number): Appointment | null {
     const scoped = appointments.filter((a) => a.business_id === businessId);
-    return findScheduleConflict({ datetime, service_id: serviceId }, scoped, services);
+    return findScheduleConflict({ datetime, service_id: serviceId, id: excludeId }, scoped, services);
+  }
+
+  // Reprograma (cambia fecha/hora) una cita abierta. No congela dinero (INVARIANTE 2).
+  function reschedule(appointmentId: number, datetime: string): void {
+    setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, datetime } : a)));
+    persist(supabase.from('appointment').update({ datetime }).eq('id', appointmentId));
   }
 
   function schedule(input: ScheduleInput): void {
@@ -424,6 +431,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     completionPreview,
     scheduleConflict,
     schedule,
+    reschedule,
     complete,
     cancel,
     markNoShow,

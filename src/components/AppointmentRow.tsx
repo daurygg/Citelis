@@ -23,6 +23,8 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const isVariable = service?.variable_price ?? false;
 
   const [charging, setCharging] = useState(false);
+  const [rescheduling, setRescheduling] = useState(false);
+  const [newDatetime, setNewDatetime] = useState(appointment.datetime.slice(0, 16));
   // Prefija el precio del cobro con el acordado al agendar (si lo hay).
   const [priceText, setPriceText] = useState(
     appointment.quoted_price != null ? String(appointment.quoted_price / 100) : '',
@@ -41,6 +43,18 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
     setCharging(false);
     setPriceText('');
     notify('✓ Cita completada');
+  }
+
+  function handleReschedule() {
+    if (newDatetime === '') return;
+    const conflict = store.scheduleConflict(newDatetime, appointment.service_id, appointment.id);
+    if (conflict) {
+      notify(`Ese horario choca con ${conflict.client} (${formatTime(conflict.datetime)})`, 'error');
+      return;
+    }
+    store.reschedule(appointment.id, newDatetime);
+    setRescheduling(false);
+    notify('✓ Cita reprogramada');
   }
 
   return (
@@ -70,6 +84,13 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
           <button
             type="button"
             className={btnGhost + ' px-3 py-1.5 text-sm'}
+            onClick={() => setRescheduling((v) => !v)}
+          >
+            {rescheduling ? 'Cerrar' : 'Reprogramar'}
+          </button>
+          <button
+            type="button"
+            className={btnGhost + ' px-3 py-1.5 text-sm'}
             onClick={() => {
               store.markNoShow(appointment.id);
               notify('Marcada como “no llegó”');
@@ -88,6 +109,23 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             }}
           >
             Cancelar
+          </button>
+        </div>
+      )}
+
+      {rescheduling && (
+        <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
+          <label className={field}>
+            <span className={fieldLabel}>Nueva fecha y hora</span>
+            <input
+              className={input}
+              type="datetime-local"
+              value={newDatetime}
+              onChange={(e) => setNewDatetime(e.target.value)}
+            />
+          </label>
+          <button type="button" className={btnPrimary} onClick={handleReschedule} disabled={newDatetime === ''}>
+            Guardar nuevo horario
           </button>
         </div>
       )}
