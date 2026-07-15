@@ -72,7 +72,10 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
           {statusLabel(appointment.status)}
         </span>
         {appointment.status === 'COMPLETED' && appointment.profit !== null && (
-          <span className="font-semibold text-green-700">+{formatMoney(appointment.profit)}</span>
+          <div className="text-right">
+            <div className="font-semibold text-green-700">+{formatMoney(appointment.profit)}</div>
+            <div className="text-xs text-neutral-500">Cobró {formatMoney(appointment.charged_price ?? 0)}</div>
+          </div>
         )}
       </div>
 
