@@ -56,7 +56,7 @@ export function DayAgenda() {
         </button>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className={card}>
           <div className="text-xs text-neutral-400">Ganado</div>
           <div className="text-xl font-bold text-green-700">{formatMoney(realized.gross_profit)}</div>
@@ -66,6 +66,11 @@ export function DayAgenda() {
           <div className="text-xs text-neutral-400">Proyectado (pendientes)</div>
           <div className="text-xl font-bold text-rose-700">{formatMoney(projected)}</div>
           <div className="text-xs text-neutral-500">aún no realizado</div>
+        </div>
+
+        <div className={card}>
+          <div className="text-xs text-neutral-400">Cobrado</div>
+          <div className="text-xl font-bold">{formatMoney(realized.total_income)}</div>
         </div>
       </div>
 
