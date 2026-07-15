@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { saleRevenue, saleCost, saleProfit, canSell, salesSummary } from './sales';
+import { saleRevenue, saleCost, saleProfit, canSell, salesSummary, saleBalance, outstandingCredit } from './sales';
 import type { Sale } from './types';
 
 function sale(partial: Partial<Sale>): Sale {
@@ -11,6 +11,8 @@ function sale(partial: Partial<Sale>): Sale {
     unit_price: 5000,
     unit_cost: 2000,
     datetime: '2026-07-02T10:00:00.000Z',
+    client: 'Ana',
+    paid: 5000,
     ...partial,
   };
 }
@@ -36,6 +38,24 @@ describe('canSell', () => {
     expect(canSell(2, 3)).toBe(false);
     expect(canSell(5, 0)).toBe(false);
     expect(canSell(5, -1)).toBe(false);
+  });
+});
+
+describe('saleBalance / outstandingCredit (fiado)', () => {
+  it('saldo = total − pagado', () => {
+    // total 3×5000 = 15000, pagó 5000 → debe 10000
+    expect(saleBalance(sale({ quantity: 3, unit_price: 5000, paid: 5000 }))).toBe(10000);
+  });
+  it('venta pagada completa tiene saldo 0', () => {
+    expect(saleBalance(sale({ quantity: 1, unit_price: 5000, paid: 5000 }))).toBe(0);
+  });
+  it('outstandingCredit suma los saldos del negocio', () => {
+    const sales = [
+      sale({ id: 1, unit_price: 5000, quantity: 1, paid: 2000 }), // debe 3000
+      sale({ id: 2, unit_price: 4000, quantity: 1, paid: 4000 }), // debe 0
+      sale({ id: 3, unit_price: 6000, quantity: 1, paid: 1000 }), // debe 5000
+    ];
+    expect(outstandingCredit(sales, 1)).toBe(8000);
   });
 });
 

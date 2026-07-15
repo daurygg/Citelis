@@ -1,5 +1,5 @@
-// Registrar una venta de ropa: elige producto, cantidad y precio opcional.
-// Muestra el stock disponible y baja el inventario al vender.
+// Registrar una venta de ropa: producto, cantidad, precio opcional y, si es a
+// crédito (fiado), el cliente y cuánto pagó ahora. Baja el inventario al vender.
 import { useState, type FormEvent } from 'react';
 import { useInventory } from '../lib/store/InventoryContext';
 import { formatMoney, parseMoneyToCents } from '../lib/format';
@@ -12,6 +12,9 @@ export function SellForm() {
   const [productId, setProductId] = useState<number>(inv.products[0]?.id ?? 0);
   const [qtyText, setQtyText] = useState('1');
   const [priceText, setPriceText] = useState('');
+  const [clientText, setClientText] = useState('');
+  const [credit, setCredit] = useState(false);
+  const [paidText, setPaidText] = useState('');
 
   const product = inv.products.find((p) => p.id === productId);
   const quantity = Number(qtyText);
@@ -20,17 +23,33 @@ export function SellForm() {
   const unitCost = product?.cost ?? 0;
 
   const validQty = Number.isFinite(quantity) && quantity > 0;
+  const total = validQty ? unitPrice * quantity : 0;
+  // Contado: paga todo. A crédito: lo que la clienta dé ahora (por defecto 0).
+  const paidNow = credit ? (parseMoneyToCents(paidText) ?? 0) : total;
+  const balance = Math.max(0, total - paidNow);
+
   const enoughStock = product ? quantity <= product.stock : false;
-  const canSell = product !== undefined && validQty && enoughStock;
+  // A crédito exige nombre de cliente (para saber quién debe).
+  const clientOk = !credit || clientText.trim() !== '';
+  const canSell = product !== undefined && validQty && enoughStock && clientOk;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSell) return;
-    const ok = inv.registerSale(productId, Math.floor(quantity), override);
+    const ok = inv.registerSale({
+      productId,
+      quantity: Math.floor(quantity),
+      overridePrice: override,
+      client: clientText,
+      paid: paidNow,
+    });
     if (ok) {
-      notify(`✓ Venta registrada: ${Math.floor(quantity)} × ${product?.name}`);
+      notify(balance > 0 ? `✓ Venta a crédito. Debe ${formatMoney(balance)}` : `✓ Venta registrada`);
       setQtyText('1');
       setPriceText('');
+      setClientText('');
+      setPaidText('');
+      setCredit(false);
     } else {
       notify('No se pudo registrar (sin stock suficiente).', 'error');
     }
@@ -66,12 +85,41 @@ export function SellForm() {
         </label>
       </div>
 
+      <label className={field}>
+        <span className={fieldLabel}>Cliente {credit ? '(requerido para fiado)' : '(opcional)'}</span>
+        <input className={input} type="text" value={clientText} onChange={(e) => setClientText(e.target.value)} placeholder="Nombre de la clienta" />
+      </label>
+
+      <label className="flex items-center gap-2 text-sm text-neutral-700">
+        <input type="checkbox" checked={credit} onChange={(e) => setCredit(e.target.checked)} />
+        Venta a crédito (fiado)
+      </label>
+
+      {credit && (
+        <label className={field}>
+          <span className={fieldLabel}>¿Cuánto pagó ahora? (opcional)</span>
+          <input className={input} type="text" inputMode="decimal" value={paidText} onChange={(e) => setPaidText(e.target.value)} placeholder="Dejar vacío si no pagó nada" />
+        </label>
+      )}
+
       {product && (
-        <div className="flex justify-between rounded-xl bg-neutral-50 p-3 text-sm">
-          <span>Disponible: {product.stock}</span>
-          <span>
-            Ganancia: <strong className="text-green-700">{formatMoney((unitPrice - unitCost) * (validQty ? quantity : 0))}</strong>
-          </span>
+        <div className="flex flex-col gap-1 rounded-xl bg-neutral-50 p-3 text-sm">
+          <div className="flex justify-between">
+            <span>Disponible: {product.stock}</span>
+            <span>
+              Total: <strong>{formatMoney(total)}</strong>
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-green-700">
+              Ganancia: <strong>{formatMoney((unitPrice - unitCost) * (validQty ? quantity : 0))}</strong>
+            </span>
+            {credit && (
+              <span className="text-rose-700">
+                Quedará debiendo: <strong>{formatMoney(balance)}</strong>
+              </span>
+            )}
+          </div>
         </div>
       )}
 

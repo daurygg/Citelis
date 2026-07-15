@@ -19,4 +19,6 @@ export interface Sale {
   unit_price: number; // centavos, precio unitario cobrado
   unit_cost: number; // centavos, costo unitario del momento
   datetime: string; // ISO 8601
+  client: string; // quién compró (necesario para fiado)
+  paid: number; // centavos ya pagados; < total ⇒ venta a crédito (fiado)
 }

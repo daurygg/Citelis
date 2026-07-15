@@ -3,7 +3,7 @@
 // a Supabase. Los cálculos viven en el dominio puro (INVARIANTE 5).
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Product, Sale } from '../domain/inventory/types';
-import { canSell, salesSummary, type SalesSummary } from '../domain/inventory/sales';
+import { canSell, outstandingCredit, salesSummary, type SalesSummary } from '../domain/inventory/sales';
 import { nowLocalDatetime } from '../format';
 import { supabase } from '../supabase/client';
 
@@ -19,6 +19,16 @@ export interface ProductPatch {
   cost?: number;
 }
 
+// Datos de una venta. client/paid son para el fiado (opcionales: por defecto
+// contado, es decir paid = total y sin cliente).
+export interface SaleInput {
+  productId: number;
+  quantity: number;
+  overridePrice?: number;
+  client?: string;
+  paid?: number; // cuánto pagó al momento; si es menor al total, queda a crédito
+}
+
 export interface Inventory {
   products: readonly Product[];
   salesReport: (from: string, to: string) => SalesSummary;
@@ -29,7 +39,11 @@ export interface Inventory {
   deleteProduct: (id: number) => void;
   restock: (productId: number, units: number) => void;
   // Registra una venta si hay stock; devuelve false si no se pudo (sin stock).
-  registerSale: (productId: number, quantity: number, overridePrice?: number) => boolean;
+  registerSale: (input: SaleInput) => boolean;
+  // --- Fiado (cuentas por cobrar) ---
+  creditSales: () => Sale[]; // ventas con saldo pendiente (fiadas)
+  outstandingTotal: () => number; // total por cobrar
+  addPayment: (saleId: number, amount: number) => void; // registrar un abono
 }
 
 const InventoryContext = createContext<Inventory | null>(null);
@@ -138,24 +152,53 @@ function InventoryReady({ loaded, children }: { loaded: Loaded; children: ReactN
     persist(supabase.from('product').update({ stock }).eq('id', productId));
   }
 
-  function registerSale(productId: number, quantity: number, overridePrice?: number): boolean {
-    const product = products.find((p) => p.id === productId);
-    if (!product || !canSell(product.stock, quantity)) return false;
+  function registerSale(input: SaleInput): boolean {
+    const product = products.find((p) => p.id === input.productId);
+    if (!product || !canSell(product.stock, input.quantity)) return false;
+    const unit_price = input.overridePrice ?? product.price;
+    const total = unit_price * input.quantity;
+    // Por defecto es contado (pagó todo). Si `paid` es menor, queda a crédito.
+    const paid = Math.min(input.paid ?? total, total);
     const sale: Sale = {
       id: newId(),
       business_id: businessId,
-      product_id: productId,
-      quantity,
-      unit_price: overridePrice ?? product.price, // congelado
+      product_id: input.productId,
+      quantity: input.quantity,
+      unit_price, // congelado
       unit_cost: product.cost, // congelado
       datetime: nowLocalDatetime(),
+      client: input.client?.trim() ?? '',
+      paid,
     };
-    const stock = product.stock - quantity;
+    const stock = product.stock - input.quantity;
     setSales((prev) => [...prev, sale]);
-    setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, stock } : p)));
+    setProducts((prev) => prev.map((p) => (p.id === input.productId ? { ...p, stock } : p)));
     persist(supabase.from('sale').insert(sale));
-    persist(supabase.from('product').update({ stock }).eq('id', productId));
+    persist(supabase.from('product').update({ stock }).eq('id', input.productId));
     return true;
+  }
+
+  // --- Fiado (cuentas por cobrar) ---
+  function creditSales(): Sale[] {
+    return sales
+      .filter((s) => s.business_id === businessId)
+      .filter((s) => s.unit_price * s.quantity - s.paid > 0)
+      .sort((a, b) => b.datetime.localeCompare(a.datetime));
+  }
+
+  function outstandingTotal(): number {
+    return outstandingCredit(sales, businessId);
+  }
+
+  // Registra un abono; el pagado nunca supera el total de la venta.
+  function addPayment(saleId: number, amount: number): void {
+    if (amount <= 0) return;
+    const sale = sales.find((s) => s.id === saleId);
+    if (!sale) return;
+    const total = sale.unit_price * sale.quantity;
+    const paid = Math.min(total, sale.paid + amount);
+    setSales((prev) => prev.map((s) => (s.id === saleId ? { ...s, paid } : s)));
+    persist(supabase.from('sale').update({ paid }).eq('id', saleId));
   }
 
   const inventory: Inventory = {
@@ -168,6 +211,9 @@ function InventoryReady({ loaded, children }: { loaded: Loaded; children: ReactN
     deleteProduct,
     restock,
     registerSale,
+    creditSales,
+    outstandingTotal,
+    addPayment,
   };
   return <InventoryContext.Provider value={inventory}>{children}</InventoryContext.Provider>;
 }

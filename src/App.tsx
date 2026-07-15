@@ -12,12 +12,13 @@ import { PeriodReport } from './components/PeriodReport';
 import { ProductsScreen } from './components/ProductsScreen';
 import { SellForm } from './components/SellForm';
 import { ClothingReport } from './components/ClothingReport';
+import { CreditsScreen } from './components/CreditsScreen';
 import { Login } from './components/Login';
 import { ToastProvider } from './components/Toast';
 
 type Mode = 'services' | 'clothing';
 type ServiceView = 'agenda' | 'services' | 'report';
-type ClothingView = 'sell' | 'products' | 'report';
+type ClothingView = 'sell' | 'products' | 'credits' | 'report';
 
 const SERVICE_TABS: { id: ServiceView; label: string }[] = [
   { id: 'agenda', label: 'Agenda' },
@@ -27,6 +28,7 @@ const SERVICE_TABS: { id: ServiceView; label: string }[] = [
 const CLOTHING_TABS: { id: ClothingView; label: string }[] = [
   { id: 'sell', label: 'Vender' },
   { id: 'products', label: 'Productos' },
+  { id: 'credits', label: 'Fiados' },
   { id: 'report', label: 'Reporte' },
 ];
 
@@ -146,6 +148,7 @@ function AppShell() {
           <InventoryProvider>
             {clothingView === 'sell' && <SellForm />}
             {clothingView === 'products' && <ProductsScreen />}
+            {clothingView === 'credits' && <CreditsScreen />}
             {clothingView === 'report' && <ClothingReport />}
           </InventoryProvider>
         )}

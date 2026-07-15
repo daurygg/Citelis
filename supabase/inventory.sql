@@ -18,7 +18,9 @@ create table if not exists sale (
   quantity    integer not null,
   unit_price  bigint  not null, -- congelado al vender
   unit_cost   bigint  not null, -- congelado al vender
-  datetime    text    not null  -- ISO 8601
+  datetime    text    not null, -- ISO 8601
+  client      text    not null default '', -- quién compró (para fiado)
+  paid        bigint  not null default 0    -- pagado; < total ⇒ a crédito
 );
 
 alter table product enable row level security;

@@ -21,6 +21,18 @@ export function canSell(stock: number, quantity: number): boolean {
   return quantity > 0 && quantity <= stock;
 }
 
+/** Saldo pendiente de una venta (total − pagado). 0 si ya está saldada. */
+export function saleBalance(sale: Sale): number {
+  return Math.max(0, saleRevenue(sale) - sale.paid);
+}
+
+/** Total por cobrar (fiado) de un negocio: suma de saldos pendientes. */
+export function outstandingCredit(sales: readonly Sale[], businessId: number): number {
+  return sales
+    .filter((s) => s.business_id === businessId)
+    .reduce((total, s) => total + saleBalance(s), 0);
+}
+
 export interface BestSeller {
   product_id: number;
   units: number; // unidades vendidas en el periodo
