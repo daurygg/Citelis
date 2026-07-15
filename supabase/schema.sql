@@ -76,6 +76,7 @@ create table if not exists fixed_expense (
   business_id bigint not null references business (id) on delete cascade,
   concept     text   not null,
   amount      bigint not null default 0, -- centavos
+  month       text   not null,           -- 'YYYY-MM' al que corresponde
   period      text   not null default 'MONTHLY'
 );
 

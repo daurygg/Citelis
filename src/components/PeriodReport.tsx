@@ -58,7 +58,11 @@ export function PeriodReport() {
 
   const summary = store.weekReport(from, to);
   const days = Math.max(1, daysBetween(from, to));
-  const periodFixed = proratedFixedExpenses(store.fixedExpensesTotal(), days);
+  // Mes de referencia del periodo (el mes en que empieza).
+  const monthKey = from.slice(0, 7); // 'YYYY-MM'
+  const monthTotal = store.monthExpensesTotal(monthKey);
+  // En modo Mes se restan los gastos reales del mes; en otros modos se prorratean.
+  const periodFixed = mode === 'month' ? monthTotal : proratedFixedExpenses(monthTotal, days);
   const net = netProfit(summary.gross_profit, periodFixed);
 
   const topService =
@@ -153,7 +157,7 @@ export function PeriodReport() {
         )}
       </div>
 
-      <FixedExpenses />
+      <FixedExpenses month={monthKey} />
     </section>
   );
 }

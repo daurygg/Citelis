@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { weekSummary, sumFixedExpenses, netProfit, proratedFixedExpenses, expectedProfit } from './reports';
+import { weekSummary, sumFixedExpenses, netProfit, proratedFixedExpenses, expectedProfit, fixedExpensesForMonth } from './reports';
 import type { Appointment, FixedExpense, Service } from './types';
 
 function svc(partial: Partial<Service> = {}): Service {
@@ -116,7 +116,7 @@ describe('weekSummary', () => {
 });
 
 function expense(partial: Partial<FixedExpense>): FixedExpense {
-  return { id: 1, business_id: 1, concept: 'Luz', amount: 0, period: 'MONTHLY', ...partial };
+  return { id: 1, business_id: 1, concept: 'Luz', amount: 0, month: '2026-07', period: 'MONTHLY', ...partial };
 }
 
 describe('sumFixedExpenses', () => {
@@ -139,6 +139,25 @@ describe('sumFixedExpenses', () => {
 
   it('sin gastos devuelve 0', () => {
     expect(sumFixedExpenses([], 1)).toBe(0);
+  });
+});
+
+describe('fixedExpensesForMonth', () => {
+  it('suma solo los gastos del mes indicado', () => {
+    const expenses = [
+      expense({ id: 1, month: '2026-07', amount: 5000 }),
+      expense({ id: 2, month: '2026-07', amount: 3000 }),
+      expense({ id: 3, month: '2026-08', amount: 9999 }), // otro mes
+    ];
+    expect(fixedExpensesForMonth(expenses, 1, '2026-07')).toBe(8000);
+  });
+
+  it('respeta el business_id', () => {
+    const expenses = [
+      expense({ id: 1, business_id: 1, month: '2026-07', amount: 5000 }),
+      expense({ id: 2, business_id: 2, month: '2026-07', amount: 9999 }),
+    ];
+    expect(fixedExpensesForMonth(expenses, 1, '2026-07')).toBe(5000);
   });
 });
 

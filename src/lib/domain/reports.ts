@@ -93,6 +93,17 @@ export function sumFixedExpenses(expenses: readonly FixedExpense[], businessId: 
     .reduce((total, e) => total + e.amount, 0);
 }
 
+/** Suma los gastos fijos de UN mes concreto ('YYYY-MM') de un negocio. */
+export function fixedExpensesForMonth(
+  expenses: readonly FixedExpense[],
+  businessId: number,
+  month: string,
+): number {
+  return expenses
+    .filter((e) => e.business_id === businessId && e.month === month)
+    .reduce((total, e) => total + e.amount, 0);
+}
+
 /**
  * Ganancia NETA = ganancia bruta (de las citas) − gastos fijos del periodo.
  * Responde a lo que la dueña quiere ver: "cuánto gané en limpio".

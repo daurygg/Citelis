@@ -68,5 +68,6 @@ export interface FixedExpense {
   business_id: number; // INVARIANTE 1
   concept: string;
   amount: number; // centavos
+  month: string; // 'YYYY-MM' al que corresponde (permite montos distintos por mes)
   period: ExpensePeriod;
 }

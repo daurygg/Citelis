@@ -7,8 +7,8 @@ import type { Appointment, FixedExpense, Service, ServiceSupply, Supply } from '
 import { completeAppointment as completeAppointmentDomain, transition } from '../domain/appointments';
 import { findScheduleConflict } from '../domain/scheduling';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
-import { expectedProfit, sumFixedExpenses, weekSummary, type WeekSummary } from '../domain/reports';
-import { dayRange } from '../format';
+import { expectedProfit, fixedExpensesForMonth, weekSummary, type WeekSummary } from '../domain/reports';
+import { dayRange, shiftMonthISODate } from '../format';
 import { supabase } from '../supabase/client';
 import { useAuth } from '../auth/AuthContext';
 import { Onboarding } from '../../components/Onboarding';
@@ -51,6 +51,7 @@ export interface ServiceEconomics {
 export interface FixedExpenseInput {
   concept: string;
   amount: number;
+  month: string; // 'YYYY-MM' al que corresponde el gasto
 }
 
 export interface Store {
@@ -79,9 +80,11 @@ export interface Store {
   updateSupply: (supplyId: number, patch: Partial<SupplyInput>) => void;
   weekReport: (from: string, to: string) => WeekSummary;
   fixedExpenses: readonly FixedExpense[];
-  fixedExpensesTotal: () => number;
+  expensesForMonth: (month: string) => FixedExpense[];
+  monthExpensesTotal: (month: string) => number;
   addFixedExpense: (input: FixedExpenseInput) => void;
   removeFixedExpense: (id: number) => void;
+  copyPreviousMonthExpenses: (month: string) => void;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -238,8 +241,12 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     return weekSummary(appointments, businessId, from, to);
   }
 
-  function fixedExpensesTotal(): number {
-    return sumFixedExpenses(fixedExpenses, businessId);
+  function expensesForMonth(month: string): FixedExpense[] {
+    return fixedExpenses.filter((e) => e.business_id === businessId && e.month === month);
+  }
+
+  function monthExpensesTotal(month: string): number {
+    return fixedExpensesForMonth(fixedExpenses, businessId, month);
   }
 
   // ── Escrituras (estado local + persistencia) ──────────────────────────────
@@ -414,7 +421,14 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   }
 
   function addFixedExpense(input: FixedExpenseInput): void {
-    const expense: FixedExpense = { id: newId(), business_id: businessId, concept: input.concept, amount: input.amount, period: 'MONTHLY' };
+    const expense: FixedExpense = {
+      id: newId(),
+      business_id: businessId,
+      concept: input.concept,
+      amount: input.amount,
+      month: input.month,
+      period: 'MONTHLY',
+    };
     setFixedExpenses((prev) => [...prev, expense]);
     persist(supabase.from('fixed_expense').insert(expense));
   }
@@ -422,6 +436,31 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   function removeFixedExpense(id: number): void {
     setFixedExpenses((prev) => prev.filter((e) => e.id !== id));
     persist(supabase.from('fixed_expense').delete().eq('id', id));
+  }
+
+  // Copia al mes indicado los gastos del mes anterior que aún no estén (por concepto),
+  // para no re-teclear los que se repiten. Los montos se pueden ajustar luego.
+  function copyPreviousMonthExpenses(month: string): void {
+    const prevMonth = shiftMonthISODate(`${month}-01`, -1).slice(0, 7);
+    const already = new Set(
+      fixedExpenses
+        .filter((e) => e.business_id === businessId && e.month === month)
+        .map((e) => e.concept.trim().toLowerCase()),
+    );
+    const toCopy = fixedExpenses.filter(
+      (e) => e.business_id === businessId && e.month === prevMonth && !already.has(e.concept.trim().toLowerCase()),
+    );
+    if (toCopy.length === 0) return;
+    const created: FixedExpense[] = toCopy.map((e, i) => ({
+      id: newId() + i, // +i evita colisión si se generan en el mismo milisegundo
+      business_id: businessId,
+      concept: e.concept,
+      amount: e.amount,
+      month,
+      period: 'MONTHLY',
+    }));
+    setFixedExpenses((prev) => [...prev, ...created]);
+    for (const e of created) persist(supabase.from('fixed_expense').insert(e));
   }
 
   const store: Store = {
@@ -450,9 +489,11 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     updateSupply,
     weekReport,
     fixedExpenses,
-    fixedExpensesTotal,
+    expensesForMonth,
+    monthExpensesTotal,
     addFixedExpense,
     removeFixedExpense,
+    copyPreviousMonthExpenses,
   };
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }

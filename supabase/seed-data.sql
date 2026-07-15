@@ -66,8 +66,8 @@ from (values
 on conflict (service_id, supply_id) do nothing;
 
 -- Gastos fijos mensuales (montos de ejemplo; ajústalos con Roelis).
-insert into fixed_expense (id, business_id, concept, amount, period)
-select v.id, (select id from business order by id limit 1), v.concept, v.amount, 'MONTHLY'
+insert into fixed_expense (id, business_id, concept, amount, month, period)
+select v.id, (select id from business order by id limit 1), v.concept, v.amount, to_char(now(), 'YYYY-MM'), 'MONTHLY'
 from (values
   (1, 'Luz', 150000),
   (2, 'Agua', 50000),
