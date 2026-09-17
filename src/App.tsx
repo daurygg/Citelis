@@ -14,14 +14,18 @@ import { SellForm } from './components/SellForm';
 import { ClothingReport } from './components/ClothingReport';
 import { CreditsScreen } from './components/CreditsScreen';
 import { Login } from './components/Login';
+import { PublicBooking } from './components/public/PublicBooking';
+import { BookingSettings } from './components/owner/BookingSettings';
+import { RequestsInbox } from './components/owner/RequestsInbox';
 import { ToastProvider } from './components/Toast';
 
 type Mode = 'services' | 'clothing';
-type ServiceView = 'agenda' | 'services' | 'report';
+type ServiceView = 'agenda' | 'reservas' | 'services' | 'report';
 type ClothingView = 'sell' | 'products' | 'credits' | 'report';
 
 const SERVICE_TABS: { id: ServiceView; label: string }[] = [
   { id: 'agenda', label: 'Agenda' },
+  { id: 'reservas', label: 'Reservas' },
   { id: 'services', label: 'Servicios' },
   { id: 'report', label: 'Reporte' },
 ];
@@ -32,7 +36,28 @@ const CLOTHING_TABS: { id: ClothingView; label: string }[] = [
   { id: 'report', label: 'Reporte' },
 ];
 
+/**
+ * Ruta pública de reserva: /reservar/<slug>. Se lee de la URL porque el proyecto no
+ * usa router; si algún día entra uno, esto se sustituye por una ruta de verdad.
+ * Devuelve el slug o null si la URL no es la del portal.
+ */
+function publicBookingSlug(): string | null {
+  const match = /^\/reservar\/([^/?#]+)\/?$/.exec(window.location.pathname);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 export function App() {
+  // El portal público va ANTES de AuthProvider y StoreProvider a propósito: la
+  // clienta no tiene cuenta ni negocio, y el árbol autenticado exige ambas cosas.
+  const slug = publicBookingSlug();
+  if (slug) {
+    return (
+      <ToastProvider>
+        <PublicBooking slug={slug} />
+      </ToastProvider>
+    );
+  }
+
   return (
     <ToastProvider>
       <AuthProvider>
@@ -139,6 +164,12 @@ function AppShell() {
               <div className="flex flex-col gap-6">
                 <ScheduleForm />
                 <DayAgenda />
+              </div>
+            )}
+            {serviceView === 'reservas' && (
+              <div className="flex flex-col gap-6">
+                <RequestsInbox />
+                <BookingSettings />
               </div>
             )}
             {serviceView === 'services' && <ServicesScreen />}
