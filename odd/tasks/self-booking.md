@@ -32,10 +32,9 @@ trabaja el negocio.
 
 ## Alcance autorizado
 
-**Ahora: solo Slice A.** Dominio puro de disponibilidad. Sin SQL, sin UI, sin tocar
-`StoreContext`, sin tocar la máquina de estados.
-
-Slices B–F quedan planteados pero **no autorizados** todavía.
+El usuario autorizó (2026-09-17) completar todos los slices. Lo entregado hasta
+ahora: **A, B y E**. **C, D y F siguen sin entregar**, por bloqueos reales
+documentados más abajo — no por falta de autorización.
 
 ## Invariantes que aplican
 
@@ -139,7 +138,73 @@ actualizarse.
   Añadirlo afecta a CI. No forma parte de Slice A.
 - `.atl/` — artefactos de tooling preexistentes a esta sesión.
 
+## Slice B — entregado a medias (dominio sí, base de datos sin verificar)
+
+### B-dominio ✅
+- `AppointmentStatus` gana `REQUESTED` y `REJECTED`.
+- Transiciones nuevas: `REQUESTED → PENDING` (la dueña acepta), `REQUESTED → REJECTED`
+  (la rechaza), `REQUESTED → CANCELED` (la clienta se arrepiente). `REJECTED` es
+  terminal. Ninguna transición existente cambió.
+- Una solicitud sin confirmar **no se puede completar**: `REQUESTED` no tiene
+  `COMPLETED` en su lista, así que `completeAppointment` lanza sola. Con test.
+- Regla única de ocupación: `holdsSchedule(status)` en `appointments.ts`. Antes la
+  regla estaba duplicada en `scheduling.ts` y `availability.ts`; con dos estados
+  nuevos esas dos copias habrían divergido. Ahora ambas la llaman.
+- `REQUESTED` **ocupa** horario. Si una solicitud pendiente no bloqueara su hora, dos
+  clientas pedirían la misma y la dueña heredaría un choque que no creó.
+- UI mínima obligada por la unión ampliada: etiquetas (`Por confirmar`, `Rechazada`),
+  colores de badge, y `appointmentsForDay` deja de mostrar las rechazadas.
+- `reports.ts` no necesitó cambios: ya filtra `status !== 'COMPLETED'`.
+
+### B-SQL ⚠️ ESCRITO PERO NUNCA EJECUTADO
+`supabase/self-booking.sql`, aditivo e idempotente. **No se ha corrido contra ninguna
+base.** Antes de aplicarlo: probar en un proyecto Supabase de prueba o dentro de una
+transacción con `ROLLBACK`.
+
+Cambio de plan respecto a la decisión original: **se abandonó la migración
+`datetime` → `timestamptz`**. No hace falta para garantizar la no-doble-reserva y era
+la parte con riesgo real sobre datos existentes. En su lugar,
+`public_request_booking` toma `pg_advisory_xact_lock(business_id)` y re-verifica el
+choque dentro del lock. El archivo no borra, no convierte columnas y no toca filas.
+
+Contenido: tablas `business_hours`, `time_block`, `booking_policy` (con RLS por
+`is_member`, INVARIANTE 1); columnas aditivas `client_phone`, `source`,
+`requested_at` en `appointment`; `expire_stale_requests()` para la caducidad;
+y cuatro funciones `SECURITY DEFINER` para el público: `public_business`,
+`public_hours`, `public_busy`, `public_request_booking`.
+
+Decisiones de seguridad:
+- **Ni una policy para `anon`.** El público no toca tablas, solo funciones con
+  proyección explícita de columnas. `supply_cost` y `cost_override` nunca salen.
+- `public_busy` devuelve horarios **anónimos** (inicio y duración). Un desconocido no
+  tiene por qué saber que "María viene a las 3".
+- Los servicios `variable_price = true` quedan **excluidos** del portal: la clienta no
+  puede reservar un precio que no existe. Supuesto conservador, revisable.
+- Tope de solicitudes por teléfono y día contra spam.
+
+## Slice E — entregado ✅
+
+`src/lib/domain/calendar.ts`: `buildICS()` (RFC 5545) y `googleCalendarUrl()`. Puro,
+13 tests. CRLF, escapado de texto, plegado de líneas a 75 octetos, `UID` estable y
+`SEQUENCE` incremental (así iOS y Google **actualizan** el evento en vez de duplicarlo).
+`DTSTART`/`DTEND` en hora flotante sin `Z`; `DTSTAMP` sí lleva `Z` porque es un
+instante real. La aritmética usa `Date.UTC` internamente, así que no arrastra DST.
+
+## Slices NO entregados y por qué
+
+- **C (UI pública) y D (panel de la dueña)**: bloqueados por una decisión de producto
+  sin responder — qué hacer con los servicios de precio variable (trenzas, maquillaje,
+  colas). El SQL asume "excluirlos"; si la respuesta es "ofrecerlos como precio a
+  confirmar", cambia el contrato de las RPC y la UI. Además no se pueden verificar de
+  punta a punta sin una instancia de Supabase con el SQL ya aplicado.
+- **F (aviso por WhatsApp)**: requiere cuenta de proveedor (Twilio o Meta), credenciales
+  y una decisión de costo. No es implementable desde aquí.
+
 ## Siguiente paso
+
+1. Aplicar `supabase/self-booking.sql` en un proyecto de prueba y verificar.
+2. Responder qué hacer con los servicios de precio variable en el portal.
+3. Entonces C y D.
 
 Slice A está cerrado, revisado y verificado. El siguiente slice (B: SQL, estados
 `REQUESTED`/`REJECTED`, migración a `timestamptz`, RPCs públicas) **requiere
