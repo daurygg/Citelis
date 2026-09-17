@@ -3,7 +3,18 @@
 
 // NO_SHOW: la clienta no llegó. Se distingue de CANCELED para reportes
 // (cancelar es una decisión; no presentarse es un incumplimiento).
-export type AppointmentStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW';
+// REQUESTED: la clienta pidió el horario desde el portal público y la dueña
+// todavía no respondió. REJECTED: la dueña rechazó la solicitud. Se distingue
+// de CANCELED porque "cuántas solicitudes rechacé" y "cuántas citas canceló
+// la clienta" son hechos de negocio distintos (Slice B de self-booking, D1).
+export type AppointmentStatus =
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'CANCELED'
+  | 'NO_SHOW'
+  | 'REQUESTED'
+  | 'REJECTED';
 
 export interface Business {
   id: number; // el tenant. MVP: siempre 1

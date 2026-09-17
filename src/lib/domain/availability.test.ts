@@ -364,6 +364,47 @@ describe('generateSlots', () => {
     expect(slots).toEqual([]);
   });
 
+  // Slice B: la solicitud pública (REQUESTED) debe bloquear su propio slot;
+  // si no, dos clientas podrían pedir la misma hora antes de que la dueña responda.
+  it('una cita REQUESTED bloquea su horario, igual que PENDING', () => {
+    const svc = service({ id: 1, duration_min: 60 });
+    const appointments = [appointment({ id: 1, status: 'REQUESTED', datetime: '2026-09-21T10:00' })]; // 10:00–11:00
+    const slots = generateSlots({
+      date: '2026-09-21',
+      service: svc,
+      hours: [businessHours({ opens_at: '09:00', closes_at: '12:00' })],
+      blocks: [],
+      appointments,
+      services: [svc],
+      policy: policy({ slot_step_min: 60 }),
+      now: new Date('2026-09-17T00:00'),
+    });
+    expect(slots).toEqual([
+      { start: '2026-09-21T09:00', end: '2026-09-21T10:00' },
+      { start: '2026-09-21T11:00', end: '2026-09-21T12:00' },
+    ]);
+  });
+
+  it('una cita REJECTED libera su horario', () => {
+    const svc = service({ id: 1, duration_min: 60 });
+    const appointments = [appointment({ id: 1, status: 'REJECTED', datetime: '2026-09-21T10:00' })];
+    const slots = generateSlots({
+      date: '2026-09-21',
+      service: svc,
+      hours: [businessHours({ opens_at: '09:00', closes_at: '12:00' })],
+      blocks: [],
+      appointments,
+      services: [svc],
+      policy: policy({ slot_step_min: 60 }),
+      now: new Date('2026-09-17T00:00'),
+    });
+    expect(slots).toEqual([
+      { start: '2026-09-21T09:00', end: '2026-09-21T10:00' },
+      { start: '2026-09-21T10:00', end: '2026-09-21T11:00' },
+      { start: '2026-09-21T11:00', end: '2026-09-21T12:00' },
+    ]);
+  });
+
   it('rechaza una fecha que existe en formato pero no en el calendario', () => {
     const svc = service({ duration_min: 60 });
     const slots = generateSlots({

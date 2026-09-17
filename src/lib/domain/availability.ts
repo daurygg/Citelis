@@ -13,6 +13,7 @@ import type {
   TimeBlock,
 } from './types';
 import { serviceDurationMs } from './scheduling';
+import { holdsSchedule } from './appointments';
 
 const ONE_MINUTE_MS = 60_000;
 const ONE_HOUR_MS = 60 * ONE_MINUTE_MS;
@@ -59,11 +60,11 @@ function intervalsOverlap(aStart: number, aEnd: number, bStart: number, bEnd: nu
 
 /**
  * ¿El intervalo candidato [start, end) choca con alguna cita ocupante?
- * Las citas CANCELED y NO_SHOW liberan el horario (mismo criterio que
- * `findScheduleConflict` en `scheduling.ts`). `buffer_min` extiende el
- * ocupado a AMBOS lados de cada cita: el descanso es "entre citas", así que
- * también protege el hueco previo (si no, se podría reservar justo pegado
- * antes de una cita existente y la dueña se quedaría sin respiro).
+ * Qué estados ocupan horario lo decide `holdsSchedule` (appointments.ts, mismo
+ * criterio que usa `findScheduleConflict` en `scheduling.ts`). `buffer_min`
+ * extiende el ocupado a AMBOS lados de cada cita: el descanso es "entre
+ * citas", así que también protege el hueco previo (si no, se podría reservar
+ * justo pegado antes de una cita existente y la dueña se quedaría sin respiro).
  *
  * Si el servicio de una cita existente NO está en `services` (por ejemplo, un
  * servicio borrado o filtrado por el llamador) no se puede saber cuánto dura.
@@ -79,7 +80,7 @@ function occupiesSchedule(
   bufferMs: number,
 ): boolean {
   for (const a of appointments) {
-    if (a.status === 'CANCELED' || a.status === 'NO_SHOW') continue;
+    if (!holdsSchedule(a.status)) continue;
     const aStart = new Date(a.datetime).getTime();
     if (Number.isNaN(aStart)) continue;
     const svc = services.find((s) => s.id === a.service_id);

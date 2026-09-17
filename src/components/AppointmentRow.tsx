@@ -9,11 +9,14 @@ import { useToast } from './Toast';
 import { btnGhost, btnPrimary, card, field, fieldLabel, input } from './ui';
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
+  // Violeta: pide acción de la dueña y no se confunde con el ámbar de Pendiente.
+  REQUESTED: 'bg-violet-100 text-violet-800',
   PENDING: 'bg-amber-100 text-amber-800',
   IN_PROGRESS: 'bg-blue-100 text-blue-800',
   COMPLETED: 'bg-green-100 text-green-800',
   CANCELED: 'bg-neutral-100 text-neutral-500',
   NO_SHOW: 'bg-red-100 text-red-700',
+  REJECTED: 'bg-neutral-200 text-neutral-600',
 };
 
 export function AppointmentRow({ appointment }: { appointment: Appointment }) {
