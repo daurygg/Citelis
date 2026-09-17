@@ -53,11 +53,19 @@ export interface Service {
   variable_price: boolean;
 }
 
+// De dónde salió la cita: la registró la dueña, o la pidió la clienta sola desde
+// el portal público.
+export type AppointmentSource = 'OWNER' | 'SELF';
+
 export interface Appointment {
   id: number;
   business_id: number; // INVARIANTE 1
   service_id: number;
   client: string;
+  // Solo en citas nacidas del portal público. Opcionales porque las citas que la
+  // dueña registró antes de esta función no los traen.
+  client_phone?: string | null;
+  source?: AppointmentSource;
   datetime: string; // ISO 8601
   status: AppointmentStatus;
   // Datos operativos capturados al AGENDAR (no son el resultado congelado):
@@ -112,6 +120,16 @@ export interface BookingPolicy {
 }
 
 // Hueco de tiempo ofrecido a la clienta para reservar (dominio puro, sin id: no persiste).
+// Fila completa de `booking_policy`. `BookingPolicy` son las reglas que necesita el
+// cálculo puro de slots; estos tres campos son administración del portal (dónde vive,
+// si está abierto, cuánto spam se tolera) y no entran en la matemática de
+// disponibilidad, por eso viven en un tipo aparte.
+export interface BookingPolicyRow extends BookingPolicy {
+  public_slug: string;
+  enabled: boolean;
+  max_requests_per_phone_per_day: number;
+}
+
 export interface Slot {
   start: string; // ISO local 'YYYY-MM-DDTHH:MM'
   end: string; // ISO local 'YYYY-MM-DDTHH:MM'
