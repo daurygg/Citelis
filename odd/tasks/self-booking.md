@@ -190,21 +190,70 @@ Decisiones de seguridad:
 `DTSTART`/`DTEND` en hora flotante sin `Z`; `DTSTAMP` sí lleva `Z` porque es un
 instante real. La aritmética usa `Date.UTC` internamente, así que no arrastra DST.
 
-## Slices NO entregados y por qué
+## Slice C — entregado ⚠️ sin verificar contra base real
 
-- **C (UI pública) y D (panel de la dueña)**: bloqueados por una decisión de producto
-  sin responder — qué hacer con los servicios de precio variable (trenzas, maquillaje,
-  colas). El SQL asume "excluirlos"; si la respuesta es "ofrecerlos como precio a
-  confirmar", cambia el contrato de las RPC y la UI. Además no se pueden verificar de
-  punta a punta sin una instancia de Supabase con el SQL ya aplicado.
-- **F (aviso por WhatsApp)**: requiere cuenta de proveedor (Twilio o Meta), credenciales
-  y una decisión de costo. No es implementable desde aquí.
+`src/lib/public/publicBooking.ts` y `src/components/public/PublicBooking.tsx`.
+Página pública en `/reservar/<slug>`, mobile-first, tres pasos: servicio → día y
+hora → nombre y teléfono, más pantalla de confirmación.
+
+- La ruta se resuelve en `App.tsx` **antes** de `AuthProvider` y `StoreProvider`: la
+  clienta no tiene cuenta ni negocio, y el árbol autenticado exige ambas cosas.
+- Los horarios libres los calcula `generateSlots` del Slice A, **no** una copia. Un
+  adaptador convierte las filas anónimas de `public_busy` en la forma que la función
+  espera.
+- La confirmación dice "Solicitud enviada — te confirmamos pronto" y **nunca**
+  "¡Reservado!". Prometer una cita que todavía no existe es lo único que esta
+  pantalla no puede hacer (decisión D1).
+- El `.ics` NO se ofrece aquí: el calendario se entrega solo después de que la dueña
+  acepte.
+- Los errores se distinguen: "no hay horarios ese día" y "no pudimos conectar" son
+  cosas muy distintas para quien lee la pantalla.
+
+## Slice D — entregado ⚠️ sin verificar contra base real
+
+`src/components/owner/BookingSettings.tsx` y `RequestsInbox.tsx`, más las
+extensiones del store.
+
+- Interruptor para abrir o cerrar el portal, link público para compartir, horas de
+  trabajo por día (varios tramos: mañana y tarde), días bloqueados y las reglas de
+  reserva en lenguaje llano.
+- Bandeja de solicitudes con Aceptar y Rechazar, con el contador visible: una
+  solicitud sin responder bloquea esa hora.
+- `acceptRequest` y `rejectRequest` pasan por `transition()` del dominio. Nunca
+  escriben `status` a mano: la máquina de estados es la única autoridad sobre qué
+  transición es legal (INVARIANTE 7).
+
+## Consolidación de tipos
+
+`BookingPolicyRow` (`public_slug`, `enabled`, `max_requests_per_phone_per_day`) y los
+campos `client_phone` / `source` de `Appointment` nacieron como tipos locales del
+store. Se movieron a `src/lib/domain/types.ts`, que es donde el proyecto dice que
+viven los tipos del dominio. `BookingPolicy` se queda con las reglas que necesita el
+cálculo puro de slots; `BookingPolicyRow` añade la administración del portal.
+
+## Slice F — NO entregado
+
+Requiere cuenta de proveedor (Twilio o Meta), credenciales y una decisión de costo.
+No es implementable desde aquí.
+
+## Lo que sigue SIN verificar
+
+Nada de C ni D se ha probado contra una base real: `supabase/self-booking.sql` nunca
+se ha aplicado. Concretamente no se ha confirmado la forma real de retorno de las
+RPC, el comportamiento de los grants, si `bigint` llega como número o como string
+desde supabase-js, ni que el filtro por día de `public_busy` case con filas reales.
+La verificación existente es de tipos y compilación, no de ejecución.
 
 ## Siguiente paso
 
-1. Aplicar `supabase/self-booking.sql` en un proyecto de prueba y verificar.
-2. Responder qué hacer con los servicios de precio variable en el portal.
-3. Entonces C y D.
+1. **Aplicar `supabase/self-booking.sql` en un proyecto de prueba** y recorrer el
+   flujo completo: crear horario, abrir el portal, reservar desde `/reservar/<slug>`,
+   aceptar desde la bandeja. Ahí es donde van a salir los desajustes reales.
+2. Confirmar el supuesto de los servicios de precio variable: hoy quedan excluidos
+   del portal.
+3. Enganchar el `.ics` del Slice E en la aceptación (hoy existe pero no se ofrece
+   desde ninguna pantalla).
+4. Slice F (aviso por WhatsApp) cuando haya proveedor y credenciales.
 
 Slice A está cerrado, revisado y verificado. El siguiente slice (B: SQL, estados
 `REQUESTED`/`REJECTED`, migración a `timestamptz`, RPCs públicas) **requiere
