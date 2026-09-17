@@ -71,3 +71,37 @@ export interface FixedExpense {
   month: string; // 'YYYY-MM' al que corresponde (permite montos distintos por mes)
   period: ExpensePeriod;
 }
+
+// Horario de atención del negocio, por día de la semana. Puede haber varias
+// filas para el mismo weekday (ej. mañana y tarde, separadas por almuerzo).
+export interface BusinessHours {
+  id: number;
+  business_id: number; // INVARIANTE 1
+  weekday: number; // 0 = domingo … 6 = sábado (igual que Date.getDay())
+  opens_at: string; // 'HH:MM' hora local del negocio
+  closes_at: string; // 'HH:MM'
+}
+
+// Tramo puntual en el que el negocio NO atiende (vacaciones, almuerzo, asunto personal).
+export interface TimeBlock {
+  id: number;
+  business_id: number; // INVARIANTE 1
+  starts_at: string; // ISO local 'YYYY-MM-DDTHH:MM'
+  ends_at: string; // ISO local 'YYYY-MM-DDTHH:MM'
+  reason: string;
+}
+
+// Reglas de reserva pública del negocio (INVARIANTE 1: una por negocio).
+export interface BookingPolicy {
+  business_id: number; // INVARIANTE 1
+  slot_step_min: number; // granularidad de las horas ofrecidas
+  buffer_min: number; // descanso obligatorio a ambos lados de cada cita
+  min_notice_hours: number; // anticipación mínima para reservar
+  max_horizon_days: number; // hasta cuántos días en el futuro se puede reservar
+}
+
+// Hueco de tiempo ofrecido a la clienta para reservar (dominio puro, sin id: no persiste).
+export interface Slot {
+  start: string; // ISO local 'YYYY-MM-DDTHH:MM'
+  end: string; // ISO local 'YYYY-MM-DDTHH:MM'
+}
