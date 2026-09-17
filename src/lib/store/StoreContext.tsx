@@ -3,7 +3,16 @@
 // negocio; cada cambio actualiza el estado local (optimista) y se persiste por
 // detrás (write-through). Los cálculos siguen en el dominio puro (INVARIANTE 5).
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { Appointment, FixedExpense, Service, ServiceSupply, Supply } from '../domain/types';
+import type {
+  Appointment,
+  BookingPolicyRow,
+  BusinessHours,
+  FixedExpense,
+  Service,
+  ServiceSupply,
+  Supply,
+  TimeBlock,
+} from '../domain/types';
 import { completeAppointment as completeAppointmentDomain, transition } from '../domain/appointments';
 import { findScheduleConflict } from '../domain/scheduling';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
@@ -54,6 +63,26 @@ export interface FixedExpenseInput {
   month: string; // 'YYYY-MM' al que corresponde el gasto
 }
 
+// ── Auto-reserva (Slice D: lado de la dueña) ────────────────────────────────
+// `booking_policy` en supabase/self-booking.sql trae columnas que
+// src/lib/domain/types.ts todavía no declara (`public_slug`, `enabled`,
+// `max_requests_per_phone_per_day`): ese archivo está fuera del alcance de
+// este slice (ver odd/tasks/self-booking.md). Se extiende aquí, como forma de
+// fila de Supabase, no como regla de negocio pura.
+export type BookingPolicyPatch = Partial<Omit<BookingPolicyRow, 'business_id'>>;
+
+export interface BusinessHoursInput {
+  weekday: number;
+  opens_at: string; // 'HH:MM'
+  closes_at: string; // 'HH:MM'
+}
+export interface TimeBlockInput {
+  starts_at: string; // 'YYYY-MM-DDTHH:MM'
+  ends_at: string;
+  reason: string;
+}
+
+
 export interface Store {
   services: readonly Service[];
   appointmentsForDay: (isoDate: string) => Appointment[];
@@ -85,6 +114,18 @@ export interface Store {
   addFixedExpense: (input: FixedExpenseInput) => void;
   removeFixedExpense: (id: number) => void;
   copyPreviousMonthExpenses: (month: string) => void;
+  // Auto-reserva (Slice D): horarios, bloqueos, política y bandeja de solicitudes.
+  businessHours: readonly BusinessHours[];
+  timeBlocks: readonly TimeBlock[];
+  bookingPolicy: BookingPolicyRow | null;
+  pendingRequests: () => Appointment[];
+  setBusinessHours: (input: BusinessHoursInput) => void;
+  removeBusinessHours: (id: number) => void;
+  addTimeBlock: (input: TimeBlockInput) => void;
+  removeTimeBlock: (id: number) => void;
+  updateBookingPolicy: (patch: BookingPolicyPatch) => void;
+  acceptRequest: (appointmentId: number) => void;
+  rejectRequest: (appointmentId: number) => void;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -108,6 +149,9 @@ interface LoadedData {
   serviceSupplies: ServiceSupply[];
   appointments: Appointment[];
   fixedExpenses: FixedExpense[];
+  businessHours: BusinessHours[];
+  timeBlocks: TimeBlock[];
+  bookingPolicy: BookingPolicyRow | null;
 }
 
 // Carga inicial: resuelve el negocio del usuario y trae sus datos. Solo cuando
@@ -135,12 +179,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return;
       }
       const businessId = (members[0] as { business_id: number }).business_id;
-      const [svc, sup, ss, apt, fx] = await Promise.all([
+      const [svc, sup, ss, apt, fx, bh, tb, bp] = await Promise.all([
         supabase.from('service').select('*'),
         supabase.from('supply').select('*'),
         supabase.from('service_supply').select('*'),
         supabase.from('appointment').select('*'),
         supabase.from('fixed_expense').select('*'),
+        supabase.from('business_hours').select('*'),
+        supabase.from('time_block').select('*'),
+        // Una fila por negocio (PK = business_id); todavía puede no existir.
+        supabase.from('booking_policy').select('*'),
       ]);
       if (!active) return;
       setData({
@@ -150,6 +198,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         serviceSupplies: (ss.data ?? []) as ServiceSupply[],
         appointments: (apt.data ?? []) as Appointment[],
         fixedExpenses: (fx.data ?? []) as FixedExpense[],
+        businessHours: (bh.data ?? []) as BusinessHours[],
+        timeBlocks: (tb.data ?? []) as TimeBlock[],
+        bookingPolicy: ((bp.data ?? [])[0] ?? null) as BookingPolicyRow | null,
       });
     })();
     return () => {
@@ -183,6 +234,9 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   const [serviceSupplies, setServiceSupplies] = useState<readonly ServiceSupply[]>(data.serviceSupplies);
   const [appointments, setAppointments] = useState<readonly Appointment[]>(data.appointments);
   const [fixedExpenses, setFixedExpenses] = useState<readonly FixedExpense[]>(data.fixedExpenses);
+  const [businessHours, setBusinessHoursState] = useState<readonly BusinessHours[]>(data.businessHours);
+  const [timeBlocks, setTimeBlocksState] = useState<readonly TimeBlock[]>(data.timeBlocks);
+  const [bookingPolicy, setBookingPolicyState] = useState<BookingPolicyRow | null>(data.bookingPolicy);
 
   // ── Lecturas (puras, sobre el estado ya cargado) ──────────────────────────
   function appointmentsForDay(isoDate: string): Appointment[] {
@@ -248,6 +302,15 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
 
   function monthExpensesTotal(month: string): number {
     return fixedExpensesForMonth(fixedExpenses, businessId, month);
+  }
+
+  // Solicitudes que esperan respuesta de la dueña, de la más próxima a la más lejana.
+  // `client_phone` viaja en la fila aunque `Appointment` no lo declare (ver Appointment).
+  function pendingRequests(): Appointment[] {
+    return appointments
+      .filter((a) => a.business_id === businessId && a.status === 'REQUESTED')
+      .sort((a, b) => a.datetime.localeCompare(b.datetime))
+      .map((a) => a as Appointment);
   }
 
   // ── Escrituras (estado local + persistencia) ──────────────────────────────
@@ -464,6 +527,78 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     for (const e of created) persist(supabase.from('fixed_expense').insert(e));
   }
 
+  // Añade un tramo de horario de trabajo para un día (varias filas por día
+  // permiten mañana y tarde con almuerzo de por medio).
+  function setBusinessHours(input: BusinessHoursInput): void {
+    const row: BusinessHours = { id: newId(), business_id: businessId, ...input };
+    setBusinessHoursState((prev) => [...prev, row]);
+    persist(supabase.from('business_hours').insert(row));
+  }
+
+  function removeBusinessHours(id: number): void {
+    setBusinessHoursState((prev) => prev.filter((h) => h.id !== id));
+    persist(supabase.from('business_hours').delete().eq('id', id));
+  }
+
+  // Bloquea un tramo puntual (vacaciones, un asunto personal…).
+  function addTimeBlock(input: TimeBlockInput): void {
+    const row: TimeBlock = { id: newId(), business_id: businessId, ...input };
+    setTimeBlocksState((prev) => [...prev, row]);
+    persist(supabase.from('time_block').insert(row));
+  }
+
+  function removeTimeBlock(id: number): void {
+    setTimeBlocksState((prev) => prev.filter((b) => b.id !== id));
+    persist(supabase.from('time_block').delete().eq('id', id));
+  }
+
+  // Valores por defecto si la dueña todavía no tiene fila en booking_policy
+  // (negocio recién creado, o self-booking.sql aún no aplicado).
+  const DEFAULT_BOOKING_POLICY: Omit<BookingPolicyRow, 'business_id' | 'public_slug'> = {
+    enabled: false,
+    slot_step_min: 30,
+    buffer_min: 0,
+    min_notice_hours: 2,
+    max_horizon_days: 30,
+    max_requests_per_phone_per_day: 3,
+  };
+
+  // Crea o actualiza la política de reserva (una fila por negocio, PK = business_id).
+  function updateBookingPolicy(patch: BookingPolicyPatch): void {
+    if (bookingPolicy) {
+      const next: BookingPolicyRow = { ...bookingPolicy, ...patch };
+      setBookingPolicyState(next);
+      persist(supabase.from('booking_policy').update(patch).eq('business_id', businessId));
+      return;
+    }
+    const created: BookingPolicyRow = {
+      business_id: businessId,
+      public_slug: patch.public_slug ?? `negocio-${businessId}`,
+      ...DEFAULT_BOOKING_POLICY,
+      ...patch,
+    };
+    setBookingPolicyState(created);
+    persist(supabase.from('booking_policy').insert(created));
+  }
+
+  // La dueña acepta la solicitud: REQUESTED → PENDING, vía transition() (INVARIANTE 7).
+  function acceptRequest(appointmentId: number): void {
+    const current = appointments.find((a) => a.id === appointmentId);
+    if (!current) return;
+    const next = transition(current, 'PENDING');
+    setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? next : a)));
+    persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId));
+  }
+
+  // La dueña rechaza la solicitud: REQUESTED → REJECTED, vía transition() (INVARIANTE 7).
+  function rejectRequest(appointmentId: number): void {
+    const current = appointments.find((a) => a.id === appointmentId);
+    if (!current) return;
+    const next = transition(current, 'REJECTED');
+    setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? next : a)));
+    persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId));
+  }
+
   const store: Store = {
     services,
     appointmentsForDay,
@@ -495,6 +630,17 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     addFixedExpense,
     removeFixedExpense,
     copyPreviousMonthExpenses,
+    businessHours,
+    timeBlocks,
+    bookingPolicy,
+    pendingRequests,
+    setBusinessHours,
+    removeBusinessHours,
+    addTimeBlock,
+    removeTimeBlock,
+    updateBookingPolicy,
+    acceptRequest,
+    rejectRequest,
   };
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }
