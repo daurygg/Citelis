@@ -6,7 +6,12 @@
 //   PENDING     → CANCELED
 //   IN_PROGRESS → COMPLETED     ← AQUÍ se congelan charged_price, actual_cost, profit
 //   PENDING     → COMPLETED     (atajo permitido: completar directo)
+//   REQUESTED   → PENDING       (la dueña acepta la solicitud pública, Slice B)
+//   REQUESTED   → REJECTED      (la dueña la rechaza)
+//   REQUESTED   → CANCELED      (la clienta se arrepiente antes de que respondan)
 // Cualquier otra transición lanza error. Solo COMPLETED cuenta para reportes.
+// REQUESTED no puede saltar directo a COMPLETED: una solicitud sin confirmar
+// no es una cita aceptada.
 
 import type { Appointment, AppointmentStatus, Service } from './types';
 import { effectiveCost, profit } from './costs';
@@ -18,6 +23,8 @@ const VALID_TRANSITIONS: Readonly<Record<AppointmentStatus, readonly Appointment
   COMPLETED: [],
   CANCELED: [],
   NO_SHOW: [],
+  REQUESTED: ['PENDING', 'REJECTED', 'CANCELED'],
+  REJECTED: [],
 };
 
 /** ¿Es válida la transición `from → to` según la máquina de estados? */
@@ -85,4 +92,17 @@ export function completeAppointment(
     actual_cost,
     profit: profit(charged_price, actual_cost),
   };
+}
+
+/**
+ * ¿El estado ocupa un horario? Única fuente de verdad para esta pregunta:
+ * antes vivía duplicada en `scheduling.ts` y `availability.ts`, y cada estado
+ * nuevo se tenía que sumar en las dos copias por separado.
+ *
+ * REQUESTED cuenta como ocupante: una solicitud sin responder debe bloquear su
+ * propio horario, si no, dos clientas podrían pedir la misma hora y la dueña
+ * heredaría un choque que nunca creó.
+ */
+export function holdsSchedule(status: AppointmentStatus): boolean {
+  return status !== 'CANCELED' && status !== 'NO_SHOW' && status !== 'REJECTED';
 }

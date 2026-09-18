@@ -59,8 +59,10 @@ src/
 
 ## Entorno de trabajo
 
-- No hay Node/npm local. El **loop de tests corre en la nube** vía GitHub Actions (`.github/workflows/ci.yml`)
-  en cada push. Despliegue en Vercel.
+- **Node y npm están disponibles localmente.** Si falta `node_modules`, corre `npm install` una vez.
+  El loop de tests se cierra en local: `npm run test:run` (vitest) y `npm run typecheck` (tsc --noEmit).
+- GitHub Actions (`.github/workflows/ci.yml`) vuelve a correr los tests en cada push; es la red de
+  seguridad, no el único sitio donde se verifica. Despliegue en Vercel.
 - Trabajo por **slices verticales** (ver `PLAN.md` §4). No empezar un slice sin cumplir el DoD del anterior.
 
 ## Ramas

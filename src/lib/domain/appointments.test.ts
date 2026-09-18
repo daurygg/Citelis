@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { isValidTransition, transition, completeAppointment } from './appointments';
-import type { Appointment, Service } from './types';
+import { isValidTransition, transition, completeAppointment, holdsSchedule } from './appointments';
+import type { Appointment, AppointmentStatus, Service } from './types';
 
 function service(partial: Partial<Service> = {}): Service {
   return {
@@ -162,5 +162,71 @@ describe('completeAppointment', () => {
     const apt = appointment({ service_id: 1 });
     const otroServicio = service({ id: 2 });
     expect(() => completeAppointment(apt, otroServicio)).toThrow();
+  });
+
+  // Slice B: una solicitud sin confirmar no es una cita completable.
+  it('no se puede completar una cita REQUESTED (lanza error)', () => {
+    const requested = appointment({ status: 'REQUESTED' });
+    expect(() => completeAppointment(requested, service())).toThrow();
+  });
+});
+
+// Slice B: la reserva pública nace REQUESTED; la dueña acepta (PENDING) o
+// rechaza (REJECTED) (decisión D1 del documento ODD de self-booking).
+describe('isValidTransition — REQUESTED/REJECTED (Slice B)', () => {
+  it('la dueña acepta la solicitud: REQUESTED → PENDING', () => {
+    expect(isValidTransition('REQUESTED', 'PENDING')).toBe(true);
+  });
+
+  it('la dueña rechaza la solicitud: REQUESTED → REJECTED', () => {
+    expect(isValidTransition('REQUESTED', 'REJECTED')).toBe(true);
+  });
+
+  it('la clienta se arrepiente antes de que la dueña responda: REQUESTED → CANCELED', () => {
+    expect(isValidTransition('REQUESTED', 'CANCELED')).toBe(true);
+  });
+
+  it('una solicitud sin confirmar no se puede completar ni empezar directamente', () => {
+    expect(isValidTransition('REQUESTED', 'COMPLETED')).toBe(false);
+    expect(isValidTransition('REQUESTED', 'IN_PROGRESS')).toBe(false);
+    expect(isValidTransition('REQUESTED', 'NO_SHOW')).toBe(false);
+  });
+
+  it('REJECTED es terminal: ninguna transición sale de ahí', () => {
+    const destinos: AppointmentStatus[] = [
+      'REQUESTED',
+      'PENDING',
+      'IN_PROGRESS',
+      'COMPLETED',
+      'CANCELED',
+      'NO_SHOW',
+      'REJECTED',
+    ];
+    for (const destino of destinos) {
+      expect(isValidTransition('REJECTED', destino)).toBe(false);
+    }
+  });
+
+  it('lanza error al intentar transicionar desde REJECTED', () => {
+    const rejected = appointment({ status: 'REJECTED' });
+    expect(() => transition(rejected, 'PENDING')).toThrow();
+  });
+});
+
+describe('holdsSchedule (Slice B)', () => {
+  it('REQUESTED ocupa horario: una solicitud sin responder bloquea el slot para que la dueña no herede un conflicto que nunca creó', () => {
+    expect(holdsSchedule('REQUESTED')).toBe(true);
+  });
+
+  it('PENDING, IN_PROGRESS y COMPLETED ocupan horario', () => {
+    expect(holdsSchedule('PENDING')).toBe(true);
+    expect(holdsSchedule('IN_PROGRESS')).toBe(true);
+    expect(holdsSchedule('COMPLETED')).toBe(true);
+  });
+
+  it('CANCELED, NO_SHOW y REJECTED liberan el horario', () => {
+    expect(holdsSchedule('CANCELED')).toBe(false);
+    expect(holdsSchedule('NO_SHOW')).toBe(false);
+    expect(holdsSchedule('REJECTED')).toBe(false);
   });
 });

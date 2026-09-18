@@ -28,3 +28,6 @@ Thumbs.db
 
 # Test/coverage
 coverage/
+
+# Indice local de CodeGraph (no se comparte: cada checkout tiene el suyo)
+.codegraph/

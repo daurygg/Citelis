@@ -126,11 +126,15 @@ export function formatDateShort(iso: string): string {
 /** Etiqueta visible en español para cada estado (lenguaje de la dueña, INVARIANTE 4). */
 export function statusLabel(status: AppointmentStatus): string {
   const labels: Record<AppointmentStatus, string> = {
+    // "Por confirmar" en vez de "Solicitada": le dice a la dueña qué tiene que
+    // hacer ella, no en qué estado está el registro.
+    REQUESTED: 'Por confirmar',
     PENDING: 'Pendiente',
     IN_PROGRESS: 'En curso',
     COMPLETED: 'Completada',
     CANCELED: 'Cancelada',
     NO_SHOW: 'No llegó',
+    REJECTED: 'Rechazada',
   };
   return labels[status];
 }

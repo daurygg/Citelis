@@ -3,7 +3,18 @@
 
 // NO_SHOW: la clienta no llegó. Se distingue de CANCELED para reportes
 // (cancelar es una decisión; no presentarse es un incumplimiento).
-export type AppointmentStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW';
+// REQUESTED: la clienta pidió el horario desde el portal público y la dueña
+// todavía no respondió. REJECTED: la dueña rechazó la solicitud. Se distingue
+// de CANCELED porque "cuántas solicitudes rechacé" y "cuántas citas canceló
+// la clienta" son hechos de negocio distintos (Slice B de self-booking, D1).
+export type AppointmentStatus =
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'COMPLETED'
+  | 'CANCELED'
+  | 'NO_SHOW'
+  | 'REQUESTED'
+  | 'REJECTED';
 
 export interface Business {
   id: number; // el tenant. MVP: siempre 1
@@ -42,11 +53,19 @@ export interface Service {
   variable_price: boolean;
 }
 
+// De dónde salió la cita: la registró la dueña, o la pidió la clienta sola desde
+// el portal público.
+export type AppointmentSource = 'OWNER' | 'SELF';
+
 export interface Appointment {
   id: number;
   business_id: number; // INVARIANTE 1
   service_id: number;
   client: string;
+  // Solo en citas nacidas del portal público. Opcionales porque las citas que la
+  // dueña registró antes de esta función no los traen.
+  client_phone?: string | null;
+  source?: AppointmentSource;
   datetime: string; // ISO 8601
   status: AppointmentStatus;
   // Datos operativos capturados al AGENDAR (no son el resultado congelado):
@@ -70,4 +89,48 @@ export interface FixedExpense {
   amount: number; // centavos
   month: string; // 'YYYY-MM' al que corresponde (permite montos distintos por mes)
   period: ExpensePeriod;
+}
+
+// Horario de atención del negocio, por día de la semana. Puede haber varias
+// filas para el mismo weekday (ej. mañana y tarde, separadas por almuerzo).
+export interface BusinessHours {
+  id: number;
+  business_id: number; // INVARIANTE 1
+  weekday: number; // 0 = domingo … 6 = sábado (igual que Date.getDay())
+  opens_at: string; // 'HH:MM' hora local del negocio
+  closes_at: string; // 'HH:MM'
+}
+
+// Tramo puntual en el que el negocio NO atiende (vacaciones, almuerzo, asunto personal).
+export interface TimeBlock {
+  id: number;
+  business_id: number; // INVARIANTE 1
+  starts_at: string; // ISO local 'YYYY-MM-DDTHH:MM'
+  ends_at: string; // ISO local 'YYYY-MM-DDTHH:MM'
+  reason: string;
+}
+
+// Reglas de reserva pública del negocio (INVARIANTE 1: una por negocio).
+export interface BookingPolicy {
+  business_id: number; // INVARIANTE 1
+  slot_step_min: number; // granularidad de las horas ofrecidas
+  buffer_min: number; // descanso obligatorio a ambos lados de cada cita
+  min_notice_hours: number; // anticipación mínima para reservar
+  max_horizon_days: number; // hasta cuántos días en el futuro se puede reservar
+}
+
+// Hueco de tiempo ofrecido a la clienta para reservar (dominio puro, sin id: no persiste).
+// Fila completa de `booking_policy`. `BookingPolicy` son las reglas que necesita el
+// cálculo puro de slots; estos tres campos son administración del portal (dónde vive,
+// si está abierto, cuánto spam se tolera) y no entran en la matemática de
+// disponibilidad, por eso viven en un tipo aparte.
+export interface BookingPolicyRow extends BookingPolicy {
+  public_slug: string;
+  enabled: boolean;
+  max_requests_per_phone_per_day: number;
+}
+
+export interface Slot {
+  start: string; // ISO local 'YYYY-MM-DDTHH:MM'
+  end: string; // ISO local 'YYYY-MM-DDTHH:MM'
 }

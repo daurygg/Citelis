@@ -1,7 +1,10 @@
 // Detección de choques de horario entre citas (función pura, INVARIANTE 5).
 // Cada cita ocupa [inicio, inicio + duración_del_servicio). Dos citas chocan si
-// sus intervalos se solapan. Las CANCELED y NO_SHOW no ocupan horario.
+// sus intervalos se solapan. Qué estados ocupan horario lo decide `holdsSchedule`
+// (appointments.ts, dueño de la semántica de estados): hoy CANCELED, NO_SHOW y
+// REJECTED no ocupan.
 import type { Appointment, Service } from './types';
+import { holdsSchedule } from './appointments';
 
 /** Duración del servicio en milisegundos. */
 export function serviceDurationMs(service: Service): number {
@@ -32,7 +35,7 @@ export function findScheduleConflict(
 
   for (const a of appointments) {
     if (candidate.id !== undefined && a.id === candidate.id) continue;
-    if (a.status === 'CANCELED' || a.status === 'NO_SHOW') continue;
+    if (!holdsSchedule(a.status)) continue;
     const svc = services.find((s) => s.id === a.service_id);
     if (!svc) continue;
     const start = new Date(a.datetime).getTime();
