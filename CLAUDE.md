@@ -62,3 +62,34 @@ src/
 - No hay Node/npm local. El **loop de tests corre en la nube** vía GitHub Actions (`.github/workflows/ci.yml`)
   en cada push. Despliegue en Vercel.
 - Trabajo por **slices verticales** (ver `PLAN.md` §4). No empezar un slice sin cumplir el DoD del anterior.
+
+## Ramas
+
+Tres ramas de larga duración. **A `main` nunca se commitea directo**: es producción.
+
+| Rama | Qué es | Recibe |
+|---|---|---|
+| `main` | Producción. Lo que está desplegado. | Merges desde `develop` (releases) y desde `maintenance` (hotfixes). |
+| `develop` | Integración. Donde se prueba todo junto. | PRs de las ramas de trabajo. **Destino por defecto de un PR.** |
+| `maintenance` | Arreglos sobre lo que ya está en producción. | PRs de `fix/*` que no pueden esperar al próximo release. |
+
+Ramas de trabajo: `feat/*`, `fix/*`, `chore/*`, `docs/*`. Salen de `develop` (o de
+`maintenance` si es un arreglo urgente de producción) y vuelven por PR, nunca por push
+directo.
+
+Un hotfix que entra por `maintenance` hay que devolverlo también a `develop`, o el
+próximo release lo pisa.
+
+## MCP de Supabase
+
+`.mcp.json` declara el servidor MCP de Supabase, pero **no contiene secretos**: usa
+expansión de variables de entorno. Exporta en tu máquina:
+
+```bash
+export SUPABASE_ACCESS_TOKEN=...   # token personal de Supabase
+export SUPABASE_PROJECT_REF=...    # ref del proyecto al que apuntar
+```
+
+`--read-only` viene en `true` por defecto a propósito. Para aplicar migraciones contra
+un proyecto **de prueba**, exporta `SUPABASE_MCP_READ_ONLY=false` solo en esa sesión.
+Contra producción, nunca.

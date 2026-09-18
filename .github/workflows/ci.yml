@@ -1,10 +1,11 @@
 name: CI
 
-# Corre typecheck + tests en cada push y PR. Este es el "loop de tests"
-# del proyecto, ya que no hay Node local (ver CLAUDE.md).
+# Corre typecheck + tests en cada push a una rama de larga duración y en cada PR.
+# El loop de tests también se cierra en local (ver CLAUDE.md); esto es la red de
+# seguridad, no el único sitio donde se verifica.
 on:
   push:
-    branches: [main]
+    branches: [main, develop, maintenance]
   pull_request:
 
 jobs:
