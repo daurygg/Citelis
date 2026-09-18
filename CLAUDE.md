@@ -84,26 +84,32 @@ próximo release lo pisa.
 
 ## MCP de Supabase
 
-`.mcp.json` apunta al servidor remoto de Supabase (`https://mcp.supabase.com/mcp`),
-que autentica por OAuth en el navegador. **No hace falta ningún token en disco.**
+`.mcp.json` declara **dos** servidores contra `https://mcp.supabase.com/mcp`, que
+autentican por OAuth en el navegador. **No hace falta ningún token en disco.**
 
-Primera vez: dentro de Claude Code, `/mcp` → `supabase` → `Authenticate`, y autorizas
-en el navegador.
+| Servidor | Modo | Para qué |
+|---|---|---|
+| `supabase` | solo lectura | Consultar esquema, datos y logs. El de diario. |
+| `supabase-write` | escritura | Aplicar migraciones. Solo cuando toca. |
 
-Solo una variable de entorno, para acotar el alcance a un proyecto:
+Son dos porque el peligro tiene que verse: las herramientas del segundo se llaman
+`mcp__supabase-write__*`, así que no se puede escribir sin que quede a la vista en el
+nombre de la operación.
+
+Antes esto era una sola entrada con `read_only` en una variable de entorno. No
+funcionaba: Claude Code deriva la identidad del servidor de la URL resuelta, así que
+cambiar la variable creaba un servidor distinto y obligaba a reautenticar cada vez.
+
+Primera vez, para cada uno: `/mcp` → eliges el servidor → `Authenticate` → autorizas en
+el navegador. La credencial queda en `~/.claude/.credentials.json` y persiste entre
+sesiones.
+
+Una sola variable de entorno, para acotar el alcance a un proyecto:
 
 ```bash
-export SUPABASE_PROJECT_REF=...   # ref del proyecto (Settings → General → Reference ID)
+export SUPABASE_PROJECT_REF=...   # Settings → General → Reference ID
 ```
 
-Sin `project_ref` el servidor tendría acceso a **todos** tus proyectos, producción
-incluida. Con él, solo a ese.
-
-`read_only` va en `true` por defecto a propósito: las consultas corren como un usuario
-de Postgres de solo lectura. Para aplicar migraciones contra un proyecto **de prueba**:
-
-```bash
-SUPABASE_MCP_READ_ONLY=false claude
-```
-
-Contra producción, nunca.
+Sin `project_ref` los servidores tendrían acceso a **todos** tus proyectos. Y como la
+identidad depende de la URL, cambiar de proyecto obliga a autorizar de nuevo: esa
+fricción es deliberada.
