@@ -236,24 +236,140 @@ cálculo puro de slots; `BookingPolicyRow` añade la administración del portal.
 Requiere cuenta de proveedor (Twilio o Meta), credenciales y una decisión de costo.
 No es implementable desde aquí.
 
-## Lo que sigue SIN verificar
+## Verificación contra base real — 2026-09-18 ✅
 
-Nada de C ni D se ha probado contra una base real: `supabase/self-booking.sql` nunca
-se ha aplicado. Concretamente no se ha confirmado la forma real de retorno de las
-RPC, el comportamiento de los grants, si `bigint` llega como número o como string
-desde supabase-js, ni que el filtro por día de `public_busy` case con filas reales.
-La verificación existente es de tipos y compilación, no de ejecución.
+El SQL ya corrió. Historial de migraciones creado en CitelisDev
+(`mpmbrntyojomfhrdcurt`), que antes estaba vacío:
+
+- `20260918172022_baseline_existing_schema` — consolida `schema.sql`,
+  `invitations.sql`, `inventory.sql` y los tres parches de columnas en una sola foto
+  idempotente, **sin `drop table`**. Es un baseline: el esquema ya existía aplicado a
+  mano, esto lo registra, no lo re-ejecuta.
+- `20260918172159_self_booking` — el cambio real. 13 tablas, todas con RLS.
+
+Copias en repo: `supabase/migrations/`.
+
+Las cuatro dudas que arrastraba este documento quedan resueltas, ejecutando como rol
+`anon`:
+
+- **Grants**: funcionan. Las cuatro RPC públicas son ejecutables por `anon`.
+- **`bigint`**: vuelve como número JSON, no string. Los ids del cliente
+  (`Date.now()*1000 + azar` ≈ 1.77e15) caben bajo 2^53.
+- **Filtro por día de `public_busy`**: `datetime like p_date || 'T%'` sí casa con
+  filas reales.
+- **Forma de retorno**: la de la firma. `public_business` devuelve 8 de 11 servicios
+  y nunca proyecta `supply_cost` ni `cost_override`.
+
+También verificado: `anon` ve **0 filas** por acceso directo a `service`,
+`appointment`, `business`, `booking_policy` y `supply` (decisión D2 se sostiene); la
+cita nace `REQUESTED`/`SELF` con `charged_price`/`actual_cost`/`profit` en `null`
+(INVARIANTE 2); la detección de choques rechaza dentro del lock; el límite anti-spam
+corta en la cuarta solicitud del mismo teléfono.
+
+Supuesto confirmado: los servicios `variable_price` quedan excluidos del portal.
+
+## Huecos encontrados al ejecutar — CERRADOS ✅
+
+Ninguno se habría visto compilando. Todos salieron al correr el flujo.
+
+- **H1 — `expire_stale_requests` es una escritura anónima sobre cualquier negocio.**
+  Un `anon` sin autenticar la llamó con `business_id = 1` y cambió una fila
+  `REQUESTED` → `REJECTED`. La función no comprueba pertenencia ⇒ **viola la
+  INVARIANTE 1**. Causa raíz: Postgres concede `EXECUTE` a `PUBLIC` por defecto al
+  crear una función, así que el `grant execute ... to authenticated` explícito era
+  redundante y daba falsa sensación de restricción. Mismo efecto en
+  `create_business`, `create_invitation`, `redeem_invitation` e `is_member`, pero
+  esas sí están protegidas por su propio chequeo de `auth.uid()`.
+- **H2 — `public_request_booking` no valida el horario de atención.** Aceptó
+  domingo 2026-09-20T03:00, un día sin ni una fila en `business_hours`.
+- **H3 — no valida `max_horizon_days`.** Aceptó 2027-12-31 con horizonte de 30 días.
+- **H4 — no valida `min_notice_hours`.** Aceptó una cita a 10 minutos con aviso
+  mínimo de 2 horas.
+- **H5 — no valida `time_block`.** Aceptó una cita dentro de un bloqueo de
+  vacaciones de la dueña.
+
+- **H6 — la base corre en UTC y `datetime` es hora local sin zona.** Salió al
+  arreglar H4. `expire_stale_requests` comparaba `datetime` contra
+  `to_char(now(), ...)`: en RD (UTC-4) eso auto-rechazaba solicitudes de hasta
+  **4 horas en el futuro**. Reproducido con una cita local a las 15:00 mientras
+  `ahora_local` era 13:41 y `ahora_utc` 17:41.
+
+H2–H5 solo se aplicaban en el navegador (`generateSlots`). El comentario del SQL
+decía *"el navegador no es una garantía: la verdad vive aquí"*, pero eso solo era
+cierto para los choques. La RPC es API pública: se llama con `curl`.
+
+### Cómo se cerraron — `20260918000003` y `20260918000004`
+
+- **H6**: columna `booking_policy.timezone` (default `America/Santo_Domingo`). Todas
+  las comparaciones usan `now() at time zone v_tz`. El huso es un dato del negocio,
+  no del servidor.
+- **H1**: revocado `execute` de `anon` y `authenticated`. Se cerró REVOCANDO y no con
+  un `is_member`, porque su llamador legítimo es una clienta **anónima**: un chequeo
+  de pertenencia habría roto la reserva pública. La llamada interna desde
+  `public_request_booking` sigue funcionando porque es `SECURITY DEFINER`.
+- **H2–H5**: validaciones dentro de `public_request_booking`, replicando la
+  semántica de `availability.ts` al detalle. Criterio: si el servidor fuera **más**
+  estricto que el navegador, la clienta vería errores en horarios que la web le
+  acaba de ofrecer. H2 exige que la cita entera quepa en UN tramo, no en la suma:
+  con jornada partida 9–13 y 14–18, una cita de 12:30 a 14:30 no cabe.
+- **Bonus**: la comprobación de choques ahora aplica `buffer_min` a AMBOS lados,
+  igual que `occupiesSchedule`. Antes el servidor no aplicaba buffer y era más
+  permisivo que el navegador.
+- **`search_path`**: fijado a `public, pg_temp` en las 9 funciones `SECURITY
+  DEFINER`. El aviso desapareció del linter.
+
+### La lección de permisos, que casi se me escapa
+
+`revoke execute ... from public` **no basta en Supabase**. El proyecto trae
+`alter default privileges in schema public grant all on functions to anon,
+authenticated`, así que cada función nace además con una concesión **directa** a
+esos roles, y revocar de `PUBLIC` no toca una concesión directa.
+
+Pasó en vivo: la migración `0003` revocó de `PUBLIC` creyendo cerrar
+`create_business`, `create_invitation` y `redeem_invitation`, y
+`has_function_privilege('anon', ...)` seguía devolviendo `true`. Hizo falta la
+`0004` revocando de `anon` por su nombre.
+
+**Verificar siempre con `has_function_privilege(rol, fn, 'EXECUTE')`**, nunca con el
+linter ni con el texto del `grant`.
+
+### Decidido NO validar
+
+La alineación al `slot_step_min` no se comprueba en servidor: es presentación, no
+regla de negocio, y validarla rompería en cuanto la dueña cambie el paso.
+
+### Estado del linter
+
+`function_search_path_mutable`: resuelto. `rls_enabled_no_policy` en `invitation`:
+deliberado. Los avisos `*_security_definer_function_executable` que quedan
+corresponden a funciones que deben ser públicas por diseño.
+
+## Desviaciones aplicadas respecto a `supabase/self-booking.sql`
+
+- Los tres `drop policy if exists` pasaron a bloques `do $$ ... if not exists`: mismo
+  efecto sin destruir una policy para recrearla.
+- Corregido el comentario de `public_appointment_id_seq`, que decía "arranca alto"
+  mientras el código decía `start 1`.
+
+## Estado de la base de prueba
+
+Negocio 1 `Citelis`, 19 insumos, 11 servicios, 40 enlaces, 3 gastos fijos, 11 filas
+de horario (L–S con jornada partida), `booking_policy` con slug `citelis` habilitada.
+0 citas: las de prueba se borraron. 0 usuarios en `auth.users` — falta registrarse
+desde la app para poder completar `bootstrap.sql`.
 
 ## Siguiente paso
 
-1. **Aplicar `supabase/self-booking.sql` en un proyecto de prueba** y recorrer el
-   flujo completo: crear horario, abrir el portal, reservar desde `/reservar/<slug>`,
-   aceptar desde la bandeja. Ahí es donde van a salir los desajustes reales.
-2. Confirmar el supuesto de los servicios de precio variable: hoy quedan excluidos
-   del portal.
-3. Enganchar el `.ics` del Slice E en la aceptación (hoy existe pero no se ofrece
+1. **Verificar el fallback SPA en Vercel.** No existe `vercel.json`. La ruta pública
+   `/reservar/<slug>` funciona en local (Vite hace history fallback), pero en
+   producción puede dar 404 sin una regla de rewrite a `index.html`. Sin confirmar.
+2. **Cubrir H1–H6 con tests.** Las seis pruebas se hicieron a mano contra la base.
+   No hay nada que impida una regresión silenciosa.
+3. Registrarse desde la app y completar `bootstrap.sql` para probar el lado de la
+   dueña (bandeja de solicitudes, aceptar/rechazar).
+4. Enganchar el `.ics` del Slice E en la aceptación (hoy existe pero no se ofrece
    desde ninguna pantalla).
-4. Slice F (aviso por WhatsApp) cuando haya proveedor y credenciales.
+5. Slice F (aviso por WhatsApp) cuando haya proveedor y credenciales.
 
 Slice A está cerrado, revisado y verificado. El siguiente slice (B: SQL, estados
 `REQUESTED`/`REJECTED`, migración a `timestamptz`, RPCs públicas) **requiere
