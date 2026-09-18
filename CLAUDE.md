@@ -84,14 +84,26 @@ próximo release lo pisa.
 
 ## MCP de Supabase
 
-`.mcp.json` declara el servidor MCP de Supabase, pero **no contiene secretos**: usa
-expansión de variables de entorno. Exporta en tu máquina:
+`.mcp.json` apunta al servidor remoto de Supabase (`https://mcp.supabase.com/mcp`),
+que autentica por OAuth en el navegador. **No hace falta ningún token en disco.**
+
+Primera vez: dentro de Claude Code, `/mcp` → `supabase` → `Authenticate`, y autorizas
+en el navegador.
+
+Solo una variable de entorno, para acotar el alcance a un proyecto:
 
 ```bash
-export SUPABASE_ACCESS_TOKEN=...   # token personal de Supabase
-export SUPABASE_PROJECT_REF=...    # ref del proyecto al que apuntar
+export SUPABASE_PROJECT_REF=...   # ref del proyecto (Settings → General → Reference ID)
 ```
 
-`--read-only` viene en `true` por defecto a propósito. Para aplicar migraciones contra
-un proyecto **de prueba**, exporta `SUPABASE_MCP_READ_ONLY=false` solo en esa sesión.
+Sin `project_ref` el servidor tendría acceso a **todos** tus proyectos, producción
+incluida. Con él, solo a ese.
+
+`read_only` va en `true` por defecto a propósito: las consultas corren como un usuario
+de Postgres de solo lectura. Para aplicar migraciones contra un proyecto **de prueba**:
+
+```bash
+SUPABASE_MCP_READ_ONLY=false claude
+```
+
 Contra producción, nunca.
