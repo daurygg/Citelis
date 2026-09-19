@@ -2,19 +2,28 @@
 // y espera respuesta. Mientras nadie conteste, esa hora sigue apartada
 // (holdsSchedule en appointments.ts trata REQUESTED como ocupante), así que el
 // conteo tiene que notarse: una solicitud olvidada bloquea el horario de otras.
+import { useState } from 'react';
 import { useStore } from '../../lib/store/StoreContext';
 import { useToast } from '../Toast';
 import { formatDateShort, formatMoney, formatTime } from '../../lib/format';
+import { CalendarActions } from '../CalendarActions';
+import type { Appointment } from '../../lib/domain/types';
 import { btnGhost, btnPrimary, card } from '../ui';
 
 export function RequestsInbox() {
   const store = useStore();
   const { notify } = useToast();
   const requests = store.pendingRequests();
+  // La solicitud aceptada sale de la bandeja en el acto, así que guardamos la cita
+  // para poder ofrecer el calendario ahí mismo: es el momento en que la dueña tiene
+  // a la clienta en la cabeza. Solo se leen datos que la aceptación no cambia
+  // (quién, cuándo, qué servicio), nunca el estado.
+  const [justAccepted, setJustAccepted] = useState<Appointment | null>(null);
 
-  function handleAccept(id: number, client: string) {
-    store.acceptRequest(id);
-    notify(`✓ Cita de ${client} aceptada`);
+  function handleAccept(request: Appointment) {
+    store.acceptRequest(request.id);
+    setJustAccepted(request);
+    notify(`✓ Cita de ${request.client} aceptada`);
   }
 
   function handleReject(id: number, client: string) {
@@ -63,7 +72,7 @@ export function RequestsInbox() {
                   <button
                     type="button"
                     className={btnPrimary + ' px-3 py-1.5 text-sm'}
-                    onClick={() => handleAccept(request.id, request.client)}
+                    onClick={() => handleAccept(request)}
                   >
                     Aceptar
                   </button>
@@ -79,6 +88,25 @@ export function RequestsInbox() {
             );
           })}
         </ul>
+      )}
+
+      {justAccepted && (
+        <div className="flex flex-col gap-2 rounded-xl border border-green-200 bg-green-50 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-green-900">
+              Cita de {justAccepted.client} aceptada, {formatDateShort(justAccepted.datetime)} a las{' '}
+              {formatTime(justAccepted.datetime)}.
+            </p>
+            <button
+              type="button"
+              className="shrink-0 text-sm text-neutral-500 hover:underline"
+              onClick={() => setJustAccepted(null)}
+            >
+              Listo
+            </button>
+          </div>
+          <CalendarActions appointment={justAccepted} />
+        </div>
       )}
     </div>
   );
