@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type {
   Appointment,
   BookingPolicyRow,
+  Business,
   BusinessHours,
   FixedExpense,
   Service,
@@ -115,6 +116,7 @@ export interface Store {
   removeFixedExpense: (id: number) => void;
   copyPreviousMonthExpenses: (month: string) => void;
   // Auto-reserva (Slice D): horarios, bloqueos, política y bandeja de solicitudes.
+  business: Business | null;
   businessHours: readonly BusinessHours[];
   timeBlocks: readonly TimeBlock[];
   bookingPolicy: BookingPolicyRow | null;
@@ -144,6 +146,7 @@ function persist(op: PromiseLike<{ error: unknown }>): void {
 
 interface LoadedData {
   businessId: number;
+  business: Business | null;
   services: Service[];
   supplies: Supply[];
   serviceSupplies: ServiceSupply[];
@@ -179,7 +182,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return;
       }
       const businessId = (members[0] as { business_id: number }).business_id;
-      const [svc, sup, ss, apt, fx, bh, tb, bp] = await Promise.all([
+      const [biz, svc, sup, ss, apt, fx, bh, tb, bp] = await Promise.all([
+        // El nombre del negocio sale en el .ics y en el link de Google Calendar.
+        supabase.from('business').select('*').eq('id', businessId),
         supabase.from('service').select('*'),
         supabase.from('supply').select('*'),
         supabase.from('service_supply').select('*'),
@@ -193,6 +198,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!active) return;
       setData({
         businessId,
+        business: ((biz.data ?? [])[0] ?? null) as Business | null,
         services: (svc.data ?? []) as Service[],
         supplies: (sup.data ?? []) as Supply[],
         serviceSupplies: (ss.data ?? []) as ServiceSupply[],
@@ -630,6 +636,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     addFixedExpense,
     removeFixedExpense,
     copyPreviousMonthExpenses,
+    business: data.business,
     businessHours,
     timeBlocks,
     bookingPolicy,
