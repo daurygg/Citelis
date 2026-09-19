@@ -182,13 +182,49 @@ Decisiones de seguridad:
   puede reservar un precio que no existe. Supuesto conservador, revisable.
 - Tope de solicitudes por teléfono y día contra spam.
 
-## Slice E — entregado ✅
+## Slice E — entregado ✅ (y ya enganchado en la UI)
 
 `src/lib/domain/calendar.ts`: `buildICS()` (RFC 5545) y `googleCalendarUrl()`. Puro,
 13 tests. CRLF, escapado de texto, plegado de líneas a 75 octetos, `UID` estable y
 `SEQUENCE` incremental (así iOS y Google **actualizan** el evento en vez de duplicarlo).
 `DTSTART`/`DTEND` en hora flotante sin `Z`; `DTSTAMP` sí lleva `Z` porque es un
 instante real. La aritmética usa `Date.UTC` internamente, así que no arrastra DST.
+
+### E2 — entrega del calendario en pantalla (2026-09-19)
+
+Hasta aquí `calendar.ts` existía pero ninguna pantalla lo usaba. Ahora sí.
+
+Dos funciones puras nuevas en `calendar.ts`, con 8 tests (RED observado antes de
+implementar): el módulo pasa de 13 a 21 tests.
+
+- `appointmentUID(appointment)` — `citelis-<business_id>-<id>@citelis.app`. Depende
+  solo de la identidad de la cita, **nunca de su horario**: si cambiara al
+  reprogramar, el teléfono de la clienta crearía un evento nuevo en vez de mover el
+  que ya tiene. Lleva `business_id` porque los ids son por negocio (INVARIANTE 1).
+- `revisionSequence(now)` — segundos desde el 1 de enero de 2026. **No guardamos un
+  contador de versiones de la cita**, así que el `SEQUENCE` sale del reloj, que solo
+  avanza: cada archivo generado después gana al anterior y el calendario acepta la
+  revisión. Se corta en 0 si el reloj está atrasado (RFC 5545 exige no negativo) y
+  cabe en 32 bits hasta bien entrado el siglo, que es lo que asumen varios clientes.
+
+`src/components/CalendarActions.tsx` (nuevo): "Descargar la cita" (blob `.ics`) y
+"Copiar link de Google Calendar", con `window.open` como plan B si el portapapeles
+está bloqueado (pasa fuera de https). Enganchado en dos sitios:
+
+- **`RequestsInbox.tsx`** — aparece justo al aceptar, que es cuando la dueña tiene a
+  la clienta en la cabeza. La solicitud sale de la bandeja en el acto, así que se
+  guarda la cita en estado local; solo se leen datos que la aceptación no cambia
+  (quién, cuándo, qué servicio), nunca el estado.
+- **`AppointmentRow.tsx`** — botón "Calendario" en las citas abiertas, para volver a
+  mandarlo después (o para las citas que registró la dueña a mano).
+
+**No hay envío automático**: la dueña baja el archivo o copia el link y lo manda ella
+por WhatsApp. El canal automático es el Slice F, que sigue bloqueado.
+
+`StoreContext` ahora carga también la fila `business`: el `.ics` y el link de Google
+necesitan el nombre del negocio y el store solo tenía `businessId`. Se expone como
+`business: Business | null`; si falta, `CalendarActions` no se dibuja en vez de
+inventar un nombre.
 
 ## Slice C — entregado ⚠️ sin verificar contra base real
 
@@ -358,6 +394,17 @@ de horario (L–S con jornada partida), `booking_policy` con slug `citelis` habi
 0 citas: las de prueba se borraron. 0 usuarios en `auth.users` — falta registrarse
 desde la app para poder completar `bootstrap.sql`.
 
+## E2 (entrega del calendario) no se ha visto funcionar — 2026-09-19
+
+Verificado: `npm run test:run` → **120 tests ✓** (eran 112), `npm run typecheck` →
+exit 0, `npm run build` → OK. **Nada de eso prueba que la pantalla funcione.**
+
+No se pudo abrir la app en el navegador: la máquina donde se escribió no tiene
+`.env`, así que sin `VITE_SUPABASE_URL` ni `VITE_SUPABASE_PUBLISHABLE_KEY` no hay
+sesión posible. Queda sin comprobar que el archivo descargado abra bien en un
+teléfono, que el link de Google Calendar caiga en la hora correcta, y que el panel
+de aceptación se vea como debe en pantalla de móvil.
+
 ## Siguiente paso
 
 1. **Verificar el fallback SPA en Vercel.** No existe `vercel.json`. La ruta pública
@@ -367,8 +414,9 @@ desde la app para poder completar `bootstrap.sql`.
    No hay nada que impida una regresión silenciosa.
 3. Registrarse desde la app y completar `bootstrap.sql` para probar el lado de la
    dueña (bandeja de solicitudes, aceptar/rechazar).
-4. Enganchar el `.ics` del Slice E en la aceptación (hoy existe pero no se ofrece
-   desde ninguna pantalla).
+4. **Probar E2 en el navegador con una cita real**: aceptar desde la bandeja, bajar
+   el `.ics` y abrirlo en un iPhone y en un Android de verdad. Es el paso que
+   convierte "compila" en "sirve".
 5. Slice F (aviso por WhatsApp) cuando haya proveedor y credenciales.
 
 Slice A está cerrado, revisado y verificado. El siguiente slice (B: SQL, estados

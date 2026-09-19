@@ -6,6 +6,7 @@ import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, parseMoneyToCents, statusLabel } from '../lib/format';
 import type { AppointmentStatus, Appointment } from '../lib/domain/types';
 import { useToast } from './Toast';
+import { CalendarActions } from './CalendarActions';
 import { btnGhost, btnPrimary, card, field, fieldLabel, input } from './ui';
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
@@ -27,6 +28,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
 
   const [charging, setCharging] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
+  const [sharingCalendar, setSharingCalendar] = useState(false);
   const [newDatetime, setNewDatetime] = useState(appointment.datetime.slice(0, 16));
   // Prefija el precio del cobro con el acordado al agendar (si lo hay).
   const [priceText, setPriceText] = useState(
@@ -97,6 +99,13 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
           <button
             type="button"
             className={btnGhost + ' px-3 py-1.5 text-sm'}
+            onClick={() => setSharingCalendar((v) => !v)}
+          >
+            {sharingCalendar ? 'Cerrar' : 'Calendario'}
+          </button>
+          <button
+            type="button"
+            className={btnGhost + ' px-3 py-1.5 text-sm'}
             onClick={() => {
               store.markNoShow(appointment.id);
               notify('Marcada como “no llegó”');
@@ -118,6 +127,8 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
           </button>
         </div>
       )}
+
+      {sharingCalendar && <CalendarActions appointment={appointment} />}
 
       {rescheduling && (
         <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">

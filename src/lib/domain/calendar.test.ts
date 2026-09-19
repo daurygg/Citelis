@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildICS, googleCalendarUrl } from './calendar';
+import { appointmentUID, buildICS, googleCalendarUrl, revisionSequence } from './calendar';
 import type { Appointment, Business, Service } from './types';
 
 function business(partial: Partial<Business> = {}): Business {
@@ -291,5 +291,50 @@ describe('googleCalendarUrl', () => {
     const parsed = new URL(url);
     expect(parsed.searchParams.get('text')).toBe('Corte — Bella, Spa & Uñas');
     expect(url).not.toContain('Bella, Spa & Uñas');
+  });
+});
+
+describe('appointmentUID', () => {
+  it('es estable: la misma cita produce siempre el mismo UID', () => {
+    const a = appointment();
+    expect(appointmentUID(a)).toBe(appointmentUID(a));
+  });
+
+  it('no cambia al reprogramar: el calendario debe ACTUALIZAR el evento, no duplicarlo', () => {
+    const original = appointment({ datetime: '2026-09-21T14:30' });
+    const movida = appointment({ datetime: '2026-09-23T09:00' });
+    expect(appointmentUID(movida)).toBe(appointmentUID(original));
+  });
+
+  it('separa negocios: el mismo id de cita en otro negocio da otro UID (INVARIANTE 1)', () => {
+    const uno = appointment({ id: 7, business_id: 1 });
+    const otro = appointment({ id: 7, business_id: 2 });
+    expect(appointmentUID(otro)).not.toBe(appointmentUID(uno));
+  });
+
+  it('tiene forma de UID global: incluye un dominio tras @', () => {
+    expect(appointmentUID(appointment())).toMatch(/^[^@\s]+@[^@\s]+$/);
+  });
+});
+
+describe('revisionSequence', () => {
+  it('crece con el tiempo: una generación posterior gana a la anterior', () => {
+    const antes = revisionSequence(new Date('2026-09-21T10:00:00Z'));
+    const despues = revisionSequence(new Date('2026-09-21T10:00:01Z'));
+    expect(despues).toBeGreaterThan(antes);
+  });
+
+  it('es un entero no negativo', () => {
+    const seq = revisionSequence(new Date('2026-09-21T10:00:00Z'));
+    expect(Number.isInteger(seq)).toBe(true);
+    expect(seq).toBeGreaterThanOrEqual(0);
+  });
+
+  it('nunca baja de cero, aunque el reloj del equipo esté muy atrasado', () => {
+    expect(revisionSequence(new Date('1999-01-01T00:00:00Z'))).toBe(0);
+  });
+
+  it('cabe en un entero de 32 bits con signo, que es lo que asumen varios calendarios', () => {
+    expect(revisionSequence(new Date('2090-01-01T00:00:00Z'))).toBeLessThan(2 ** 31 - 1);
   });
 });

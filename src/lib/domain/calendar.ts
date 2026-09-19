@@ -143,6 +143,32 @@ export function buildICS(input: CalendarEventInput): string {
   return lines.map(foldLine).join('\r\n') + '\r\n';
 }
 
+/**
+ * UID estable de una cita (RFC 5545 §3.8.4.7). Depende solo de la identidad de la
+ * cita, NUNCA de su horario: si cambiara al reprogramar, el calendario de la clienta
+ * crearía un evento nuevo en vez de mover el que ya tiene. Lleva `business_id`
+ * porque los ids de cita son por negocio (INVARIANTE 1) y dos tenants podrían
+ * colisionar en el mismo calendario.
+ */
+export function appointmentUID(appointment: Appointment): string {
+  return `citelis-${appointment.business_id}-${appointment.id}@citelis.app`;
+}
+
+/** Época del proyecto para `revisionSequence`. Anterior a cualquier cita real. */
+const SEQUENCE_EPOCH_MS = Date.UTC(2026, 0, 1);
+
+/**
+ * SEQUENCE para el VEVENT: segundos transcurridos desde la época del proyecto.
+ * No guardamos un contador de versiones de la cita, así que usamos el reloj, que
+ * solo avanza: cada archivo generado después gana al anterior y el calendario
+ * acepta la revisión. Se corta en 0 si el reloj del equipo está atrasado, porque
+ * RFC 5545 exige un entero no negativo. Cabe en 32 bits hasta bien entrado el
+ * siglo, que es lo que asumen varios clientes de calendario.
+ */
+export function revisionSequence(now: Date): number {
+  return Math.max(0, Math.floor((now.getTime() - SEQUENCE_EPOCH_MS) / 1000));
+}
+
 export interface GoogleCalendarUrlInput {
   appointment: Appointment;
   service: Service;
