@@ -168,9 +168,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     (async () => {
+      // `order by` antes del `limit`: sin él, con más de una membresía Postgres
+      // puede devolver cualquiera de las dos y la app abriría un negocio distinto
+      // en cada carga. El modelo permite varias membresías (invitaciones,
+      // create_business), así que el desempate tiene que ser explícito: se abre
+      // siempre el negocio más antiguo del usuario.
       const { data: members, error: mErr } = await supabase
         .from('business_member')
         .select('business_id')
+        .order('business_id', { ascending: true })
         .limit(1);
       if (!active) return;
       if (mErr) {
