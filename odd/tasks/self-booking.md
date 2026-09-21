@@ -407,21 +407,33 @@ de aceptación se vea como debe en pantalla de móvil.
 
 ## Siguiente paso
 
-1. **Verificar el fallback SPA en Vercel.** No existe `vercel.json`. La ruta pública
-   `/reservar/<slug>` funciona en local (Vite hace history fallback), pero en
-   producción puede dar 404 sin una regla de rewrite a `index.html`. Sin confirmar.
-2. **Cubrir H1–H6 con tests.** Las seis pruebas se hicieron a mano contra la base.
-   No hay nada que impida una regresión silenciosa.
-3. Registrarse desde la app y completar `bootstrap.sql` para probar el lado de la
-   dueña (bandeja de solicitudes, aceptar/rechazar).
-4. **Probar E2 en el navegador con una cita real**: aceptar desde la bandeja, bajar
-   el `.ics` y abrirlo en un iPhone y en un Android de verdad. Es el paso que
-   convierte "compila" en "sirve".
-5. Slice F (aviso por WhatsApp) cuando haya proveedor y credenciales.
+Estado a 2026-09-21. Slices A–E entregados y mergeados en `develop` (PR #1, #2, #3, #4).
+Las migraciones están aplicadas en CitelisDev y el flujo se verificó por ejecución,
+no solo por compilación.
 
-Slice A está cerrado, revisado y verificado. El siguiente slice (B: SQL, estados
-`REQUESTED`/`REJECTED`, migración a `timestamptz`, RPCs públicas) **requiere
-autorización explícita** antes de escribir nada.
+Hecho desde la última revisión de este documento:
+
+- ✅ `vercel.json` con rewrite SPA (este documento decía que no existía).
+- ✅ H1–H6 cerrados y con regresión en `supabase/tests/self-booking-regression.sql`
+  (14 aserciones, validadas rompiendo tres cosas a propósito).
+- ✅ Tenant consolidado: un solo negocio, una membresía, portal `citelis` abierto.
+- ✅ El `.ics` se entrega al aceptar la cita (PR #4).
+- ✅ Selección de negocio determinista: `business_member` se ordena antes del `limit`.
+
+Lo que falta, por orden de valor:
+
+1. **Probar el lado de la dueña en el navegador.** Hay una solicitud en `REQUESTED`
+   esperando en CitelisDev. Aceptarla desde la bandeja, comprobar que pasa a
+   `PENDING`, y bajar el `.ics` y abrirlo en un iPhone y en un Android **de verdad**.
+   Es el paso que convierte "compila" en "sirve", y nadie lo ha hecho todavía.
+2. **Decidir qué hacer con la regresión de H1–H6.** Hoy es manual: el CI solo corre
+   vitest sin base de datos. Integrarla exigiría secretos y acoplar el CI a un
+   proyecto vivo. Mientras siga manual, nada impide una regresión silenciosa.
+3. **Confirmar el supuesto de los servicios de precio variable.** Siguen excluidos
+   del portal. Trenzas, maquillaje y colas son parte importante del negocio.
+4. **Slice F (aviso por WhatsApp)** cuando haya proveedor y credenciales. Sube de
+   prioridad por la decisión D1: sin aviso, la clienta espera a ciegas a que la dueña
+   mire la bandeja.
 
 ## Slices siguientes (planteados, NO autorizados)
 
