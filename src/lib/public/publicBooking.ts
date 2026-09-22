@@ -33,6 +33,9 @@ export interface PublicBusinessInfo {
   business_name: string;
   services: PublicBusinessService[];
   policy: PublicBusinessPolicy;
+  // Color de marca en hex (decisión T5). Opcional: negocios sin color propio
+  // todavía no lo traen.
+  theme_color?: string;
 }
 
 export type PublicBusinessResult =
@@ -54,6 +57,7 @@ interface PublicBusinessRow {
   buffer_min: number;
   min_notice_hours: number;
   max_horizon_days: number;
+  theme_color?: string;
 }
 
 /** Datos del negocio y sus servicios reservables para el slug público dado. */
@@ -72,6 +76,7 @@ export async function fetchPublicBusiness(slug: string): Promise<PublicBusinessR
     business: {
       business_id: first.business_id,
       business_name: first.business_name,
+      theme_color: first.theme_color,
       policy: {
         slot_step_min: first.slot_step_min,
         buffer_min: first.buffer_min,

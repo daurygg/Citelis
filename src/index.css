@@ -1,5 +1,26 @@
 @import 'tailwindcss';
 
+/*
+ * Tokens de marca (Slice G3, odd/tasks/business-theming.md). Sembrados con
+ * los valores actuales de rose-{50,100,500,600,700} de Tailwind para que
+ * nada cambie visualmente hasta que un negocio elija su propio color.
+ * `src/lib/domain/theme.ts` (`themeCssVars`) sobrescribe estas variables en
+ * runtime con `style.setProperty` sobre <html>.
+ *
+ * CRÍTICO (decisión T6): `@theme` a secas, NUNCA `@theme inline`. La variante
+ * `inline` incrusta el valor literal en cada regla generada, así que la
+ * sobrescritura en runtime no tendría ningún efecto — y fallaría en
+ * silencio, sin error y sin cambio de color.
+ */
+@theme {
+  --color-brand-50: oklch(96.9% 0.015 12.422);
+  --color-brand-100: oklch(94.1% 0.03 12.58);
+  --color-brand-500: oklch(64.5% 0.246 16.439);
+  --color-brand-600: oklch(58.6% 0.253 17.585);
+  --color-brand-700: oklch(51.4% 0.222 16.935);
+  --color-brand-fg: oklch(1 0 0);
+}
+
 /* Tema base de la app. Fuente del sistema y color de fondo cálido. */
 :root {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
