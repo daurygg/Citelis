@@ -23,6 +23,10 @@ import { RequestsInbox } from './components/owner/RequestsInbox';
 import { ToastProvider } from './components/Toast';
 
 type Mode = 'services' | 'clothing';
+// La identidad del negocio (hoy el color; mañana nombre o logo) manda sobre las
+// dos líneas de negocio y sobre el portal público, así que vive en su propia
+// pantalla fuera de los modos, no en una pestaña de Servicios.
+type Screen = 'work' | 'business';
 type ServiceView = 'agenda' | 'reservas' | 'services' | 'report';
 type ClothingView = 'sell' | 'products' | 'credits' | 'report';
 
@@ -98,13 +102,14 @@ function tabButtonClass(active: boolean): string {
 function AppShell() {
   const { signOut } = useAuth();
   const { business } = useStore();
+  const [screen, setScreen] = useState<Screen>('work');
   const [mode, setMode] = useState<Mode>('services');
   const [serviceView, setServiceView] = useState<ServiceView>('agenda');
   const [clothingView, setClothingView] = useState<ClothingView>('sell');
   const [inviteCode, setInviteCode] = useState<string | null>(null);
 
   const businessName = businessDisplayName(business?.name);
-  useDocumentTitle(`${businessName} — Agenda`);
+  useDocumentTitle(`${businessName} — ${screen === 'business' ? 'Mi negocio' : 'Agenda'}`);
   useBusinessTheme(business?.theme_color);
 
   async function invite() {
@@ -123,6 +128,13 @@ function AppShell() {
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold tracking-tight text-brand-700">{businessName}</h1>
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="text-sm text-neutral-500 hover:text-neutral-800"
+                onClick={() => setScreen(screen === 'business' ? 'work' : 'business')}
+              >
+                {screen === 'business' ? 'Volver' : 'Mi negocio'}
+              </button>
               <button type="button" className="text-sm text-neutral-500 hover:text-neutral-800" onClick={invite}>
                 Invitar
               </button>
@@ -143,35 +155,41 @@ function AppShell() {
             </div>
           )}
 
-          {/* Cambio de modo: Servicios / Ropa (líneas de negocio separadas) */}
-          <div className="mt-3 flex gap-1 rounded-xl bg-neutral-100 p-1">
-            <button type="button" className={tabButtonClass(mode === 'services')} onClick={() => setMode('services')}>
-              Servicios
-            </button>
-            <button type="button" className={tabButtonClass(mode === 'clothing')} onClick={() => setMode('clothing')}>
-              Ropa
-            </button>
-          </div>
+          {screen === 'work' && (
+            <>
+              {/* Cambio de modo: Servicios / Ropa (líneas de negocio separadas) */}
+              <div className="mt-3 flex gap-1 rounded-xl bg-neutral-100 p-1">
+                <button type="button" className={tabButtonClass(mode === 'services')} onClick={() => setMode('services')}>
+                  Servicios
+                </button>
+                <button type="button" className={tabButtonClass(mode === 'clothing')} onClick={() => setMode('clothing')}>
+                  Ropa
+                </button>
+              </div>
 
-          {/* Pestañas del modo activo */}
-          <nav className="mt-2 flex gap-1 rounded-xl bg-neutral-100 p-1">
-            {mode === 'services'
-              ? SERVICE_TABS.map((tab) => (
-                  <button key={tab.id} type="button" className={tabButtonClass(serviceView === tab.id)} onClick={() => setServiceView(tab.id)}>
-                    {tab.label}
-                  </button>
-                ))
-              : CLOTHING_TABS.map((tab) => (
-                  <button key={tab.id} type="button" className={tabButtonClass(clothingView === tab.id)} onClick={() => setClothingView(tab.id)}>
-                    {tab.label}
-                  </button>
-                ))}
-          </nav>
+              {/* Pestañas del modo activo */}
+              <nav className="mt-2 flex gap-1 rounded-xl bg-neutral-100 p-1">
+                {mode === 'services'
+                  ? SERVICE_TABS.map((tab) => (
+                      <button key={tab.id} type="button" className={tabButtonClass(serviceView === tab.id)} onClick={() => setServiceView(tab.id)}>
+                        {tab.label}
+                      </button>
+                    ))
+                  : CLOTHING_TABS.map((tab) => (
+                      <button key={tab.id} type="button" className={tabButtonClass(clothingView === tab.id)} onClick={() => setClothingView(tab.id)}>
+                        {tab.label}
+                      </button>
+                    ))}
+              </nav>
+            </>
+          )}
         </div>
       </header>
 
       <main className="mx-auto max-w-xl px-4 py-6">
-        {mode === 'services' ? (
+        {screen === 'business' ? (
+          <BrandSettings />
+        ) : mode === 'services' ? (
           <>
             {serviceView === 'agenda' && (
               <div className="flex flex-col gap-6">
@@ -183,7 +201,6 @@ function AppShell() {
               <div className="flex flex-col gap-6">
                 <RequestsInbox />
                 <BookingSettings />
-                <BrandSettings />
               </div>
             )}
             {serviceView === 'services' && <ServicesScreen />}
