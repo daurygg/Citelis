@@ -28,10 +28,7 @@ Hoy todo dice "Citelis" y todo es rosa. Está a fuego en `App.tsx:111`,
 
 ## Alcance autorizado
 
-**Ahora: solo G1** — el módulo puro `src/lib/domain/theme.ts` con sus tests.
-Sin SQL, sin UI, sin tocar `index.css` ni ningún componente.
-
-G2–G5 quedan planteados pero **no autorizados**.
+El usuario autorizó completar **todos los slices** (2026-09-22). G1–G5 entregados.
 
 ## Invariantes que aplican
 
@@ -104,16 +101,81 @@ hex por defecto es una constante válida que controlamos, pero si alguien la cam
 por un valor inválido la app reventaría al importar el módulo, justo contra la
 garantía de "nunca lanza". Un respaldo literal lo cerraría del todo.
 
+## G2–G5 — entregados (2026-09-22)
+
+### G2 — columna y contrato SQL ✅ **verificado por ejecución**
+`supabase/migrations/20260922000001_business_theme_color.sql`, **aplicado y
+comprobado contra CitelisDev**, no entregado a ciegas.
+
+Dos trampas de Postgres que había que sortear:
+- **`create_business` no admite añadir un parámetro sin más.** Dejar la versión de
+  un argumento y crear otra de dos con valor por defecto vuelve **ambigua** una
+  llamada con un solo argumento, y la app hace justo esa. Hubo que borrar la vieja
+  y volver a conceder el `execute`: los grants no sobreviven a un `drop`.
+- **`public_business` no se puede ampliar con `create or replace`.** Postgres
+  rechaza cambiar la lista de columnas de un `returns table`. Borrar y recrear.
+
+Comprobado en la base: existe **una sola** versión de `create_business`; `anon`
+puede ejecutar `public_business` pero **no** `create_business`; el CHECK rechaza un
+hex malformado; un color inválido nunca impide crear el negocio, cae al default.
+
+### G3 — tokens de marca ✅
+`@theme` con `--color-brand-{50,100,500,600,700}` y `--color-brand-fg`, sembrados
+con los valores rosa actuales para que nada cambie de aspecto hasta que alguien
+elija color. **37 apariciones de `rose-*` sustituidas en 16 archivos**; quedan cero.
+
+`rose-200` y `rose-300` no tienen equivalente directo (la rampa solo tiene
+50/100/500/600/700); ambos se redondearon a `brand-100`. El de `rose-300` es un
+borde de hover, y merece una mirada visual cuando alguien pueda.
+
+**Comprobación clave (T6)**: el CSS compilado contiene `var(--color-brand-600)` y
+los tokens viven en `:root`. Si hubiera entrado `@theme inline`, ahí aparecería el
+valor incrustado y el color no cambiaría nunca — sin error, sin test en rojo.
+
+### G4 — la dueña elige su color ✅
+`BrandColorPicker` (`<input type="color">` nativo + campo de hex), en el onboarding
+y en configuración (decisión T5). `StoreContext` gana `updateBusinessTheme`.
+
+La vista previa aplica las variables a **su propio contenedor**, no al documento:
+la app no parpadea mientras arrastra, y como las variables CSS heredan, todo lo de
+dentro se previsualiza solo. Además enseña el recorte de T2 en vez de explicarlo.
+
+Hallazgo incidental: `business` se leía del prop de carga inicial y **nunca se
+actualizaba**. Sin promoverlo a estado, guardar un color no habría repintado nada.
+
+### G5 — el nombre del negocio ✅
+Cabecera y `document.title` en la app (`"<nombre> — Agenda"`) y en el portal
+(`"<nombre> — Reservar"`). `Login.tsx` conserva "Citelis": ahí todavía no se sabe
+de qué negocio eres. `index.html` mantiene su título estático como respaldo.
+
+### Refactor durante la revisión
+El selector quedó duplicado en `Onboarding` y `BrandSettings`, y **los dos bloques
+ya habían divergido en el mismo commit** (uno perdió la aclaración "el de tu logo").
+Se extrajo `BrandColorPicker`, componente **hoja**: importa solo `theme.ts` y
+`ui.ts`, nunca el store. Eso evita el ciclo
+`StoreContext → Onboarding → BrandColorPicker → StoreContext`, que es lo que había
+llevado a duplicar en vez de extraer.
+
+## Verificación final
+
+| Comando | Resultado |
+|---|---|
+| `npm run test:run` | 9 archivos, **151 tests** |
+| `npm run typecheck` | exit 0 |
+| `npm run build` | exit 0 |
+| `grep -rE "rose-[0-9]{2,3}" src/` | 0 |
+| `grep "var(--color-brand-600)" dist/assets/*.css` | presente |
+
+**Sin verificación visual.** No hay navegador aquí: nadie ha visto el selector, la
+vista previa ni el repintado. Eso es lo único que falta para dar la feature por
+buena de verdad.
+
 ## Siguiente paso
 
-G1 está cerrado. Lo siguiente, por orden de valor:
-
-1. **G5** — nombre del negocio en cabecera y `document.title`. El más barato y el
-   más visible: el nombre ya está disponible en `Store.business` y en
-   `public_business.business_name`.
-2. **G2** — SQL aditivo para `business.theme_color`.
-3. **G3** — tokens `brand-*` y sustitución de las 37 apariciones de `rose-*`.
-4. **G4** — selector con vista previa.
+1. **Abrir la app y mirarla.** Elegir un color en el onboarding y en configuración,
+   comprobar que repinta, y ver el portal público con el color y el nombre.
+2. Revisar el borde de hover que pasó de `rose-300` a `brand-100`.
+3. Considerar una pestaña "Negocio" propia si aparecen más ajustes que el color.
 
 ## Slices siguientes (planteados, NO autorizados)
 
