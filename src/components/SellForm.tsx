@@ -115,7 +115,7 @@ export function SellForm() {
               Ganancia: <strong>{formatMoney((unitPrice - unitCost) * (validQty ? quantity : 0))}</strong>
             </span>
             {credit && (
-              <span className="text-rose-700">
+              <span className="text-brand-700">
                 Quedará debiendo: <strong>{formatMoney(balance)}</strong>
               </span>
             )}

@@ -18,7 +18,7 @@ export function CreditsScreen() {
 
       <div className={card}>
         <div className="text-sm text-neutral-500">Total por cobrar</div>
-        <div className="text-2xl font-bold text-rose-700">{formatMoney(total)}</div>
+        <div className="text-2xl font-bold text-brand-700">{formatMoney(total)}</div>
       </div>
 
       {credits.length === 0 ? (
@@ -62,7 +62,7 @@ function CreditRow({ sale }: { sale: Sale }) {
         </div>
         <div className="text-right">
           <div className="text-xs text-neutral-400">Debe</div>
-          <div className="font-semibold text-rose-700">{formatMoney(balance)}</div>
+          <div className="font-semibold text-brand-700">{formatMoney(balance)}</div>
         </div>
       </div>
 

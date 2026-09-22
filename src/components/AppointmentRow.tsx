@@ -70,7 +70,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
           <div className="truncate font-medium">{appointment.client}</div>
           <div className="truncate text-sm text-neutral-500">{service?.name ?? 'Servicio desconocido'}</div>
           {appointment.deposit != null && appointment.deposit > 0 && appointment.status !== 'COMPLETED' && (
-            <div className="text-xs text-rose-700">Abonó {formatMoney(appointment.deposit)}</div>
+            <div className="text-xs text-brand-700">Abonó {formatMoney(appointment.deposit)}</div>
           )}
         </div>
         <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + STATUS_BADGE[appointment.status]}>

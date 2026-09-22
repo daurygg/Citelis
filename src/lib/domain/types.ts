@@ -20,6 +20,9 @@ export interface Business {
   id: number; // el tenant. MVP: siempre 1
   name: string;
   plan: string;
+  // Color de marca en hex (decisión T5, odd/tasks/business-theming.md). Opcional
+  // porque los negocios creados antes de este slice todavía no traen la columna.
+  theme_color?: string;
 }
 
 // Insumo GLOBAL del negocio (INVARIANTE 1). Un mismo insumo (wipes, pegamento…)
