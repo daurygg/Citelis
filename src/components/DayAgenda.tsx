@@ -31,7 +31,7 @@ export function DayAgenda() {
         </button>
         <div className="flex-1 text-center">
           <div className="font-semibold">
-            {formatDateShort(date)} {isToday && <span className="text-rose-700">(hoy)</span>}
+            {formatDateShort(date)} {isToday && <span className="text-brand-700">(hoy)</span>}
           </div>
           <input
             type="date"
@@ -51,7 +51,7 @@ export function DayAgenda() {
       </div>
 
       {!isToday && (
-        <button type="button" className="self-center text-sm text-rose-700 hover:underline" onClick={() => setDate(today)}>
+        <button type="button" className="self-center text-sm text-brand-700 hover:underline" onClick={() => setDate(today)}>
           Volver a hoy
         </button>
       )}
@@ -64,7 +64,7 @@ export function DayAgenda() {
         </div>
         <div className={card}>
           <div className="text-xs text-neutral-400">Proyectado (pendientes)</div>
-          <div className="text-xl font-bold text-rose-700">{formatMoney(projected)}</div>
+          <div className="text-xl font-bold text-brand-700">{formatMoney(projected)}</div>
           <div className="text-xs text-neutral-500">aún no realizado</div>
         </div>
 

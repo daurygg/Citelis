@@ -36,7 +36,7 @@ export function Login() {
   return (
     <div className="min-h-screen bg-neutral-50 px-4 py-16 text-neutral-900">
       <div className="mx-auto max-w-sm">
-        <h1 className="mb-1 text-center text-2xl font-bold text-rose-700">Citelis</h1>
+        <h1 className="mb-1 text-center text-2xl font-bold text-brand-700">Citelis</h1>
         <p className="mb-6 text-center text-sm text-neutral-500">
           {mode === 'signin' ? 'Inicia sesión para continuar' : 'Crea tu cuenta'}
         </p>
@@ -74,7 +74,7 @@ export function Login() {
 
         <button
           type="button"
-          className="mt-4 w-full text-center text-sm text-rose-700 hover:underline"
+          className="mt-4 w-full text-center text-sm text-brand-700 hover:underline"
           onClick={() => {
             setMode((m) => (m === 'signin' ? 'signup' : 'signin'));
             setError(null);

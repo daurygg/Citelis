@@ -46,7 +46,7 @@ export function RequestsInbox() {
       {requests.length === 0 ? (
         <p className="text-sm text-neutral-500">No tienes solicitudes esperando respuesta.</p>
       ) : (
-        <p className="text-sm text-rose-700">
+        <p className="text-sm text-brand-700">
           Mientras no respondas, esa hora queda apartada y nadie más puede pedirla.
         </p>
       )}
