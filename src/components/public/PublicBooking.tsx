@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { Appointment, BookingPolicy, BusinessHours, Service, Slot } from '../../lib/domain/types';
 import { generateSlots } from '../../lib/domain/availability';
 import { formatMoney, formatTime, shiftISODate, todayISODate } from '../../lib/format';
+import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import { useBusinessTheme } from '../../lib/useBusinessTheme';
 import { btnGhost, btnPrimary, card, field, fieldLabel, input } from '../ui';
 import {
   fetchPublicBusiness,
@@ -39,6 +41,11 @@ type BusyLoad =
 
 const DAY_CHIP_CAP = 30;
 const WEEKDAY_SHORT = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+
+/** Nombre del negocio para mostrar, o "Citelis" si viene vacío. */
+function businessDisplayName(name: string | undefined): string {
+  return name && name.trim() !== '' ? name.trim() : 'Citelis';
+}
 
 /** "2026-07-02" → "jue 2" (etiqueta compacta para los chips de día). */
 function dayChipLabel(isoDate: string): string {
@@ -169,6 +176,12 @@ export function PublicBooking({ slug }: { slug: string }) {
   const business = businessLoad.status === 'ready' ? businessLoad.business : null;
   const selectedService = business?.services.find((s) => s.service_id === selectedServiceId) ?? null;
 
+  // Solo se fija el título cuando ya se conoce el negocio (paso 'ready'): si el
+  // slug no existe o todavía está cargando, se deja el <title> estático de
+  // `index.html` en vez de inventar un nombre.
+  useDocumentTitle(business ? `${businessDisplayName(business.business_name)} — Reservar` : null);
+  useBusinessTheme(business?.theme_color);
+
   const slots = useMemo<Slot[]>(() => {
     if (!business || !selectedService) return [];
     if (hoursLoad.status !== 'ready' || busyLoad.status !== 'ready') return [];
@@ -238,12 +251,13 @@ export function PublicBooking({ slug }: { slug: string }) {
     );
   }
   const readyBusiness = businessLoad.business;
+  const readyBusinessName = businessDisplayName(readyBusiness.business_name);
 
   return (
     <div className="min-h-screen bg-neutral-50 px-4 py-6 text-neutral-900">
       <div className="mx-auto flex max-w-md flex-col gap-4">
         <header className="text-center">
-          <h1 className="text-xl font-bold text-rose-700">{readyBusiness.business_name}</h1>
+          <h1 className="text-xl font-bold text-brand-700">{readyBusinessName}</h1>
           <p className="text-sm text-neutral-500">Reserva tu cita en línea</p>
         </header>
 
@@ -264,7 +278,7 @@ export function PublicBooking({ slug }: { slug: string }) {
                 className={
                   'flex items-center justify-between rounded-xl border px-3 py-3 text-left transition ' +
                   (selectedServiceId === s.service_id
-                    ? 'border-rose-500 bg-rose-50'
+                    ? 'border-brand-500 bg-brand-50'
                     : 'border-neutral-200 hover:bg-neutral-50')
                 }
                 onClick={() => setSelectedServiceId(s.service_id)}
@@ -273,7 +287,7 @@ export function PublicBooking({ slug }: { slug: string }) {
                   <span className="block font-medium">{s.service_name}</span>
                   <span className="block text-xs text-neutral-500">{s.duration_min} min</span>
                 </span>
-                <span className="font-semibold text-rose-700">{formatMoney(s.price)}</span>
+                <span className="font-semibold text-brand-700">{formatMoney(s.price)}</span>
               </button>
             ))}
             <button
@@ -299,7 +313,7 @@ export function PublicBooking({ slug }: { slug: string }) {
                   className={
                     'shrink-0 rounded-lg border px-3 py-2 text-sm ' +
                     (date === selectedDate
-                      ? 'border-rose-500 bg-rose-50 font-semibold text-rose-700'
+                      ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700'
                       : 'border-neutral-200 text-neutral-600')
                   }
                   onClick={() => {
@@ -331,7 +345,7 @@ export function PublicBooking({ slug }: { slug: string }) {
                     className={
                       'rounded-lg border px-2 py-2 text-sm ' +
                       (selectedSlot?.start === slot.start
-                        ? 'border-rose-500 bg-rose-50 font-semibold text-rose-700'
+                        ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700'
                         : 'border-neutral-200 text-neutral-700')
                     }
                     onClick={() => setSelectedSlot(slot)}
@@ -402,13 +416,13 @@ export function PublicBooking({ slug }: { slug: string }) {
 
         {step === 'success' && selectedService && selectedSlot && (
           <div className={card + ' flex flex-col gap-2 text-center'}>
-            <h2 className="text-lg font-semibold text-rose-700">Solicitud enviada — te confirmamos pronto</h2>
+            <h2 className="text-lg font-semibold text-brand-700">Solicitud enviada — te confirmamos pronto</h2>
             <p className="text-sm text-neutral-600">
               Pediste <strong>{selectedService.service_name}</strong> el {dayChipLabel(selectedDate)} a las{' '}
               {formatTime(selectedSlot.start)}.
             </p>
             <p className="text-sm text-neutral-500">
-              Esto todavía no es una cita confirmada: {readyBusiness.business_name} tiene que aceptarla. Te avisamos
+              Esto todavía no es una cita confirmada: {readyBusinessName} tiene que aceptarla. Te avisamos
               apenas responda.
             </p>
             {/* El archivo .ics / enlace de Google Calendar (Slice E) se entrega
@@ -442,7 +456,7 @@ function StepIndicator({ step }: { step: Step }) {
   return (
     <div className="flex items-center justify-center gap-2 text-xs text-neutral-500">
       {steps.map((s, i) => (
-        <span key={s.id} className={i === activeIndex ? 'font-semibold text-rose-700' : ''}>
+        <span key={s.id} className={i === activeIndex ? 'font-semibold text-brand-700' : ''}>
           {i + 1}. {s.label}
           {i < steps.length - 1 && <span className="mx-1 text-neutral-300">·</span>}
         </span>

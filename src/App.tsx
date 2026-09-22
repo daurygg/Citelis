@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './lib/auth/AuthContext';
 import { supabase } from './lib/supabase/client';
-import { StoreProvider } from './lib/store/StoreContext';
+import { StoreProvider, useStore } from './lib/store/StoreContext';
 import { InventoryProvider } from './lib/store/InventoryContext';
+import { useDocumentTitle } from './lib/useDocumentTitle';
+import { useBusinessTheme } from './lib/useBusinessTheme';
 import { DayAgenda } from './components/DayAgenda';
 import { ScheduleForm } from './components/ScheduleForm';
 import { ServicesScreen } from './components/ServicesScreen';
@@ -16,6 +18,7 @@ import { CreditsScreen } from './components/CreditsScreen';
 import { Login } from './components/Login';
 import { PublicBooking } from './components/public/PublicBooking';
 import { BookingSettings } from './components/owner/BookingSettings';
+import { BrandSettings } from './components/owner/BrandSettings';
 import { RequestsInbox } from './components/owner/RequestsInbox';
 import { ToastProvider } from './components/Toast';
 
@@ -80,19 +83,29 @@ function Root() {
   );
 }
 
+/** Nombre del negocio para mostrar, o "Citelis" si todavía no se conoce o viene vacío. */
+function businessDisplayName(name: string | undefined): string {
+  return name && name.trim() !== '' ? name.trim() : 'Citelis';
+}
+
 function tabButtonClass(active: boolean): string {
   return (
     'flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ' +
-    (active ? 'bg-white text-rose-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800')
+    (active ? 'bg-white text-brand-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800')
   );
 }
 
 function AppShell() {
   const { signOut } = useAuth();
+  const { business } = useStore();
   const [mode, setMode] = useState<Mode>('services');
   const [serviceView, setServiceView] = useState<ServiceView>('agenda');
   const [clothingView, setClothingView] = useState<ClothingView>('sell');
   const [inviteCode, setInviteCode] = useState<string | null>(null);
+
+  const businessName = businessDisplayName(business?.name);
+  useDocumentTitle(`${businessName} — Agenda`);
+  useBusinessTheme(business?.theme_color);
 
   async function invite() {
     const { data, error } = await supabase.rpc('create_invitation');
@@ -108,7 +121,7 @@ function AppShell() {
       <header className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur">
         <div className="mx-auto max-w-xl px-4 py-3">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold tracking-tight text-rose-700">Citelis</h1>
+            <h1 className="text-xl font-bold tracking-tight text-brand-700">{businessName}</h1>
             <div className="flex items-center gap-3">
               <button type="button" className="text-sm text-neutral-500 hover:text-neutral-800" onClick={invite}>
                 Invitar
@@ -120,11 +133,11 @@ function AppShell() {
           </div>
 
           {inviteCode && (
-            <div className="mt-2 flex items-center justify-between rounded-lg bg-rose-50 px-3 py-2 text-sm">
+            <div className="mt-2 flex items-center justify-between rounded-lg bg-brand-50 px-3 py-2 text-sm">
               <span>
                 Comparte este código: <strong className="tracking-widest">{inviteCode}</strong>
               </span>
-              <button type="button" className="text-rose-700 hover:underline" onClick={() => setInviteCode(null)}>
+              <button type="button" className="text-brand-700 hover:underline" onClick={() => setInviteCode(null)}>
                 Cerrar
               </button>
             </div>
@@ -170,6 +183,7 @@ function AppShell() {
               <div className="flex flex-col gap-6">
                 <RequestsInbox />
                 <BookingSettings />
+                <BrandSettings />
               </div>
             )}
             {serviceView === 'services' && <ServicesScreen />}

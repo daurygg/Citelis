@@ -128,6 +128,9 @@ export interface Store {
   updateBookingPolicy: (patch: BookingPolicyPatch) => void;
   acceptRequest: (appointmentId: number) => void;
   rejectRequest: (appointmentId: number) => void;
+  // Color de marca del negocio (T5, odd/tasks/business-theming.md): se puede
+  // cambiar después de crearlo, no solo al crearlo.
+  updateBusinessTheme: (hex: string) => void;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -225,7 +228,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       <div className="grid min-h-screen place-items-center bg-neutral-50 px-6 text-center">
         <div>
           <p className="mb-4 text-neutral-700">{error}</p>
-          <button type="button" className="text-sm text-rose-700 hover:underline" onClick={() => signOut()}>
+          <button type="button" className="text-sm text-brand-700 hover:underline" onClick={() => signOut()}>
             Salir
           </button>
         </div>
@@ -241,6 +244,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
 function StoreReady({ data, children }: { data: LoadedData; children: ReactNode }) {
   const businessId = data.businessId;
+  const [business, setBusiness] = useState<Business | null>(data.business);
   const [services, setServices] = useState<readonly Service[]>(data.services);
   const [supplies, setSupplies] = useState<readonly Supply[]>(data.supplies);
   const [serviceSupplies, setServiceSupplies] = useState<readonly ServiceSupply[]>(data.serviceSupplies);
@@ -611,6 +615,15 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId));
   }
 
+  // Cambia el color de marca del negocio actual (T5: se puede cambiar después
+  // de crearlo). Filtra por businessId (INVARIANTE 1) igual que el resto de
+  // escrituras. Cero cálculos de color aquí: solo se guarda el hex tal cual;
+  // `themeCssVars` (theme.ts) es quien deriva la rampa a partir de él.
+  function updateBusinessTheme(hex: string): void {
+    setBusiness((prev) => (prev ? { ...prev, theme_color: hex } : prev));
+    persist(supabase.from('business').update({ theme_color: hex }).eq('id', businessId));
+  }
+
   const store: Store = {
     services,
     appointmentsForDay,
@@ -642,7 +655,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     addFixedExpense,
     removeFixedExpense,
     copyPreviousMonthExpenses,
-    business: data.business,
+    business,
     businessHours,
     timeBlocks,
     bookingPolicy,
@@ -654,6 +667,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     updateBookingPolicy,
     acceptRequest,
     rejectRequest,
+    updateBusinessTheme,
   };
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }
