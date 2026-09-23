@@ -11,6 +11,7 @@ import { useState } from 'react';
 import { useAuth } from '../lib/auth/AuthContext';
 import { supabase } from '../lib/supabase/client';
 import { DEFAULT_BRAND_COLOR } from '../lib/domain/theme';
+import { slugifyBusinessName } from '../lib/domain/slug';
 import { BrandColorPicker } from './BrandColorPicker';
 import { btnGhost, btnPrimary, card, field, fieldLabel, input } from './ui';
 
@@ -31,7 +32,17 @@ export function Onboarding() {
     setError(null);
     // El RPC ya tolera un color nulo o mal escrito (cae al default de la
     // columna): nunca hay que bloquear el alta del negocio por el color.
-    const { error: err } = await supabase.rpc('create_business', { p_name: name.trim(), p_theme_color: color });
+    //
+    // El slug va por el mismo camino: aquí se propone el bonito, derivado del
+    // nombre, y el RPC lo valida y lo hace único (`public_slug` es UNIQUE, y dos
+    // "Salón Rosa" existen de verdad). Si no cumpliera, cae a `negocio-<id>` sin
+    // romper el alta.
+    const trimmedName = name.trim();
+    const { error: err } = await supabase.rpc('create_business', {
+      p_name: trimmedName,
+      p_theme_color: color,
+      p_slug: slugifyBusinessName(trimmedName),
+    });
     setBusy(false);
     if (err) {
       setError(err.message);
