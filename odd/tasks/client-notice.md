@@ -59,7 +59,7 @@ Estricto, activo. Runner: `npm run test:run` (vitest).
 
 - [x] **T1 · Módulo puro** `src/lib/domain/whatsapp.ts` + test. RED primero.
 - [x] **T2 · Bandeja**: panel de respuesta para aceptada Y rechazada, con el botón.
-- [ ] **T3 · Guía** `docs/whatsapp-api.md` con los requisitos reales, verificados
+- [x] **T3 · Guía** `docs/whatsapp-api.md` con los requisitos reales, verificados
   contra fuentes primarias.
 
 ## Criterios de aceptación
@@ -77,4 +77,10 @@ Estricto, activo. Runner: `npm run test:run` (vitest).
 
 - 2026-09-23 · T1 y T2 cerradas. ROJO observado en T1 (`Failed to load url ./whatsapp`),
   VERDE con 178 tests (11 nuevos). typecheck y build correctos.
-- T3 (la guía) pendiente de la investigación contra fuentes primarias.
+- 2026-09-23 · T3 cerrada: `docs/whatsapp-api.md`, investigada contra fuentes
+  primarias, con lo no verificable marcado como tal.
+- CORRECCIÓN a lo que se asumió el 2026-09-22: la verificación de empresa de Meta
+  NO es requisito para empezar. Un portafolio nuevo ya manda a 250 clientas
+  distintas cada 24 h sin verificar, que para un salón sobra. El freno real es
+  que el API exige un número DEDICADO: el WhatsApp que la dueña ya usa no se
+  puede registrar sin perderlo en la app de consumidor.
