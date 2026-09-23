@@ -166,3 +166,22 @@ export async function requestPublicBooking(
   }
   return { ok: true, appointmentId: data as number };
 }
+
+// ── resolve_public_slug ──────────────────────────────────────────────────
+
+/**
+ * Dado un slug que el negocio usó en el pasado (odd/tasks/editable-public-slug.md),
+ * ¿cuál es su dirección actual? `null` si ese slug nunca fue de nadie, si el
+ * negocio cerró el portal, o si la consulta falla: en los tres casos quien
+ * llama se queda mostrando el estado "no encontrado" que ya tenía, así que no
+ * hace falta distinguirlos aquí (mismo criterio que `fetchPublicBusiness`
+ * frente a sus 'not_found').
+ */
+export async function resolvePublicSlug(slug: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('resolve_public_slug', { p_slug: slug });
+  if (error) {
+    console.error('resolve_public_slug falló:', error.message);
+    return null;
+  }
+  return (data as string | null) ?? null;
+}

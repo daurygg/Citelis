@@ -3,7 +3,7 @@
 // públicas de `publicBooking.ts`. Tres pasos — servicio, día y hora, datos de
 // la clienta — y una pantalla final. Decisión D1 del ODD de self-booking: la
 // solicitud NO se autoconfirma, así que esa pantalla nunca dice "reservado".
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Appointment, BookingPolicy, BusinessHours, Service, Slot } from '../../lib/domain/types';
 import { generateSlots } from '../../lib/domain/availability';
 import { formatMoney, formatTime, shiftISODate, todayISODate } from '../../lib/format';
@@ -15,6 +15,7 @@ import {
   fetchPublicBusy,
   fetchPublicHours,
   requestPublicBooking,
+  resolvePublicSlug,
   type PublicBusinessInfo,
   type PublicBusinessService,
   type PublicBusyRow,
@@ -124,7 +125,16 @@ function toDomainService(s: PublicBusinessService, businessId: number): Service 
   };
 }
 
-export function PublicBooking({ slug }: { slug: string }) {
+export function PublicBooking({ slug: initialSlug }: { slug: string }) {
+  // La dirección con la que se trabaja de verdad. Si `initialSlug` resulta ser
+  // una dirección abandonada (T4, odd/tasks/editable-public-slug.md), esto se
+  // corrige a la actual y toda la pantalla sigue trabajando con la nueva, sin
+  // depender de que el padre vuelva a montar el componente.
+  const [activeSlug, setActiveSlug] = useState(initialSlug);
+  // Un solo intento de resolución por visita. Sin este freno, una dirección
+  // resuelta que TAMBIÉN diera 'not_found' (base inconsistente) reintentaría
+  // resolver para siempre.
+  const resolveAttempted = useRef(false);
   const [businessLoad, setBusinessLoad] = useState<BusinessLoad>({ status: 'loading' });
   const [hoursLoad, setHoursLoad] = useState<HoursLoad>({ status: 'loading' });
   const [step, setStep] = useState<Step>('service');
@@ -140,33 +150,51 @@ export function PublicBooking({ slug }: { slug: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetchPublicBusiness(slug).then((result) => {
+    fetchPublicBusiness(activeSlug).then((result) => {
       if (cancelled) return;
       if (!result.ok) {
-        setBusinessLoad(
-          result.reason === 'not_found' ? { status: 'not_found' } : { status: 'error', message: result.message },
-        );
+        if (result.reason === 'connection_error') {
+          setBusinessLoad({ status: 'error', message: result.message });
+          return;
+        }
+        // reason === 'not_found': antes de rendirse, se pregunta si esta
+        // dirección es una que el negocio abandonó (cambió su dirección desde
+        // "Mi negocio") y, si es así, se corrige la barra de direcciones sola.
+        if (resolveAttempted.current) {
+          setBusinessLoad({ status: 'not_found' });
+          return;
+        }
+        resolveAttempted.current = true;
+        resolvePublicSlug(activeSlug).then((currentSlug) => {
+          if (cancelled) return;
+          if (currentSlug && currentSlug !== activeSlug) {
+            window.history.replaceState(null, '', `/reservar/${encodeURIComponent(currentSlug)}`);
+            setActiveSlug(currentSlug);
+            return;
+          }
+          setBusinessLoad({ status: 'not_found' });
+        });
         return;
       }
       setBusinessLoad({ status: 'ready', business: result.business });
     });
-    fetchPublicHours(slug).then((result) => {
+    fetchPublicHours(activeSlug).then((result) => {
       if (cancelled) return;
       setHoursLoad(result.ok ? { status: 'ready', hours: result.hours } : { status: 'error', message: result.message });
     });
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [activeSlug]);
 
   const refreshBusy = useCallback(
     (date: string) => {
       setBusyLoad({ status: 'loading' });
-      fetchPublicBusy(slug, date).then((result) => {
+      fetchPublicBusy(activeSlug, date).then((result) => {
         setBusyLoad(result.ok ? { status: 'ready', busy: result.busy } : { status: 'error', message: result.message });
       });
     },
-    [slug],
+    [activeSlug],
   );
 
   useEffect(() => {
@@ -216,7 +244,7 @@ export function PublicBooking({ slug }: { slug: string }) {
     setSubmitting(true);
     setSubmitError(null);
     const result = await requestPublicBooking({
-      slug,
+      slug: activeSlug,
       serviceId: selectedService.service_id,
       datetime: selectedSlot.start,
       clientName: name,

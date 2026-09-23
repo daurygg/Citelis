@@ -19,6 +19,7 @@ import { Login } from './components/Login';
 import { PublicBooking } from './components/public/PublicBooking';
 import { BookingSettings } from './components/owner/BookingSettings';
 import { BrandSettings } from './components/owner/BrandSettings';
+import { PublicLinkSettings } from './components/owner/PublicLinkSettings';
 import { RequestsInbox } from './components/owner/RequestsInbox';
 import { ToastProvider } from './components/Toast';
 
@@ -188,7 +189,10 @@ function AppShell() {
 
       <main className="mx-auto max-w-xl px-4 py-6">
         {screen === 'business' ? (
-          <BrandSettings />
+          <div className="flex flex-col gap-6">
+            <BrandSettings />
+            <PublicLinkSettings />
+          </div>
         ) : mode === 'services' ? (
           <>
             {serviceView === 'agenda' && (

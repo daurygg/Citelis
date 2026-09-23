@@ -48,8 +48,8 @@ Estricto. `npm run test:run` para lo puro; la regresión SQL es manual.
 
 - [x] **T1 · Migración**: tabla, las dos funciones y el grant por columna.
 - [x] **T2 · Regresión SQL** `supabase/tests/public-slug-change.sql`.
-- [ ] **T3 · UI + store**: editor de la dirección en "Mi negocio".
-- [ ] **T4 · Redirección** del enlace viejo en el portal público.
+- [x] **T3 · UI + store**: editor de la dirección en "Mi negocio".
+- [x] **T4 · Redirección** del enlace viejo en el portal público.
 
 ## Criterios de aceptación
 
@@ -75,5 +75,25 @@ Estricto. `npm run test:run` para lo puro; la regresión SQL es manual.
   después de la migración, así que la versión registrada allí y el archivo no
   coinciden literalmente, aunque el esquema resultante sí. Una base nueva desde
   el archivo queda correcta de una sola pasada.
-- PENDIENTE: T3 (UI en "Mi negocio") y T4 (redirección en el portal).
+- 2026-09-23 · T3 y T4 cerradas.
+  - T3: `src/components/owner/PublicLinkSettings.tsx` (nuevo), montado junto a
+    `BrandSettings` en "Mi negocio" (`src/App.tsx`). `store.updatePublicSlug`
+    (`src/lib/store/StoreContext.tsx`) rompe a propósito el patrón
+    fire-and-forget de `persist()`: espera la respuesta de `set_public_slug`
+    y solo toca el estado local si el servidor la acepta, para no mostrarle a
+    la dueña una dirección que nunca llegó a ser suya.
+  - T4: `resolvePublicSlug` en `src/lib/public/publicBooking.ts` envuelve
+    `resolve_public_slug`. `src/components/public/PublicBooking.tsx` ahora
+    trabaja sobre un `activeSlug` propio (no directamente sobre el prop
+    `slug`): si `public_business` responde `not_found`, se pregunta una vez
+    (con un `useRef`, no reintenta) si es una dirección abandonada; si hay
+    dirección actual, se corrige la URL con `history.replaceState` y se
+    recarga todo (negocio, horario, disponibilidad, la propia solicitud de
+    reserva) contra esa dirección nueva — las cuatro RPC públicas no conocen
+    el historial de slugs, así que sin este cambio de `activeSlug` las
+    llamadas siguientes habrían seguido fallando contra la dirección vieja.
+  - Verificación: `npm run typecheck`, `npm run test:run` (178/178, sin
+    cambios — ninguna de las piezas nuevas es lógica pura, y el proyecto no
+    tiene React Testing Library ni tests de componentes) y `npm run build`,
+    los tres en verde.
 - Producción sigue sin ninguna migración de estos dos días.
