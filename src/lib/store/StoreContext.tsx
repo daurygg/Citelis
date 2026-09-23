@@ -131,6 +131,10 @@ export interface Store {
   // Color de marca del negocio (T5, odd/tasks/business-theming.md): se puede
   // cambiar después de crearlo, no solo al crearlo.
   updateBusinessTheme: (hex: string) => void;
+  // Dirección pública del negocio (T3, odd/tasks/editable-public-slug.md).
+  // A diferencia de todo lo demás de este store, esto NO es optimista: ver el
+  // comentario junto a su implementación.
+  updatePublicSlug: (slug: string) => Promise<{ ok: true; slug: string } | { ok: false; message: string }>;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -624,6 +628,30 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     persist(supabase.from('business').update({ theme_color: hex }).eq('id', businessId));
   }
 
+  // Cambia la dirección pública del negocio, vía `set_public_slug` (T3,
+  // odd/tasks/editable-public-slug.md). ROMPE A PROPÓSITO el patrón
+  // fire-and-forget de `persist()` que usa el resto de este store: ahí el
+  // servidor no tiene manera de rechazar la escritura, pero acá sí — otro
+  // negocio puede ya tener esa dirección, o el formato puede ser inválido — y
+  // la dueña necesita ver el motivo. Actualizar el estado local de forma
+  // optimista y revertirlo si el servidor dice que no le mostraría, por un
+  // instante, una dirección que nunca llegó a ser suya. Por eso se espera la
+  // respuesta y el estado local solo cambia si `set_public_slug` la acepta.
+  async function updatePublicSlug(
+    slug: string,
+  ): Promise<{ ok: true; slug: string } | { ok: false; message: string }> {
+    const { data, error } = await supabase.rpc('set_public_slug', {
+      p_business_id: businessId,
+      p_slug: slug,
+    });
+    if (error) {
+      return { ok: false, message: error.message };
+    }
+    const newSlug = data as string;
+    setBookingPolicyState((prev) => (prev ? { ...prev, public_slug: newSlug } : prev));
+    return { ok: true, slug: newSlug };
+  }
+
   const store: Store = {
     services,
     appointmentsForDay,
@@ -668,6 +696,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     acceptRequest,
     rejectRequest,
     updateBusinessTheme,
+    updatePublicSlug,
   };
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }
