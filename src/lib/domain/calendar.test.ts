@@ -1,15 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { appointmentUID, buildICS, googleCalendarUrl, revisionSequence } from './calendar';
-import type { Appointment, Business, Service } from './types';
-
-function business(partial: Partial<Business> = {}): Business {
-  return {
-    id: 1,
-    name: 'Bella Spa',
-    plan: 'free',
-    ...partial,
-  };
-}
+import type { Appointment, Service } from './types';
 
 function service(partial: Partial<Service> = {}): Service {
   return {
@@ -59,7 +50,6 @@ describe('buildICS', () => {
     const ics = buildICS({
       appointment: appointment(),
       service: service(),
-      business: business(),
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -76,7 +66,6 @@ describe('buildICS', () => {
     const ics = buildICS({
       appointment: appointment(),
       service: service(),
-      business: business(),
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -103,7 +92,6 @@ describe('buildICS', () => {
     const base = {
       appointment: appointment(),
       service: service(),
-      business: business(),
       now: new Date('2026-09-17T10:00:00Z'),
     };
     const first = buildICS({ ...base, uid: 'appt-42@citelis', sequence: 0 });
@@ -117,7 +105,6 @@ describe('buildICS', () => {
     const base = {
       appointment: appointment(),
       service: service(),
-      business: business(),
       uid: 'appt-42@citelis',
       now: new Date('2026-09-17T10:00:00Z'),
     };
@@ -134,7 +121,6 @@ describe('buildICS', () => {
     const ics = buildICS({
       appointment: appointment({ datetime: '2026-09-21T14:30' }),
       service: service({ duration_min: 45 }),
-      business: business(),
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -151,7 +137,6 @@ describe('buildICS', () => {
     const ics = buildICS({
       appointment: appointment({ datetime: '2026-09-21T23:30' }),
       service: service({ duration_min: 90 }),
-      business: business(),
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -165,7 +150,6 @@ describe('buildICS', () => {
     const ics = buildICS({
       appointment: appointment(),
       service: service(),
-      business: business(),
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:05:07Z'),
@@ -174,31 +158,70 @@ describe('buildICS', () => {
     expect(propertyValue(ics, 'DTSTAMP')).toBe('20260917T100507Z');
   });
 
+  it('SUMMARY es "clienta — servicio": el evento es para la agenda de la dueña, no de la clienta', () => {
+    const ics = buildICS({
+      appointment: appointment({ client: 'Ana' }),
+      service: service({ name: 'Corte' }),
+      uid: 'appt-1@citelis',
+      sequence: 0,
+      now: new Date('2026-09-17T10:00:00Z'),
+    });
+
+    expect(propertyValue(ics, 'SUMMARY')).toBe('Ana — Corte');
+  });
+
+  it('DESCRIPTION solo lleva "Clienta: <nombre>" cuando la cita no trae teléfono', () => {
+    const ics = buildICS({
+      appointment: appointment({ client: 'Ana', client_phone: null }),
+      service: service(),
+      uid: 'appt-1@citelis',
+      sequence: 0,
+      now: new Date('2026-09-17T10:00:00Z'),
+    });
+
+    expect(propertyValue(ics, 'DESCRIPTION')).toBe('Clienta: Ana');
+  });
+
+  it('DESCRIPTION agrega una segunda línea "Tel. <teléfono>" cuando la cita lo trae', () => {
+    const ics = buildICS({
+      appointment: appointment({ client: 'Ana', client_phone: '+56 9 1234 5678' }),
+      service: service(),
+      uid: 'appt-1@citelis',
+      sequence: 0,
+      now: new Date('2026-09-17T10:00:00Z'),
+    });
+
+    // El salto de línea real se escapa como \n literal (RFC 5545 §3.3.11).
+    expect(propertyValue(ics, 'DESCRIPTION')).toBe('Clienta: Ana\\nTel. +56 9 1234 5678');
+  });
+
   it('escapa backslash, punto y coma, coma y salto de línea en SUMMARY/DESCRIPTION', () => {
     const ics = buildICS({
-      appointment: appointment({ client: 'Ana;Reyes\\Torres, con nota\nespecial' }),
+      appointment: appointment({
+        client: 'Ana;Reyes\\Torres, con nota\nespecial',
+        client_phone: '+56 9 1234;5678',
+      }),
       service: service({ name: 'Corte; especial' }),
-      business: business({ name: 'Bella, Spa' }),
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
     });
 
     const summary = propertyValue(ics, 'SUMMARY');
+    expect(summary).toContain('Ana\\;Reyes\\\\Torres\\, con nota\\nespecial');
     expect(summary).toContain('Corte\\; especial');
-    expect(summary).toContain('Bella\\, Spa');
 
     const description = propertyValue(ics, 'DESCRIPTION');
-    expect(description).toContain('Ana\\;Reyes\\\\Torres\\, con nota\\nespecial');
+    expect(description).toContain('Clienta: Ana\\;Reyes\\\\Torres\\, con nota\\nespecial');
+    expect(description).toContain('Tel. +56 9 1234\\;5678');
   });
 
   it('dobla (fold) líneas de más de 75 octetos con CRLF + un espacio, sin cortar caracteres multibyte', () => {
     const ics = buildICS({
-      appointment: appointment(),
+      appointment: appointment({ client: 'Añañuca' }),
       service: service({
-        name: 'Peinado de novia con extensiones, trenzas y tratamiento capilar profundo Añañuca',
+        name: 'Peinado de novia con extensiones, trenzas y tratamiento capilar profundo',
       }),
-      business: business({ name: 'Peluquería Añañuca' }),
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -218,14 +241,13 @@ describe('buildICS', () => {
     // Al desdoblar, el contenido íntegro (con los caracteres multibyte intactos) debe reaparecer.
     const summary = propertyValue(ics, 'SUMMARY');
     expect(summary).toContain('Añañuca');
-    expect(summary).toContain('Peinado de novia con extensiones\\, trenzas y tratamiento capilar profundo Añañuca');
+    expect(summary).toContain('Peinado de novia con extensiones\\, trenzas y tratamiento capilar profundo');
   });
 
   it('es una presentación de solo lectura: el resultado no cambia si los campos de dinero congelados cambian', () => {
     const withoutMoney = buildICS({
       appointment: appointment({ charged_price: null, actual_cost: null, profit: null }),
       service: service(),
-      business: business(),
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -233,7 +255,6 @@ describe('buildICS', () => {
     const withMoney = buildICS({
       appointment: appointment({ charged_price: 50000, actual_cost: 12000, profit: 38000 }),
       service: service(),
-      business: business(),
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -245,15 +266,12 @@ describe('buildICS', () => {
   it('no muta ninguna de sus entradas', () => {
     const appt = appointment();
     const svc = service();
-    const biz = business();
     const apptCopy = { ...appt };
     const svcCopy = { ...svc };
-    const bizCopy = { ...biz };
 
     buildICS({
       appointment: appt,
       service: svc,
-      business: biz,
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -261,16 +279,14 @@ describe('buildICS', () => {
 
     expect(appt).toEqual(apptCopy);
     expect(svc).toEqual(svcCopy);
-    expect(biz).toEqual(bizCopy);
   });
 });
 
 describe('googleCalendarUrl', () => {
   it('genera un link de plantilla de Google Calendar con texto, fechas y detalles', () => {
     const url = googleCalendarUrl({
-      appointment: appointment({ datetime: '2026-09-21T14:30' }),
+      appointment: appointment({ datetime: '2026-09-21T14:30', client: 'Ana', client_phone: null }),
       service: service({ name: 'Corte', duration_min: 45 }),
-      business: business({ name: 'Bella Spa' }),
     });
 
     expect(url.startsWith('https://calendar.google.com/calendar/render?')).toBe(true);
@@ -278,19 +294,29 @@ describe('googleCalendarUrl', () => {
 
     const parsed = new URL(url);
     expect(parsed.searchParams.get('dates')).toBe('20260921T143000/20260921T151500');
-    expect(parsed.searchParams.get('text')).toBe('Corte — Bella Spa');
+    expect(parsed.searchParams.get('text')).toBe('Ana — Corte');
+    expect(parsed.searchParams.get('details')).toBe('Clienta: Ana');
+  });
+
+  it('agrega una segunda línea con el teléfono en los detalles cuando la cita lo trae', () => {
+    const url = googleCalendarUrl({
+      appointment: appointment({ client: 'Ana', client_phone: '+56 9 1234 5678' }),
+      service: service({ name: 'Corte' }),
+    });
+
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get('details')).toBe('Clienta: Ana\nTel. +56 9 1234 5678');
   });
 
   it('escapa correctamente valores con caracteres especiales de URL (coma, &, espacios)', () => {
     const url = googleCalendarUrl({
-      appointment: appointment({ client: 'Ana & Luz' }),
+      appointment: appointment({ client: 'Ana, Luz & Uñas' }),
       service: service({ name: 'Corte' }),
-      business: business({ name: 'Bella, Spa & Uñas' }),
     });
 
     const parsed = new URL(url);
-    expect(parsed.searchParams.get('text')).toBe('Corte — Bella, Spa & Uñas');
-    expect(url).not.toContain('Bella, Spa & Uñas');
+    expect(parsed.searchParams.get('text')).toBe('Ana, Luz & Uñas — Corte');
+    expect(url).not.toContain('Ana, Luz & Uñas');
   });
 });
 

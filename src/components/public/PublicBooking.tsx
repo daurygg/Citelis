@@ -425,10 +425,10 @@ export function PublicBooking({ slug }: { slug: string }) {
               Esto todavía no es una cita confirmada: {readyBusinessName} tiene que aceptarla. Te avisamos
               apenas responda.
             </p>
-            {/* El archivo .ics / enlace de Google Calendar (Slice E) se entrega
-                solo cuando la dueña ACEPTA la solicitud, no aquí: prometer un
-                calendario para una cita que todavía no existe le mentiría a
-                la clienta. */}
+            {/* El archivo .ics / enlace de Google Calendar (Slice E) es para el
+                calendario de la DUEÑA, no de la clienta, y solo aparece cuando
+                ella ACEPTA la solicitud, no aquí: prometer un evento para una
+                cita que todavía no existe le mentiría a la clienta. */}
             {confirmedId !== null && <p className="text-xs text-neutral-400">Folio: {confirmedId}</p>}
           </div>
         )}

@@ -15,9 +15,9 @@ export function RequestsInbox() {
   const { notify } = useToast();
   const requests = store.pendingRequests();
   // La solicitud aceptada sale de la bandeja en el acto, así que guardamos la cita
-  // para poder ofrecer el calendario ahí mismo: es el momento en que la dueña tiene
-  // a la clienta en la cabeza. Solo se leen datos que la aceptación no cambia
-  // (quién, cuándo, qué servicio), nunca el estado.
+  // para poder ofrecerle a la dueña anotarla en su propio calendario ahí mismo: es
+  // el momento en que tiene a la clienta en la cabeza. Solo se leen datos que la
+  // aceptación no cambia (quién, cuándo, qué servicio), nunca el estado.
   const [justAccepted, setJustAccepted] = useState<Appointment | null>(null);
 
   function handleAccept(request: Appointment) {
