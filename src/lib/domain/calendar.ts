@@ -3,7 +3,7 @@
 // sin I/O — solo formatea UNA cita ya existente que el llamador entrega. NUNCA calcula,
 // congela ni lee `charged_price`/`actual_cost`/`profit` (INVARIANTE 2): esos campos son
 // del dominio de `appointments.ts`, no de este módulo de presentación.
-import type { Appointment, Business, Service } from './types';
+import type { Appointment, Service } from './types';
 
 const NAIVE_DATETIME_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 
@@ -99,7 +99,6 @@ function foldLine(line: string): string {
 export interface CalendarEventInput {
   appointment: Appointment;
   service: Service;
-  business: Business;
   /** Identificador estable de la cita (mismo valor en cada regeneración). */
   uid: string;
   /** Aumenta con cada cambio de la cita: así iOS/Google Calendar ACTUALIZAN en vez de duplicar. */
@@ -108,20 +107,32 @@ export interface CalendarEventInput {
 }
 
 /**
- * Construye un VCALENDAR de RFC 5545 con un único VEVENT, listo para que la clienta
- * lo agregue a Apple Calendar (iPhone) o Google Calendar (Android) desde un archivo
- * `.ics`. Solo lee la cita que le entregan; nunca calcula ni congela dinero.
+ * Texto descriptivo del evento, desde el punto de vista de la DUEÑA: quién es la
+ * clienta y, si la cita trae teléfono, una segunda línea para poder contactarla.
+ * Sin escapar todavía: cada llamador aplica el escape que le corresponda (ICS
+ * vs. parámetro de URL de Google).
+ */
+function eventDescription(appointment: Appointment): string {
+  const lines = [`Clienta: ${appointment.client}`];
+  if (appointment.client_phone) lines.push(`Tel. ${appointment.client_phone}`);
+  return lines.join('\n');
+}
+
+/**
+ * Construye un VCALENDAR de RFC 5545 con un único VEVENT, listo para que la DUEÑA
+ * lo agregue a su propio Apple Calendar (iPhone) o Google Calendar (Android) desde
+ * un archivo `.ics`. Solo lee la cita que le entregan; nunca calcula ni congela dinero.
  */
 export function buildICS(input: CalendarEventInput): string {
-  const { appointment, service, business, uid, sequence, now } = input;
+  const { appointment, service, uid, sequence, now } = input;
 
   const dtStart = toFloatingICSDateTime(appointment.datetime);
   const dtEnd = toFloatingICSDateTime(
     addMinutesToNaiveDateTime(appointment.datetime, service.duration_min),
   );
   const dtStamp = toUtcICSDateTime(now);
-  const summary = escapeICSText(`${service.name} — ${business.name}`);
-  const description = escapeICSText(`Cita de ${appointment.client}`);
+  const summary = escapeICSText(`${appointment.client} — ${service.name}`);
+  const description = escapeICSText(eventDescription(appointment));
 
   const lines = [
     'BEGIN:VCALENDAR',
@@ -172,15 +183,15 @@ export function revisionSequence(now: Date): number {
 export interface GoogleCalendarUrlInput {
   appointment: Appointment;
   service: Service;
-  business: Business;
 }
 
 /**
- * Link de plantilla de Google Calendar (`action=TEMPLATE`): un solo tap para
- * clientas con Android o Gmail, sin OAuth ni sincronización (decisión D3).
+ * Link de plantilla de Google Calendar (`action=TEMPLATE`): un solo tap para que
+ * la DUEÑA lo agregue a su propio calendario desde Android o Gmail, sin OAuth ni
+ * sincronización (decisión D3).
  */
 export function googleCalendarUrl(input: GoogleCalendarUrlInput): string {
-  const { appointment, service, business } = input;
+  const { appointment, service } = input;
 
   const start = toFloatingICSDateTime(appointment.datetime);
   const end = toFloatingICSDateTime(
@@ -189,9 +200,9 @@ export function googleCalendarUrl(input: GoogleCalendarUrlInput): string {
 
   const params = new URLSearchParams({
     action: 'TEMPLATE',
-    text: `${service.name} — ${business.name}`,
+    text: `${appointment.client} — ${service.name}`,
     dates: `${start}/${end}`,
-    details: `Cita de ${appointment.client}`,
+    details: eventDescription(appointment),
   });
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
