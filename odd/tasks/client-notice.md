@@ -84,3 +84,41 @@ Estricto, activo. Runner: `npm run test:run` (vitest).
   distintas cada 24 h sin verificar, que para un salón sobra. El freno real es
   que el API exige un número DEDICADO: el WhatsApp que la dueña ya usa no se
   puede registrar sin perderlo en la app de consumidor.
+
+## T4 · El aviso se perdía al recargar (2026-09-25)
+
+Reportado desde producción: aceptas una cita, recargas, y ya no hay forma de
+avisar a la clienta. Se queda sin enterarse.
+
+**Causa**: el botón vivía SOLO dentro de `AnsweredPanel`, que es estado de React.
+Al recargar moría, y la cita ya no estaba en la bandeja porque había pasado a
+PENDING: se había ido a la agenda, donde `AppointmentRow` ofrecía "Calendario"
+pero no ofrecía avisar. Fallo de diseño de la entrega anterior, no del usuario.
+
+**Arreglo**: el aviso cuelga de la CITA, no de un panel efímero.
+- `noticeOutcomeFor(status)` en el dominio decide qué aviso toca, con un mapa
+  EXHAUSTIVO sobre `AppointmentStatus`: si mañana aparece un estado nuevo,
+  TypeScript obliga a decidir qué se le dice a la clienta en vez de dejarla sin
+  aviso en silencio. PENDING → aceptada; REJECTED y CANCELED → rechazada (para
+  la clienta son lo mismo: no hay cita); el resto, nada que avisar.
+- `src/components/ClientNotice.tsx`, compartido por la agenda y la bandeja, como
+  ya lo era `CalendarActions`.
+- La bandeja le pasa el `outcome` explícito porque guarda la solicitud tal como
+  estaba ANTES de responder: su estado sigue siendo REQUESTED.
+
+Efecto secundario bueno: ahora también se puede avisar de una cita CANCELADA,
+que antes no tenía salida ninguna.
+
+ROJO observado: 5 fallos en `noticeOutcomeFor`. VERDE: 183 tests (5 nuevos),
+typecheck limpio, build correcto.
+
+Ruta: **inline** — una unidad coherente (un añadido puro con su test, un
+componente nuevo y dos inserciones mecánicas).
+
+## Siguiente
+
+- Que la clienta no tenga que teclear su teléfono en cada reserva: `autoComplete`
+  en los campos, y recordar nombre y teléfono en SU dispositivo.
+- Que la página se actualice sola: hoy no hay ninguna suscripción en tiempo real,
+  los datos se cargan una vez al montar, así que una solicitud nueva no aparece
+  hasta recargar.
