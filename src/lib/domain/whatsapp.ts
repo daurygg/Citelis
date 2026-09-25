@@ -16,6 +16,8 @@
 // Funciones puras: sin React, sin I/O. No tocan el estado de la cita ni el
 // dinero; solo redactan texto sobre una cita que el dominio ya decidió.
 
+import type { AppointmentStatus } from './types';
+
 /** República Dominicana. El número nacional son 10 dígitos y el país es el 1. */
 const DEFAULT_COUNTRY_CODE = '1';
 
@@ -103,4 +105,34 @@ export function whatsappUrl(
   const number = normalizeWhatsAppPhone(phone, countryCode);
   if (number === null) return null;
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * Qué aviso corresponde según en qué quedó la cita, o null si no hay nada que
+ * decir. Vive aquí y no en la pantalla porque el botón de avisar aparece en dos
+ * sitios —la bandeja de solicitudes y la agenda— y los dos tienen que decidir lo
+ * mismo.
+ *
+ * El mapa es EXHAUSTIVO a propósito: si mañana se añade un estado a
+ * `AppointmentStatus`, TypeScript obliga a decidir qué se le dice a la clienta
+ * en vez de dejarla sin aviso en silencio.
+ */
+const NOTICE_BY_STATUS: Record<AppointmentStatus, BookingOutcome | null> = {
+  // La dueña aceptó: hay cita.
+  PENDING: 'accepted',
+  // Rechazada o cancelada son lo mismo para la clienta: no hay cita, y el
+  // mensaje la invita a buscar otro horario.
+  REJECTED: 'rejected',
+  CANCELED: 'rejected',
+  // Todavía no hay respuesta que dar.
+  REQUESTED: null,
+  // Ya está en el salón, ya se fue, o no apareció: un mensaje ahora sobra.
+  IN_PROGRESS: null,
+  COMPLETED: null,
+  NO_SHOW: null,
+};
+
+/** Ver `NOTICE_BY_STATUS`. Null significa "no hay nada que avisar". */
+export function noticeOutcomeFor(status: AppointmentStatus): BookingOutcome | null {
+  return NOTICE_BY_STATUS[status];
 }

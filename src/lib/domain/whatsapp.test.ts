@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeWhatsAppPhone, bookingNoticeMessage, whatsappUrl } from './whatsapp';
+import {
+  normalizeWhatsAppPhone,
+  bookingNoticeMessage,
+  whatsappUrl,
+  noticeOutcomeFor,
+} from './whatsapp';
+import type { AppointmentStatus } from './types';
 
 const CITA = {
   clientName: 'Rosa',
@@ -90,5 +96,41 @@ describe('whatsappUrl', () => {
   it('sin teléfono usable no hay enlace', () => {
     expect(whatsappUrl(null, 'hola')).toBeNull();
     expect(whatsappUrl('123', 'hola')).toBeNull();
+  });
+});
+
+describe('noticeOutcomeFor', () => {
+  // La dueña responde y la clienta tiene que enterarse. Esta regla decide QUÉ
+  // aviso corresponde según en qué quedó la cita, y vive aquí —y no en la
+  // pantalla— porque el botón aparece en dos sitios distintos y tienen que
+  // decidir lo mismo.
+  it('una cita confirmada se avisa como aceptada', () => {
+    expect(noticeOutcomeFor('PENDING')).toBe('accepted');
+  });
+
+  it('rechazar y cancelar se avisan igual: no hay cita, busquemos otro horario', () => {
+    expect(noticeOutcomeFor('REJECTED')).toBe('rejected');
+    expect(noticeOutcomeFor('CANCELED')).toBe('rejected');
+  });
+
+  it('no hay nada que avisar cuando la dueña todavía no ha respondido', () => {
+    expect(noticeOutcomeFor('REQUESTED')).toBeNull();
+  });
+
+  it('no se avisa de lo que la clienta ya está viviendo o ya vivió', () => {
+    // Ya está en el salón, ya se fue, o no apareció: un mensaje ahora sobra.
+    expect(noticeOutcomeFor('IN_PROGRESS')).toBeNull();
+    expect(noticeOutcomeFor('COMPLETED')).toBeNull();
+    expect(noticeOutcomeFor('NO_SHOW')).toBeNull();
+  });
+
+  it('cubre TODOS los estados, para que uno nuevo no pase inadvertido', () => {
+    const todos: AppointmentStatus[] = [
+      'PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELED', 'NO_SHOW', 'REQUESTED', 'REJECTED',
+    ];
+    for (const estado of todos) {
+      const resultado = noticeOutcomeFor(estado);
+      expect(resultado === null || resultado === 'accepted' || resultado === 'rejected').toBe(true);
+    }
   });
 });
