@@ -9,6 +9,7 @@ import { generateSlots } from '../../lib/domain/availability';
 import { formatMoney, formatTime, shiftISODate, todayISODate } from '../../lib/format';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { useBusinessTheme } from '../../lib/useBusinessTheme';
+import { readRememberedClient, rememberClient } from '../../lib/rememberedClient';
 import { btnGhost, btnPrimary, card, field, fieldLabel, input } from '../ui';
 import {
   fetchPublicBusiness,
@@ -142,8 +143,11 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
   const [selectedDate, setSelectedDate] = useState<string>(todayISODate());
   const [busyLoad, setBusyLoad] = useState<BusyLoad>({ status: 'loading' });
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-  const [clientName, setClientName] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
+  // Prerellenados con lo que esta clienta dejó la última vez EN ESTE
+  // dispositivo, para que quien vuelve no vuelva a teclear lo mismo. El
+  // inicializador es perezoso: se lee una sola vez, al montar.
+  const [clientName, setClientName] = useState(() => readRememberedClient()?.name ?? '');
+  const [clientPhone, setClientPhone] = useState(() => readRememberedClient()?.phone ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmedId, setConfirmedId] = useState<number | null>(null);
@@ -260,6 +264,9 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
       setStep('datetime');
       return;
     }
+    // Solo se recuerda lo que llegó a enviarse bien: si la reserva falló, no
+    // hay motivo para dar por buenos esos datos.
+    rememberClient({ name, phone });
     setConfirmedId(result.appointmentId);
     setStep('success');
   }
@@ -412,6 +419,8 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
               <input
                 className={input}
                 type="text"
+                name="name"
+                autoComplete="name"
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="Nombre completo"
@@ -423,6 +432,8 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
               <input
                 className={input}
                 type="tel"
+                name="tel"
+                autoComplete="tel"
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
                 placeholder="Para avisarte si se confirma"

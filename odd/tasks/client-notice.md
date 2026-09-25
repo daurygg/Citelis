@@ -115,10 +115,43 @@ typecheck limpio, build correcto.
 Ruta: **inline** — una unidad coherente (un añadido puro con su test, un
 componente nuevo y dos inserciones mecánicas).
 
+## T5 · Que la clienta no teclee su teléfono en cada reserva (2026-09-25)
+
+Pedido por el usuario: el objetivo real no era automatizar WhatsApp, era que la
+clienta que vuelve no repita sus datos.
+
+Dos capas, ninguna necesita el API:
+
+1. **`autoComplete`** en los dos campos (`name` y `tel`). Solo había `type="tel"`,
+   que saca el teclado numérico pero no pide autorrelleno. Con el atributo, iOS y
+   Android ofrecen los datos de la propia clienta incluso la primera vez que
+   entra al portal.
+2. **Recordar en SU dispositivo** (`src/lib/rememberedClient.ts`). El dato no
+   viaja a la base ni lo ve el negocio; vive en el almacenamiento local de su
+   navegador. Solo se guarda cuando la reserva se envió bien.
+
+`parseRememberedClient` es estricta a propósito: el contenido sale del
+dispositivo de la clienta, puede estar a medias o manipulado, y rellenar el
+formulario con basura es peor que no rellenarlo. Rechaza JSON roto, formas que no
+corresponden, campos que no son texto, vacíos y valores absurdamente largos.
+
+Lectura y escritura van en try/catch: en modo privado o con el almacenamiento
+bloqueado, `localStorage` LANZA. Que no se pueda recordar un teléfono nunca puede
+impedir reservar.
+
+Límite honesto, y está escrito en el módulo: es por dispositivo y navegador.
+
+ROJO observado: 8 fallos. VERDE: 191 tests (8 nuevos), typecheck y build limpios.
+
+FUERA por ahora: el enlace con el teléfono ya puesto (`?tel=`). Gana poco mientras
+la dueña tenga que armarlo a mano; cobra sentido cuando el envío automático lo
+construya solo.
+
 ## Siguiente
 
-- Que la clienta no tenga que teclear su teléfono en cada reserva: `autoComplete`
-  en los campos, y recordar nombre y teléfono en SU dispositivo.
 - Que la página se actualice sola: hoy no hay ninguna suscripción en tiempo real,
   los datos se cargan una vez al montar, así que una solicitud nueva no aparece
   hasta recargar.
+- Varios servicios por cita: `appointment.service_id` es una sola columna, y
+  cambiarlo arrastra duración, precio, costo, el dinero congelado y las RPC
+  públicas.
