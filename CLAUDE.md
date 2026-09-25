@@ -59,6 +59,57 @@ src/
 
 ## Entorno de trabajo
 
-- No hay Node/npm local. El **loop de tests corre en la nube** vía GitHub Actions (`.github/workflows/ci.yml`)
-  en cada push. Despliegue en Vercel.
+- **Node y npm están disponibles localmente.** Si falta `node_modules`, corre `npm install` una vez.
+  El loop de tests se cierra en local: `npm run test:run` (vitest) y `npm run typecheck` (tsc --noEmit).
+- GitHub Actions (`.github/workflows/ci.yml`) vuelve a correr los tests en cada push; es la red de
+  seguridad, no el único sitio donde se verifica. Despliegue en Vercel.
 - Trabajo por **slices verticales** (ver `PLAN.md` §4). No empezar un slice sin cumplir el DoD del anterior.
+
+## Ramas
+
+Tres ramas de larga duración. **A `main` nunca se commitea directo**: es producción.
+
+| Rama | Qué es | Recibe |
+|---|---|---|
+| `main` | Producción. Lo que está desplegado. | Merges desde `develop` (releases) y desde `maintenance` (hotfixes). |
+| `develop` | Integración. Donde se prueba todo junto. | PRs de las ramas de trabajo. **Destino por defecto de un PR.** |
+| `maintenance` | Arreglos sobre lo que ya está en producción. | PRs de `fix/*` que no pueden esperar al próximo release. |
+
+Ramas de trabajo: `feat/*`, `fix/*`, `chore/*`, `docs/*`. Salen de `develop` (o de
+`maintenance` si es un arreglo urgente de producción) y vuelven por PR, nunca por push
+directo.
+
+Un hotfix que entra por `maintenance` hay que devolverlo también a `develop`, o el
+próximo release lo pisa.
+
+## MCP de Supabase
+
+`.mcp.json` declara **dos** servidores contra `https://mcp.supabase.com/mcp`, que
+autentican por OAuth en el navegador. **No hace falta ningún token en disco.**
+
+| Servidor | Modo | Para qué |
+|---|---|---|
+| `supabase` | solo lectura | Consultar esquema, datos y logs. El de diario. |
+| `supabase-write` | escritura | Aplicar migraciones. Solo cuando toca. |
+
+Son dos porque el peligro tiene que verse: las herramientas del segundo se llaman
+`mcp__supabase-write__*`, así que no se puede escribir sin que quede a la vista en el
+nombre de la operación.
+
+Antes esto era una sola entrada con `read_only` en una variable de entorno. No
+funcionaba: Claude Code deriva la identidad del servidor de la URL resuelta, así que
+cambiar la variable creaba un servidor distinto y obligaba a reautenticar cada vez.
+
+Primera vez, para cada uno: `/mcp` → eliges el servidor → `Authenticate` → autorizas en
+el navegador. La credencial queda en `~/.claude/.credentials.json` y persiste entre
+sesiones.
+
+Una sola variable de entorno, para acotar el alcance a un proyecto:
+
+```bash
+export SUPABASE_PROJECT_REF=...   # Settings → General → Reference ID
+```
+
+Sin `project_ref` los servidores tendrían acceso a **todos** tus proyectos. Y como la
+identidad depende de la URL, cambiar de proyecto obliga a autorizar de nuevo: esa
+fricción es deliberada.

@@ -74,4 +74,18 @@ describe('findScheduleConflict', () => {
     const existing = [appointment({ id: 1, service_id: 1, datetime: '2026-07-02T08:00' })]; // 08:00–09:00
     expect(findScheduleConflict({ datetime: '2026-07-02T10:00', service_id: 1 }, existing, services)).toBeNull();
   });
+
+  // Slice B: una solicitud pública sin responder debe bloquear su horario;
+  // si no, dos clientas podrían pedir la misma hora y la dueña heredaría un
+  // choque que nunca creó (usa holdsSchedule, ver appointments.ts).
+  it('una cita REQUESTED bloquea el horario igual que PENDING', () => {
+    const existing = [appointment({ id: 1, status: 'REQUESTED', datetime: '2026-07-02T10:00' })]; // 10:00–11:00
+    const conflict = findScheduleConflict({ datetime: '2026-07-02T10:30', service_id: 2 }, existing, services);
+    expect(conflict?.id).toBe(1);
+  });
+
+  it('una cita REJECTED libera el horario', () => {
+    const existing = [appointment({ id: 1, status: 'REJECTED', datetime: '2026-07-02T10:00' })];
+    expect(findScheduleConflict({ datetime: '2026-07-02T10:30', service_id: 2 }, existing, services)).toBeNull();
+  });
 });

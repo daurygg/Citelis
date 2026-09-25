@@ -56,7 +56,7 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
 
   return (
     <section className="flex flex-col gap-4">
-      <button type="button" className="self-start text-sm text-rose-700 hover:underline" onClick={onBack}>
+      <button type="button" className="self-start text-sm text-brand-700 hover:underline" onClick={onBack}>
         ← Volver a servicios
       </button>
 

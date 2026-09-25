@@ -39,7 +39,7 @@ export function ServicesScreen() {
               <button
                 type="button"
                 onClick={() => setSelectedId(service.id)}
-                className={card + ' flex w-full items-center justify-between text-left transition hover:border-rose-300'}
+                className={card + ' flex w-full items-center justify-between text-left transition hover:border-brand-100'}
               >
                 <div>
                   <div className="font-medium">{service.name}</div>

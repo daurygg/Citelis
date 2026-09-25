@@ -33,7 +33,7 @@ export function FixedExpenses({ month }: { month: string }) {
     <div className={card + ' flex flex-col gap-3'}>
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">Gastos fijos del mes</h3>
-        <button type="button" className="text-sm text-rose-700 hover:underline" onClick={handleCopy}>
+        <button type="button" className="text-sm text-brand-700 hover:underline" onClick={handleCopy}>
           Copiar del mes anterior
         </button>
       </div>

@@ -6,14 +6,18 @@ import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, parseMoneyToCents, statusLabel } from '../lib/format';
 import type { AppointmentStatus, Appointment } from '../lib/domain/types';
 import { useToast } from './Toast';
+import { CalendarActions } from './CalendarActions';
 import { btnGhost, btnPrimary, card, field, fieldLabel, input } from './ui';
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
+  // Violeta: pide acción de la dueña y no se confunde con el ámbar de Pendiente.
+  REQUESTED: 'bg-violet-100 text-violet-800',
   PENDING: 'bg-amber-100 text-amber-800',
   IN_PROGRESS: 'bg-blue-100 text-blue-800',
   COMPLETED: 'bg-green-100 text-green-800',
   CANCELED: 'bg-neutral-100 text-neutral-500',
   NO_SHOW: 'bg-red-100 text-red-700',
+  REJECTED: 'bg-neutral-200 text-neutral-600',
 };
 
 export function AppointmentRow({ appointment }: { appointment: Appointment }) {
@@ -24,6 +28,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
 
   const [charging, setCharging] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
+  const [sharingCalendar, setSharingCalendar] = useState(false);
   const [newDatetime, setNewDatetime] = useState(appointment.datetime.slice(0, 16));
   // Prefija el precio del cobro con el acordado al agendar (si lo hay).
   const [priceText, setPriceText] = useState(
@@ -65,7 +70,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
           <div className="truncate font-medium">{appointment.client}</div>
           <div className="truncate text-sm text-neutral-500">{service?.name ?? 'Servicio desconocido'}</div>
           {appointment.deposit != null && appointment.deposit > 0 && appointment.status !== 'COMPLETED' && (
-            <div className="text-xs text-rose-700">Abonó {formatMoney(appointment.deposit)}</div>
+            <div className="text-xs text-brand-700">Abonó {formatMoney(appointment.deposit)}</div>
           )}
         </div>
         <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + STATUS_BADGE[appointment.status]}>
@@ -94,6 +99,13 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
           <button
             type="button"
             className={btnGhost + ' px-3 py-1.5 text-sm'}
+            onClick={() => setSharingCalendar((v) => !v)}
+          >
+            {sharingCalendar ? 'Cerrar' : 'Calendario'}
+          </button>
+          <button
+            type="button"
+            className={btnGhost + ' px-3 py-1.5 text-sm'}
             onClick={() => {
               store.markNoShow(appointment.id);
               notify('Marcada como “no llegó”');
@@ -115,6 +127,8 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
           </button>
         </div>
       )}
+
+      {sharingCalendar && <CalendarActions appointment={appointment} />}
 
       {rescheduling && (
         <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
