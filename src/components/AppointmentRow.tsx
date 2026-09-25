@@ -7,6 +7,7 @@ import { formatMoney, formatTime, parseMoneyToCents, statusLabel } from '../lib/
 import type { AppointmentStatus, Appointment } from '../lib/domain/types';
 import { useToast } from './Toast';
 import { CalendarActions } from './CalendarActions';
+import { ClientNotice } from './ClientNotice';
 import { btnGhost, btnPrimary, card, field, fieldLabel, input } from './ui';
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
@@ -129,6 +130,10 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
       )}
 
       {sharingCalendar && <CalendarActions appointment={appointment} />}
+
+      {/* Se decide solo según el estado: aparece en una cita confirmada o
+          cancelada, y desaparece cuando ya no hay nada que avisar. */}
+      <ClientNotice appointment={appointment} />
 
       {rescheduling && (
         <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">

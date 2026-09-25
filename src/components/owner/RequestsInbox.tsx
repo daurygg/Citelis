@@ -7,7 +7,8 @@ import { useStore } from '../../lib/store/StoreContext';
 import { useToast } from '../Toast';
 import { formatDateShort, formatMoney, formatTime } from '../../lib/format';
 import { CalendarActions } from '../CalendarActions';
-import { bookingNoticeMessage, whatsappUrl, type BookingOutcome } from '../../lib/domain/whatsapp';
+import { type BookingOutcome } from '../../lib/domain/whatsapp';
+import { ClientNotice } from '../ClientNotice';
 import type { Appointment } from '../../lib/domain/types';
 import { btnGhost, btnPrimary, card } from '../ui';
 
@@ -110,25 +111,11 @@ export function RequestsInbox() {
  * estado, ni ninguna RPC pública que devuelva en qué quedó su solicitud).
  */
 function AnsweredPanel({ answered, onDismiss }: { answered: Answered; onDismiss: () => void }) {
-  const store = useStore();
   const { appointment, outcome } = answered;
   const accepted = outcome === 'accepted';
 
-  const service = store.services.find((s) => s.id === appointment.service_id);
   const dateLabel = formatDateShort(appointment.datetime);
   const timeLabel = formatTime(appointment.datetime);
-
-  const noticeUrl = whatsappUrl(
-    appointment.client_phone,
-    bookingNoticeMessage({
-      outcome,
-      clientName: appointment.client,
-      businessName: store.business?.name ?? 'tu salón',
-      serviceName: service?.name ?? 'tu cita',
-      dateLabel,
-      timeLabel,
-    }),
-  );
 
   const tone = accepted
     ? 'border-green-200 bg-green-50'
@@ -146,22 +133,11 @@ function AnsweredPanel({ answered, onDismiss }: { answered: Answered; onDismiss:
         </button>
       </div>
 
-      {noticeUrl ? (
-        <a
-          href={noticeUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={btnPrimary + ' px-3 py-1.5 text-center text-sm'}
-        >
-          Avisar a {appointment.client} por WhatsApp
-        </a>
-      ) : (
-        // Sin teléfono no hay a quién escribirle, y callarlo sería peor: la dueña
-        // tiene que saber que esta clienta se queda sin enterarse.
-        <p className="text-sm text-neutral-600">
-          No dejó un teléfono al que escribirle, así que no se va a enterar por aquí.
-        </p>
-      )}
+      {/* `outcome` va explícito: aquí se guarda la solicitud tal como estaba
+          ANTES de responder, así que su estado sigue siendo REQUESTED y
+          deducirlo daría "no hay nada que avisar". El mismo aviso vive también
+          en la agenda, colgado de la cita, para cuando esto se recargue. */}
+      <ClientNotice appointment={appointment} outcome={outcome} />
 
       {/* El calendario es para la agenda de la dueña, y solo tiene sentido si la cita existe. */}
       {accepted && <CalendarActions appointment={appointment} />}
