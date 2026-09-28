@@ -89,8 +89,11 @@ Estricto, activo. Fuente: convención de `odd/tasks/*.md`. Runner:
   la nueva y la limpieza al parar. RED → GREEN 9/9. Un `useEffect` en
   `StoreReady`; la bandeja lee el mismo estado (`pendingRequests`,
   `StoreContext.tsx:348`). Suite 266/266, `tsc` y build limpios.
-- [ ] **T4 · Prueba real**: con la app abierta, una reserva desde otro teléfono
-  aparece sola. Con la app en segundo plano, al volver ya está.
+- [x] **T4 · Prueba real** (2026-09-27, PR #23 mergeado en `develop`, preview
+  contra CitelisDev): el usuario confirmó que con la app abierta la reserva
+  desde otro teléfono **aparece en vivo**. El caso de volver desde segundo plano
+  no se reportó por separado: cubierto por tests (`visibilitychange`), sin
+  prueba manual.
 
 ## Criterios de aceptación
 
@@ -123,7 +126,9 @@ Pronóstico: ~300 líneas, por debajo de las ~400. Un solo PR contra `develop`.
 ## Progreso
 
 - 2026-09-27: rama `feat/live-appointments` desde `develop` (`1e6183a`).
+- 2026-09-27: PR #23 (`6d8b3e7..7a7faac`, +709) mergeado en `develop` (`56ebcae`).
 
 ## Siguiente paso
 
-T1.
+Feature cerrada en `develop`. Pendiente para producción: aplicar
+`20260928000001_live_appointments.sql`.
