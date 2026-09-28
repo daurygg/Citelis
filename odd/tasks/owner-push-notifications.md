@@ -68,11 +68,19 @@ Estricto, activo. Fuente: convención de `odd/tasks/*.md`. Runner:
 
 Ruta por tarea entre paréntesis.
 
-- [ ] **T1 · Lógica pura** (inline): `src/lib/push/` (clave VAPID, estado del
-  botón) + mensaje en `supabase/functions/_shared/`. RED primero.
-- [ ] **T2 · Migración** (inline): `push_subscription` + RLS con `is_member` y
+- [x] **T1a · Mensaje** (inline): `supabase/functions/_shared/newBookingMessage.ts`.
+  RED (módulo inexistente) → GREEN 6/6; suite 197/197. Commit `7a98001`.
+  RDD: riesgo medio, `under_budget` (queda pendiente en el slice).
+- [ ] **T1b · Lógica pura del cliente** (inline): `src/lib/push/` (clave VAPID,
+  estado del botón). RED primero. Va en el PR 2.
+- [x] **T2 · Migración** (inline): `push_subscription` + RLS con `is_member` y
   `user_id = auth.uid()`, `pg_net`, trigger leyendo Vault. Test SQL.
-- [ ] **T3 · Edge Function** `notify-new-booking` (inline).
+  CitelisDev: RED (`save_push_subscription does not exist`) → aplicada
+  `20260927000001` → VERDE 5/5. El linter señaló `pg_net` en `public` y EXECUTE
+  para `anon`: corregido en `20260927000002` (migración aparte porque la primera
+  ya había corrido), aserción 6 añadida → VERDE 6/6, sin restos. Commit `0c4c4ed`.
+- [x] **T3 · Edge Function** `notify-new-booking` (inline). `deno check` exit 0.
+  Sin desplegar (va en T6, necesita secretos). Commit `9f0c06d`.
 - [ ] **T4 · PWA** (delegada, 4+ archivos): `public/manifest.webmanifest`,
   íconos, `public/sw.js`, registro del SW, metas de iOS en `index.html`.
 - [ ] **T5 · UI** (inline): botón en "Mi negocio"; abrir la pestaña de reservas
@@ -93,7 +101,41 @@ Ruta por tarea entre paréntesis.
 ## Entrega
 
 Pronóstico: ~700 líneas, por encima de las ~400 de referencia. Estrategia:
-`ask-on-risk` (pendiente de elegir cadena).
+`ask-on-risk`; cadena elegida por el usuario: **stacked-to-main** (contra `develop`).
+
+- **PR 1 · backend** (`feat/owner-push-notifications` → `develop`): T1a, T2, T3.
+- **PR 2 · cliente** (`feat/owner-push-client` → PR 1): T1b, T4, T5, T6.
+
+Librería de push: `jsr:@negrel/webpush@0.5.0` (WebCrypto). `npm:web-push` falla
+en Deno con `crypto.createECDH is not a function`. `deno check` de la función: exit 0.
+
+## Revisión PR 1
+
+Lineage `review-7c98f6e33ab42f41`, riesgo medio, `slice_budget_reached` (624
+líneas). Usuario: `granted`. Un lente (`review-reliability`). **Aprobada** y
+reconocida (`authority: burned`); frontera revisada = `9f0c06d`. Cinco notas
+informativas:
+
+- ✅ Claves VAPID cargadas al importar el módulo → perezosas, 500 controlado (`43ea73d`).
+- ✅ Aserción 5 pasaba en vacío → siembra filas ajenas + control positivo (`43ea73d`).
+- ✅ Vault a medio configurar daba un falso rojo → cada secreto por separado (`43ea73d`).
+- ⛔ `client.trim()` con null: no aplica, `appointment.client` es `not null`.
+- ✅ El handler no tenía tests → decisión del usuario: hacerlo ya. Extraído a
+  `_shared/notifyNewBooking.ts` con dependencias inyectadas; RED (módulo
+  inexistente) → GREEN 13/13; suite 210/210; `deno check` y `tsc` limpios.
+  Commit `f7a4760`.
+
+Segunda revisión: lineage `review-167234640809f6b6` sobre `9f0c06d..f7a4760`
+(522 líneas, medio). Usuario: `granted`. **Aprobada** y reconocida (`burned`);
+frontera revisada = `f7a4760`. Cuatro notas, todas atendidas en `2864548`
+(RED → GREEN 9 tests nuevos; suite 219/219; `deno check` y `tsc` limpios):
+
+- ✅ Clasificación 404/410 y reintento del envío sin probar → `_shared/notifyWiring.ts`.
+- ✅ Aplanado del join del servicio sin probar → `toBookingForNotice`.
+- ✅ Fallo al borrar suscripciones muertas daba 500 → se registra y responde 200.
+- ✅ Sin URL/service key, las 401/405 salían como 500 → cliente creado tras autenticar.
+
+`f7a4760..2864548`: riesgo medio, `under_budget` (queda pendiente en el slice).
 
 ## Progreso
 
