@@ -20,11 +20,20 @@ const row = (id: number, status: Appointment['status'] = 'REQUESTED'): Appointme
 
 type Handler = (payload: { eventType: string; new: Appointment }) => void;
 
-/** Doble del cliente de Supabase: guarda lo que se pide y deja disparar eventos. */
-function fakeClient(fetched: { data: Appointment[] | null; error: unknown } = { data: [], error: null }) {
+/**
+ * Doble del cliente de Supabase: guarda lo que se pide y deja disparar eventos.
+ * Con `deferred`, cada consulta queda pendiente hasta `resolveFetch(i, data)`,
+ * para probar respuestas que llegan tarde o fuera de orden.
+ */
+function fakeClient(
+  fetched: { data: Appointment[] | null; error: unknown } = { data: [], error: null },
+  { deferred = false } = {},
+) {
   const handlers: { filter: Record<string, string>; handler: Handler }[] = [];
   let statusCallback: ((status: string) => void) | null = null;
   const eqCalls: [string, unknown][] = [];
+  const topics: string[] = [];
+  const pending: ((value: { data: Appointment[] | null; error: unknown }) => void)[] = [];
   const channel = {
     on: vi.fn((_type: string, filter: Record<string, string>, handler: Handler) => {
       handlers.push({ filter, handler });
@@ -35,17 +44,19 @@ function fakeClient(fetched: { data: Appointment[] | null; error: unknown } = { 
       return channel;
     }),
   };
-  let resolveFetch: (() => void) | null = null;
   const client = {
-    channel: vi.fn(() => channel),
+    channel: vi.fn((topic: string) => {
+      topics.push(topic);
+      return channel;
+    }),
     removeChannel: vi.fn(async () => 'ok'),
     from: vi.fn(() => ({
       select: vi.fn(() => ({
         eq: vi.fn((column: string, value: unknown) => {
           eqCalls.push([column, value]);
           return new Promise((resolve) => {
-            resolveFetch = () => resolve(fetched);
-            resolve(fetched);
+            if (deferred) pending.push(resolve);
+            else resolve(fetched);
           });
         }),
       })),
@@ -57,10 +68,11 @@ function fakeClient(fetched: { data: Appointment[] | null; error: unknown } = { 
     channel,
     handlers,
     eqCalls,
+    topics,
     emitStatus: (status: string) => statusCallback?.(status),
     emit: (eventType: 'INSERT' | 'UPDATE', appointment: Appointment) =>
       handlers.filter((h) => h.filter.event === eventType).forEach((h) => h.handler({ eventType, new: appointment })),
-    resolveFetch: () => resolveFetch?.(),
+    resolveFetch: (index: number, data: Appointment[]) => pending[index]({ data, error: null }),
   };
 }
 
@@ -87,7 +99,7 @@ describe('startLiveAppointments: el canal', () => {
   it('escucha INSERT y UPDATE de appointment filtrados por SU negocio, y nada de DELETE', () => {
     const fake = fakeClient();
     startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync: vi.fn() });
-    expect(fake.raw.channel).toHaveBeenCalledWith(`appointments:${BUSINESS}`);
+    expect(fake.topics[0]).toMatch(new RegExp(`^appointments:${BUSINESS}:`));
     expect(fake.handlers.map((h) => h.filter)).toEqual([
       { event: 'INSERT', schema: 'public', table: 'appointment', filter: `business_id=eq.${BUSINESS}` },
       { event: 'UPDATE', schema: 'public', table: 'appointment', filter: `business_id=eq.${BUSINESS}` },
@@ -184,5 +196,70 @@ describe('startLiveAppointments: al parar', () => {
     stop();
     fake.emit('INSERT', row(2));
     expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('startLiveAppointments: carreras', () => {
+  it('un evento que llega MIENTRAS se pone al día no lo borra la foto vieja', async () => {
+    const fake = fakeClient(undefined, { deferred: true });
+    const onResync = vi.fn();
+    startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync });
+    fake.emitStatus('SUBSCRIBED'); // arranca la consulta
+    fake.emit('INSERT', row(9)); // la reserva entra antes de que responda
+    fake.resolveFetch(0, [row(1)]); // la foto se tomó antes de la reserva
+    await flush();
+    expect(onResync).toHaveBeenCalledWith([row(1), row(9)]);
+  });
+
+  it('un cambio de estado que llega mientras se pone al día gana a la foto', async () => {
+    const fake = fakeClient(undefined, { deferred: true });
+    const onResync = vi.fn();
+    startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync });
+    fake.emitStatus('SUBSCRIBED');
+    fake.emit('UPDATE', row(1, 'PENDING'));
+    fake.resolveFetch(0, [row(1, 'REQUESTED')]);
+    await flush();
+    expect(onResync).toHaveBeenCalledWith([row(1, 'PENDING')]);
+  });
+
+  it('dos puestas al día cruzadas: la respuesta vieja no pisa a la nueva', async () => {
+    const fake = fakeClient(undefined, { deferred: true });
+    const page = fakeDocument();
+    const onResync = vi.fn();
+    startLiveAppointments({ client: fake.client, doc: page.doc, businessId: BUSINESS, onChange: vi.fn(), onResync });
+    fake.emitStatus('SUBSCRIBED'); // consulta 0
+    page.setVisibility('visible'); // consulta 1
+    fake.resolveFetch(1, [row(1), row(2)]); // la nueva responde primero
+    await flush();
+    fake.resolveFetch(0, [row(1)]); // la vieja llega tarde
+    await flush();
+    expect(onResync).toHaveBeenCalledTimes(1);
+    expect(onResync).toHaveBeenCalledWith([row(1), row(2)]);
+  });
+
+  it('los eventos ya aplicados no se vuelven a aplicar en la siguiente puesta al día', async () => {
+    const fake = fakeClient(undefined, { deferred: true });
+    const page = fakeDocument();
+    const onResync = vi.fn();
+    startLiveAppointments({ client: fake.client, doc: page.doc, businessId: BUSINESS, onChange: vi.fn(), onResync });
+    fake.emitStatus('SUBSCRIBED');
+    fake.emit('UPDATE', row(1, 'PENDING'));
+    fake.resolveFetch(0, [row(1, 'REQUESTED')]);
+    await flush();
+    // Más tarde la dueña rechaza en otro dispositivo; la foto nueva ya lo trae.
+    page.setVisibility('visible');
+    fake.resolveFetch(1, [row(1, 'REJECTED')]);
+    await flush();
+    expect(onResync).toHaveBeenLastCalledWith([row(1, 'REJECTED')]);
+  });
+
+  it('cada arranque usa un canal propio (React puede montar dos veces seguidas)', () => {
+    // realtime-js devuelve el canal EXISTENTE si el tema se repite, y a ese ya
+    // no se le pueden añadir escuchas: el segundo montaje fallaría.
+    const fake = fakeClient();
+    const stop = startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync: vi.fn() });
+    stop();
+    startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync: vi.fn() });
+    expect(new Set(fake.topics).size).toBe(2);
   });
 });

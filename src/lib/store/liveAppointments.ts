@@ -10,10 +10,10 @@
 //      cada `SUBSCRIBED`, que Realtime emite al conectar Y al reconectar.
 //
 // No depende de React: recibe el cliente y el documento, así se prueba con
-// dobles. `useLiveAppointments` solo la arranca y la para.
+// dobles. Un `useEffect` de `StoreReady` la arranca y la para.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Appointment } from '../domain/types';
-import type { AppointmentChange } from './appointmentSync';
+import { applyAppointmentChange, type AppointmentChange } from './appointmentSync';
 
 export type LiveClient = Pick<SupabaseClient, 'channel' | 'removeChannel' | 'from'>;
 
@@ -36,33 +36,53 @@ export function startLiveAppointments(options: LiveAppointmentsOptions): () => v
   // Solo cuenta la última puesta al día: si dos se cruzan (volver a la app y
   // reconectar a la vez), una respuesta vieja no pisa a una nueva.
   let latestResync = 0;
+  // Lo que llega por el canal MIENTRAS la consulta está en vuelo. La foto se
+  // tomó antes, así que sin esto la reserva que entra justo al conectar (el
+  // momento más probable) desaparecería al llegar la respuesta. Se reaplica
+  // encima de la foto. Las escrituras propias vuelven como eco por este mismo
+  // canal, así que también quedan cubiertas.
+  let sinceFetch: AppointmentChange[] | null = null;
 
   async function resync(): Promise<void> {
     const ticket = ++latestResync;
+    sinceFetch = [];
     const { data, error } = await client
       .from('appointment')
       .select('*')
       .eq('business_id', businessId); // INVARIANTE 1: explícito, además de la RLS
     if (stopped || ticket !== latestResync) return;
+    const arrived = sinceFetch ?? [];
+    sinceFetch = null;
     if (error || !data) {
       // Se conserva lo que había: una lista vacía por un corte de red sería
       // peor que una lista con un rato de atraso.
       onError('No se pudieron poner al día las citas', error);
       return;
     }
-    onResync(data as Appointment[]);
+    const fresh = arrived.reduce<readonly Appointment[]>(
+      (list, change) => applyAppointmentChange(list, change, businessId),
+      data as Appointment[],
+    );
+    onResync([...fresh]);
   }
 
   const filter = `business_id=eq.${businessId}`;
   const deliver = (eventType: AppointmentChange['eventType']) => (payload: { new: unknown }) => {
     if (stopped) return;
-    onChange({ eventType, new: payload.new as Appointment });
+    const change: AppointmentChange = { eventType, new: payload.new as Appointment };
+    sinceFetch?.push(change);
+    onChange(change);
   };
 
   // Sin DELETE: en Realtime los DELETE no pasan por la RLS, y en la app las
   // citas nunca se borran (solo cambian de estado).
+  // Tema único por arranque: realtime-js devuelve el canal EXISTENTE si el tema
+  // se repite (RealtimeClient.channel), y a uno ya suscrito no se le pueden
+  // añadir escuchas. Pasa cuando React monta dos veces seguidas (StrictMode) y
+  // la limpieza anterior, que es asíncrona, aún no terminó.
+  const topic = `appointments:${businessId}:${Math.random().toString(36).slice(2)}`;
   const channel = client
-    .channel(`appointments:${businessId}`)
+    .channel(topic)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'appointment', filter }, deliver('INSERT'))
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'appointment', filter }, deliver('UPDATE'))
     .subscribe((status) => {

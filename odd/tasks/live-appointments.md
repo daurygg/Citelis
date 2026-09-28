@@ -60,10 +60,12 @@ FUERA:
   - El UPDATE reemplaza la fila por la del servidor.
   - Una fila de otro negocio se ignora. Es una defensa redundante con la RLS y
     el filtro (INVARIANTE 1).
-- `src/lib/store/useLiveAppointments.ts`: el canal
-  `appointments:<business_id>` con `filter: business_id=eq.<id>`, más la puesta
-  al día (`select ... eq('business_id', id)`) al volver a la app y en cada
-  `SUBSCRIBED`. Se limpia al desmontar.
+- `src/lib/store/liveAppointments.ts` (sin React; un `useEffect` de `StoreReady`
+  la arranca): el canal `appointments:<business_id>:<aleatorio>` con
+  `filter: business_id=eq.<id>`, más la puesta al día
+  (`select ... eq('business_id', id)`) al volver a la app y en cada `SUBSCRIBED`.
+  Los eventos que llegan con la consulta en vuelo se reaplican sobre la foto. Se
+  limpia al desmontar.
 - **INVARIANTE 2:** el eco de una cita COMPLETADA trae los mismos valores
   congelados. El cliente nunca recalcula dinero a partir de un evento.
 
@@ -97,6 +99,22 @@ Estricto, activo. Fuente: convención de `odd/tasks/*.md`. Runner:
 3. Al volver a la app tras tenerla en segundo plano, lo que entró mientras tanto ya está.
 4. Nunca aparece una cita de otro negocio.
 5. Una escritura propia no se duplica al llegar su eco.
+
+## Revisión
+
+Lineage `review-0985bf955505599f` sobre `develop..aa275c0` (594 líneas, riesgo
+medio). Usuario: `granted`. **Aprobada** y reconocida (`burned`). Tres notas,
+todas válidas. RED (4 tests fallando por las tres) → GREEN:
+
+- ✅ Una puesta al día en vuelo pisaba los eventos que llegaban mientras tanto
+  (justo al conectar) → se guardan y se reaplican sobre la foto.
+- ✅ El ticket contra respuestas viejas no estaba probado (el doble respondía al
+  instante) → doble con consultas diferidas y prueba de respuestas fuera de orden.
+- ✅ Tema fijo por negocio: realtime-js devuelve el canal existente
+  (`RealtimeClient.js:340`), y con el doble montaje de StrictMode fallaría →
+  tema único por arranque.
+
+Suite 271/271, `tsc` y build limpios.
 
 ## Entrega
 
