@@ -78,7 +78,8 @@ Estricto, activo. Fuente: convención de `odd/tasks/*.md`. Runner:
   idempotente. En CitelisDev la publicación existía vacía. Test
   `supabase/tests/live-appointments.sql`: RED (`FALLÓ 1`) → aplicada
   `20260928000001` → VERDE 3/3.
-- [ ] **T2 · Lógica pura** (inline): `applyAppointmentChange`. RED primero.
+- [x] **T2 · Lógica pura** (inline): `src/lib/store/appointmentSync.ts`. RED
+  (módulo inexistente) → GREEN 8/8; `tsc` limpio.
 - [ ] **T3 · Cableado** (inline): hook en `StoreReady`, canal, puesta al día y limpieza.
 - [ ] **T4 · Prueba real**: con la app abierta, una reserva desde otro teléfono
   aparece sola. Con la app en segundo plano, al volver ya está.
