@@ -71,8 +71,9 @@ Ruta por tarea entre paréntesis.
 - [x] **T1a · Mensaje** (inline): `supabase/functions/_shared/newBookingMessage.ts`.
   RED (módulo inexistente) → GREEN 6/6; suite 197/197. Commit `7a98001`.
   RDD: riesgo medio, `under_budget` (queda pendiente en el slice).
-- [ ] **T1b · Lógica pura del cliente** (inline): `src/lib/push/` (clave VAPID,
-  estado del botón). RED primero. Va en el PR 2.
+- [x] **T1b · Lógica pura del cliente** (inline): `src/lib/push/pushSupport.ts`
+  (estado del botón, iOS/iPadOS, clave VAPID, fila de suscripción). RED (módulo
+  inexistente) → GREEN 17/17; suite 236/236; `tsc` limpio. PR 2.
 - [x] **T2 · Migración** (inline): `push_subscription` + RLS con `is_member` y
   `user_id = auth.uid()`, `pg_net`, trigger leyendo Vault. Test SQL.
   CitelisDev: RED (`save_push_subscription does not exist`) → aplicada
@@ -104,6 +105,7 @@ Pronóstico: ~700 líneas, por encima de las ~400 de referencia. Estrategia:
 `ask-on-risk`; cadena elegida por el usuario: **stacked-to-main** (contra `develop`).
 
 - **PR 1 · backend** (`feat/owner-push-notifications` → `develop`): T1a, T2, T3.
+  **#20** abierto 2026-09-27 (`7a98001..812c68d`, +1093/−1).
 - **PR 2 · cliente** (`feat/owner-push-client` → PR 1): T1b, T4, T5, T6.
 
 Librería de push: `jsr:@negrel/webpush@0.5.0` (WebCrypto). `npm:web-push` falla
