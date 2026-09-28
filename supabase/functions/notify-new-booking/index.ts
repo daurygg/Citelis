@@ -26,16 +26,27 @@ const env = (name: string): string => {
   return value;
 };
 
-// Se construye una vez por instancia, no por aviso.
-const appServerPromise = (async () => {
-  const vapidKeys = await webpush.importVapidKeys(JSON.parse(env('VAPID_KEYS')), {
-    extractable: false,
+// Se construye una vez por instancia y SOLO cuando hay algo que enviar. Si se
+// arrancara al cargar el módulo, unas claves mal puestas dejarían una promesa
+// rechazada sin manejar, que en Deno puede tumbar el worker en cada llamada
+// (incluidas las 401/400) en vez de dar un 500 claro al intentar enviar.
+let appServerPromise: Promise<webpush.ApplicationServer> | null = null;
+
+function appServer(): Promise<webpush.ApplicationServer> {
+  appServerPromise ??= (async () => {
+    const vapidKeys = await webpush.importVapidKeys(JSON.parse(env('VAPID_KEYS')), {
+      extractable: false,
+    });
+    return webpush.ApplicationServer.new({
+      contactInformation: env('VAPID_SUBJECT'),
+      vapidKeys,
+    });
+  })().catch((err) => {
+    appServerPromise = null; // que el próximo aviso lo reintente tras corregir los secretos
+    throw err;
   });
-  return webpush.ApplicationServer.new({
-    contactInformation: env('VAPID_SUBJECT'),
-    vapidKeys,
-  });
-})();
+  return appServerPromise;
+}
 
 /** Comparación en tiempo constante: no filtra el secreto por lo que tarda. */
 function sameSecret(given: string, expected: string): boolean {
@@ -88,7 +99,13 @@ Deno.serve(async (req) => {
     datetime: appointment.datetime,
   });
 
-  const appServer = await appServerPromise;
+  let server: webpush.ApplicationServer;
+  try {
+    server = await appServer();
+  } catch (err) {
+    console.error('claves VAPID inválidas o ausentes', String(err));
+    return new Response('Push no configurado', { status: 500 });
+  }
   const payload = JSON.stringify(message);
   const dead: number[] = [];
   let sent = 0;
@@ -96,7 +113,7 @@ Deno.serve(async (req) => {
   await Promise.all(
     subscriptions.map(async (sub) => {
       try {
-        await appServer
+        await server
           .subscribe({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } })
           .pushTextMessage(payload, { urgency: webpush.Urgency.High, ttl: 60 * 60 * 24 });
         sent++;
