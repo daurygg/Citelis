@@ -54,10 +54,15 @@ self.addEventListener('notificationclick', (event) => {
       const existing = clientsList.find((c) => new URL(c.url).origin === self.location.origin);
       if (existing) {
         await existing.focus();
-        if ('navigate' in existing) {
+        try {
+          // `navigate` rechaza si esa ventana aún no está controlada por este
+          // service worker (justo tras instalarlo). Entonces se abre una nueva:
+          // mejor dos ventanas que no llegar a la bandeja.
           await existing.navigate(url);
+          return;
+        } catch {
+          // cae a openWindow
         }
-        return;
       }
       await self.clients.openWindow(url);
     })(),

@@ -53,7 +53,13 @@ export async function enablePush(businessId: number, vapidPublicKey: string): Pr
     throw new Error('No diste permiso para los avisos.');
   }
 
-  const registration = await navigator.serviceWorker.ready;
+  // `getRegistration()` y no `ready`, igual que en readPushEnvironment: si el
+  // service worker no se registró, `ready` no falla nunca y el botón se quedaría
+  // en "Activando…" para siempre.
+  const registration = await navigator.serviceWorker.getRegistration();
+  if (!registration) {
+    throw new Error('Citelis no terminó de prepararse. Recarga Citelis e inténtalo de nuevo.');
+  }
   const subscription = await registration.pushManager.subscribe({
     userVisibleOnly: true,
     // Cast necesario: TS 5.7 tipa `Uint8Array.from(...)` como
