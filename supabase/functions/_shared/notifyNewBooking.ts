@@ -101,10 +101,20 @@ export async function handleNotifyNewBooking(req: Request, deps: NotifyDeps): Pr
   }));
 
   const gone = subscriptions.filter((_, i) => outcomes[i] === 'gone').map((s) => s.id);
-  if (gone.length) await deps.removeSubscriptions(gone);
+  let removed = 0;
+  if (gone.length) {
+    // Los avisos ya salieron: un fallo al limpiar no convierte eso en un 500.
+    // Se reintentará solo, la próxima vez que esos dispositivos respondan 404/410.
+    try {
+      await deps.removeSubscriptions(gone);
+      removed = gone.length;
+    } catch (err) {
+      deps.logError('no se pudieron borrar suscripciones muertas', String(err));
+    }
+  }
 
   return Response.json({
     sent: outcomes.filter((o) => o === 'sent').length,
-    removed: gone.length,
+    removed,
   });
 }

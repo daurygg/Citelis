@@ -138,6 +138,19 @@ describe('handleNotifyNewBooking: el envío', () => {
     expect(deps.logError).toHaveBeenCalledTimes(1);
   });
 
+  it('si falla el borrado de dispositivos muertos, los avisos ya enviados cuentan igual', async () => {
+    const { deps } = fakeDeps({
+      loadSubscriptions: vi.fn(async () => [sub(1), sub(2)]),
+      prepareSender: vi.fn(async () => vi.fn(async (s: StoredSubscription): Promise<SendOutcome> =>
+        s.id === 1 ? 'sent' : 'gone')),
+      removeSubscriptions: vi.fn(async () => { throw new Error('db caída'); }),
+    });
+    const res = await handleNotifyNewBooking(request(), deps);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ sent: 1, removed: 0 });
+    expect(deps.logError).toHaveBeenCalled();
+  });
+
   it('sin dispositivos muertos no llama a borrar', async () => {
     const { deps } = fakeDeps();
     await handleNotifyNewBooking(request(), deps);

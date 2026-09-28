@@ -19,9 +19,10 @@
 //   VAPID_SUBJECT   — "mailto:..." de contacto para el servicio de push.
 // SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY los inyecta Supabase.
 
-import { createClient } from 'npm:@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import * as webpush from 'jsr:@negrel/webpush@0.5.0';
 import { handleNotifyNewBooking, type Sender } from '../_shared/notifyNewBooking.ts';
+import { isGoneStatus, retryingOnce, toBookingForNotice } from '../_shared/notifyWiring.ts';
 
 const env = (name: string): string => {
   const value = Deno.env.get(name);
@@ -33,69 +34,53 @@ const env = (name: string): string => {
 // arrancara al cargar el módulo, unas claves mal puestas dejarían una promesa
 // rechazada sin manejar, que en Deno puede tumbar el worker en cada llamada
 // (incluidas las 401/400) en vez de dar un 500 claro al intentar enviar.
-let senderPromise: Promise<Sender> | null = null;
-
-function prepareSender(): Promise<Sender> {
-  senderPromise ??= (async () => {
-    const vapidKeys = await webpush.importVapidKeys(JSON.parse(env('VAPID_KEYS')), {
-      extractable: false,
-    });
-    const server = await webpush.ApplicationServer.new({
-      contactInformation: env('VAPID_SUBJECT'),
-      vapidKeys,
-    });
-    const send: Sender = async (sub, payload) => {
-      try {
-        await server
-          .subscribe({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } })
-          .pushTextMessage(payload, { urgency: webpush.Urgency.High, ttl: 60 * 60 * 24 });
-        return 'sent';
-      } catch (err) {
-        // 410 (isGone) o 404: el dispositivo ya no existe (app borrada, permiso retirado).
-        if (err instanceof webpush.PushMessageError &&
-            (err.isGone() || err.response.status === 404)) {
-          return 'gone';
-        }
-        throw err;
-      }
-    };
-    return send;
-  })().catch((err) => {
-    senderPromise = null; // que el próximo aviso lo reintente tras corregir los secretos
-    throw err;
+const prepareSender = retryingOnce<Sender>(async () => {
+  const vapidKeys = await webpush.importVapidKeys(JSON.parse(env('VAPID_KEYS')), {
+    extractable: false,
   });
-  return senderPromise;
-}
+  const server = await webpush.ApplicationServer.new({
+    contactInformation: env('VAPID_SUBJECT'),
+    vapidKeys,
+  });
+  return async (sub, payload) => {
+    try {
+      await server
+        .subscribe({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } })
+        .pushTextMessage(payload, { urgency: webpush.Urgency.High, ttl: 60 * 60 * 24 });
+      return 'sent';
+    } catch (err) {
+      if (err instanceof webpush.PushMessageError && isGoneStatus(err.response.status)) {
+        return 'gone';
+      }
+      throw err;
+    }
+  };
+});
 
 Deno.serve((req) => {
-  const db = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), {
-    auth: { persistSession: false },
-  });
+  // El cliente se crea al primer uso, ya pasada la autenticación: sin URL o sin
+  // service key, una llamada ajena sigue recibiendo 401/405, no un 500.
+  let client: SupabaseClient | null = null;
+  const db = () =>
+    (client ??= createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), {
+      auth: { persistSession: false },
+    }));
 
   return handleNotifyNewBooking(req, {
     expectedSecret: env('NOTIFY_SECRET'),
 
     async loadBooking(id) {
-      const { data, error } = await db
+      const { data, error } = await db()
         .from('appointment')
         .select('id, business_id, client, datetime, status, service:service_id (name)')
         .eq('id', id)
         .maybeSingle();
       if (error) throw error;
-      if (!data) return null;
-      const service = data.service as { name: string } | { name: string }[] | null;
-      return {
-        id: data.id,
-        business_id: data.business_id,
-        client: data.client,
-        datetime: data.datetime,
-        status: data.status,
-        service_name: (Array.isArray(service) ? service[0]?.name : service?.name) ?? null,
-      };
+      return data ? toBookingForNotice(data) : null;
     },
 
     async loadSubscriptions(businessId) {
-      const { data, error } = await db
+      const { data, error } = await db()
         .from('push_subscription')
         .select('id, endpoint, p256dh, auth')
         .eq('business_id', businessId);
@@ -106,8 +91,8 @@ Deno.serve((req) => {
     prepareSender,
 
     async removeSubscriptions(ids) {
-      const { error } = await db.from('push_subscription').delete().in('id', ids);
-      if (error) console.error('no se pudieron borrar suscripciones muertas', error.message);
+      const { error } = await db().from('push_subscription').delete().in('id', ids);
+      if (error) throw error;
     },
 
     logError: (message, detail) => console.error(message, detail ?? ''),
