@@ -1,6 +1,6 @@
 // Raíz de la app. Puerta de autenticación: sin sesión → Login; con sesión → la app.
 // Dos modos separados (INVARIANTE 3): Servicios y Ropa, cada uno con sus pestañas.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './lib/auth/AuthContext';
 import { supabase } from './lib/supabase/client';
 import { StoreProvider, useStore } from './lib/store/StoreContext';
@@ -20,15 +20,12 @@ import { PublicBooking } from './components/public/PublicBooking';
 import { BookingSettings } from './components/owner/BookingSettings';
 import { BrandSettings } from './components/owner/BrandSettings';
 import { PublicLinkSettings } from './components/owner/PublicLinkSettings';
+import { PushNotificationSettings } from './components/owner/PushNotificationSettings';
 import { RequestsInbox } from './components/owner/RequestsInbox';
 import { ToastProvider } from './components/Toast';
+import { initialViewFromSearch, type Screen, type ServiceView } from './lib/initialView';
 
 type Mode = 'services' | 'clothing';
-// La identidad del negocio (hoy el color; mañana nombre o logo) manda sobre las
-// dos líneas de negocio y sobre el portal público, así que vive en su propia
-// pantalla fuera de los modos, no en una pestaña de Servicios.
-type Screen = 'work' | 'business';
-type ServiceView = 'agenda' | 'reservas' | 'services' | 'report';
 type ClothingView = 'sell' | 'products' | 'credits' | 'report';
 
 const SERVICE_TABS: { id: ServiceView; label: string }[] = [
@@ -103,11 +100,27 @@ function tabButtonClass(active: boolean): string {
 function AppShell() {
   const { signOut } = useAuth();
   const { business } = useStore();
-  const [screen, setScreen] = useState<Screen>('work');
+  // Si la app se abrió desde el toque de un aviso push (?vista=reservas),
+  // arranca directo en la bandeja de reservas en vez de en la agenda.
+  const [screen, setScreen] = useState<Screen>(() => initialViewFromSearch(window.location.search).screen);
   const [mode, setMode] = useState<Mode>('services');
-  const [serviceView, setServiceView] = useState<ServiceView>('agenda');
+  const [serviceView, setServiceView] = useState<ServiceView>(
+    () => initialViewFromSearch(window.location.search).serviceView,
+  );
   const [clothingView, setClothingView] = useState<ClothingView>('sell');
   const [inviteCode, setInviteCode] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Limpia SOLO `?vista=`: un refresco no debe volver a forzar la pestaña,
+    // y la barra de direcciones no debe quedar con el parámetro del push.
+    // Cualquier otro parámetro futuro se conserva.
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('vista')) {
+      params.delete('vista');
+      const rest = params.toString();
+      window.history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : ''));
+    }
+  }, []);
 
   const businessName = businessDisplayName(business?.name);
   useDocumentTitle(`${businessName} — ${screen === 'business' ? 'Mi negocio' : 'Agenda'}`);
@@ -192,6 +205,7 @@ function AppShell() {
           <div className="flex flex-col gap-6">
             <BrandSettings />
             <PublicLinkSettings />
+            <PushNotificationSettings />
           </div>
         ) : mode === 'services' ? (
           <>

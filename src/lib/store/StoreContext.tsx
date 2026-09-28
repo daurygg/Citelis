@@ -15,6 +15,8 @@ import type {
   TimeBlock,
 } from '../domain/types';
 import { completeAppointment as completeAppointmentDomain, transition } from '../domain/appointments';
+import { applyAppointmentChange } from './appointmentSync';
+import { startLiveAppointments } from './liveAppointments';
 import { findScheduleConflict } from '../domain/scheduling';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
 import { expectedProfit, fixedExpensesForMonth, weekSummary, type WeekSummary } from '../domain/reports';
@@ -257,6 +259,21 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   const [businessHours, setBusinessHoursState] = useState<readonly BusinessHours[]>(data.businessHours);
   const [timeBlocks, setTimeBlocksState] = useState<readonly TimeBlock[]>(data.timeBlocks);
   const [bookingPolicy, setBookingPolicyState] = useState<BookingPolicyRow | null>(data.bookingPolicy);
+
+  // Citas en vivo: la reserva que entra desde el portal (o el cambio hecho en
+  // otro dispositivo) aparece sin recargar, y al volver a la app se pone al día.
+  // Ver liveAppointments.ts y odd/tasks/live-appointments.md.
+  useEffect(
+    () =>
+      startLiveAppointments({
+        client: supabase,
+        doc: document,
+        businessId,
+        onChange: (change) => setAppointments((prev) => applyAppointmentChange(prev, change, businessId)),
+        onResync: (fresh) => setAppointments(fresh),
+      }),
+    [businessId],
+  );
 
   // ── Lecturas (puras, sobre el estado ya cargado) ──────────────────────────
   function appointmentsForDay(isoDate: string): Appointment[] {
