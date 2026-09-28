@@ -82,10 +82,20 @@ Ruta por tarea entre paréntesis.
   ya había corrido), aserción 6 añadida → VERDE 6/6, sin restos. Commit `0c4c4ed`.
 - [x] **T3 · Edge Function** `notify-new-booking` (inline). `deno check` exit 0.
   Sin desplegar (va en T6, necesita secretos). Commit `9f0c06d`.
-- [ ] **T4 · PWA** (delegada, 4+ archivos): `public/manifest.webmanifest`,
-  íconos, `public/sw.js`, registro del SW, metas de iOS en `index.html`.
-- [ ] **T5 · UI** (inline): botón en "Mi negocio"; abrir la pestaña de reservas
-  al tocar la notificación.
+- [x] **T4 · PWA** (delegada, 4+ archivos): `public/manifest.webmanifest`,
+  íconos (`scripts/generate-icons.mjs`, Node sin dependencias: no hay
+  ImageMagick/PIL), `public/sw.js` (sin caché), metas de iOS, registro en
+  `main.tsx`. `npm run build` deja `dist/sw.js`, manifest e íconos; PNG válidos
+  (firma + IHDR 192/512/180). Commit `1a4e0aa`.
+- [x] **T5 · UI** (delegada junto a T4): `PushNotificationSettings` en "Mi
+  negocio", adaptador `pushSubscriptionApi.ts`, deep link `?vista=reservas` con
+  `initialViewFromSearch` (RED → GREEN 4/4). Revisión del padre antes del commit:
+  `serviceWorker.ready` se colgaba sin SW → `getRegistration()`; el borrado no
+  filtraba `business_id` → filtra (INVARIANTE 1); los tipos de vista pasaron de
+  `App.tsx` a `src/lib/initialView.ts` (la lógica no depende de la UI). Suite
+  240/240, `tsc` y build limpios. Commit `3cf033d`.
+  Pendiente: `.env.example` sin `VITE_VAPID_PUBLIC_KEY` (lectura denegada por
+  permisos; no se toca sin el usuario).
 - [ ] **T6 · Despliegue en CitelisDev + guía** `docs/push-notifications.md`:
   claves, secretos, Vault, prueba en el iPhone de la dueña.
 
