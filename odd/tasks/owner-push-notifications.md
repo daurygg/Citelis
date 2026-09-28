@@ -103,8 +103,12 @@ Ruta por tarea entre paréntesis.
   - [x] `notify-new-booking` desplegada en CitelisDev vía MCP (v1, `verify_jwt:
     false`). Arranca (`booted 28ms`); sin secretos responde 500 `Falta el secreto
     NOTIFY_SECRET`, como se esperaba.
-  - [ ] Usuario: secretos de la función, Vault por editor SQL, `VITE_VAPID_PUBLIC_KEY` en Vercel Preview.
-  - [ ] Prueba real en el iPhone de la dueña.
+  - [x] Usuario: secretos de la función, Vault por editor SQL, `VITE_VAPID_PUBLIC_KEY`
+    en Vercel Preview. Verificado sin leer valores: `net.http_post` desde SQL con
+    URL y secreto de Vault → 200 `{"sent":0,"skipped":"not_requested"}`.
+  - [x] Prueba real (2026-09-27): reserva desde otro teléfono → la notificación
+    llegó al iPhone. CitelisDev: 1 suscripción, `net._http_response` → 200
+    `{"sent":1,"removed":0}`. Claves VAPID verificadas.
 
 ## Criterios de aceptación
 
@@ -122,11 +126,14 @@ Pronóstico: ~700 líneas, por encima de las ~400 de referencia. Estrategia:
 `ask-on-risk`; cadena elegida por el usuario: **stacked-to-main** (contra `develop`).
 
 - **PR 1 · backend** (`feat/owner-push-notifications` → `develop`): T1a, T2, T3.
-  **#20** abierto 2026-09-27 (`7a98001..812c68d`, +1093/−1).
+  **#20** abierto 2026-09-27 (`7a98001..812c68d`, +1093/−1). Mergeado en `develop`.
 - **PR 2 · cliente** (`feat/owner-push-client` → PR 1): T1b, T4, T5, T6.
   **#21** abierto 2026-09-27 contra `feat/owner-push-notifications` (+1081/−17),
   CI verde. OJO: su preview de Vercel usa las variables genéricas de Preview, que
   apuntan a PRODUCCIÓN; solo `develop` apunta a CitelisDev. No probar ahí.
+  Se mergeó en su base (`feat/owner-push-notifications`) DESPUÉS de que #20 ya
+  estaba en `develop`, así que no llegó a `develop`: faltó reapuntarlo antes.
+  Lo llevó **#22** (mismo contenido, sin cambios), mergeado en `develop`.
 
 Librería de push: `jsr:@negrel/webpush@0.5.0` (WebCrypto). `npm:web-push` falla
 en Deno con `crypto.createECDH is not a function`. `deno check` de la función: exit 0.
@@ -166,4 +173,9 @@ frontera revisada = `f7a4760`. Cuatro notas, todas atendidas en `2864548`
 
 ## Siguiente paso
 
-T1.
+Feature cerrada en `develop` y probada en el iPhone. Pendiente para producción:
+migraciones `20260927000001` y `20260927000002`, claves propias
+(`node scripts/generate-vapid-keys.mjs ~/citelis-push-prod.json`), secretos,
+despliegue de la función, Vault y `VITE_VAPID_PUBLIC_KEY` en Production (ver
+`docs/push-notifications.md`). También: `.env.example` sin `VITE_VAPID_PUBLIC_KEY`
+(lectura denegada por permisos; no se tocó).
