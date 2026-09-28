@@ -80,7 +80,13 @@ Estricto, activo. Fuente: convención de `odd/tasks/*.md`. Runner:
   `20260928000001` → VERDE 3/3.
 - [x] **T2 · Lógica pura** (inline): `src/lib/store/appointmentSync.ts`. RED
   (módulo inexistente) → GREEN 8/8; `tsc` limpio.
-- [ ] **T3 · Cableado** (inline): hook en `StoreReady`, canal, puesta al día y limpieza.
+- [x] **T3 · Cableado** (inline): `src/lib/store/liveAppointments.ts`, sin React y
+  probado con dobles del cliente y del documento. Cubre el canal con filtro por
+  negocio (sin DELETE), la puesta al día en cada `SUBSCRIBED` y al volver a la
+  app, conservar la lista si la consulta falla, la respuesta vieja que no pisa a
+  la nueva y la limpieza al parar. RED → GREEN 9/9. Un `useEffect` en
+  `StoreReady`; la bandeja lee el mismo estado (`pendingRequests`,
+  `StoreContext.tsx:348`). Suite 266/266, `tsc` y build limpios.
 - [ ] **T4 · Prueba real**: con la app abierta, una reserva desde otro teléfono
   aparece sola. Con la app en segundo plano, al volver ya está.
 
