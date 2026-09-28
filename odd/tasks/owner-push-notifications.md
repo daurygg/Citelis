@@ -96,8 +96,15 @@ Ruta por tarea entre paréntesis.
   240/240, `tsc` y build limpios. Commit `3cf033d`.
   Pendiente: `.env.example` sin `VITE_VAPID_PUBLIC_KEY` (lectura denegada por
   permisos; no se toca sin el usuario).
-- [ ] **T6 · Despliegue en CitelisDev + guía** `docs/push-notifications.md`:
-  claves, secretos, Vault, prueba en el iPhone de la dueña.
+- [ ] **T6 · Despliegue en CitelisDev + guía** `docs/push-notifications.md`.
+  - [x] Guía + `scripts/generate-vapid-keys.mjs` (no imprime la privada, modo 600,
+    fuera del repo; JWK verificado con `@negrel/webpush`). Commit `7358658`.
+  - [x] Claves de CitelisDev en `~/citelis-push-dev.json` (solo se imprimió la pública).
+  - [x] `notify-new-booking` desplegada en CitelisDev vía MCP (v1, `verify_jwt:
+    false`). Arranca (`booted 28ms`); sin secretos responde 500 `Falta el secreto
+    NOTIFY_SECRET`, como se esperaba.
+  - [ ] Usuario: secretos de la función, Vault por editor SQL, `VITE_VAPID_PUBLIC_KEY` en Vercel Preview.
+  - [ ] Prueba real en el iPhone de la dueña.
 
 ## Criterios de aceptación
 

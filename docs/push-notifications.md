@@ -65,8 +65,15 @@ supabase functions deploy notify-new-booking --no-verify-jwt --project-ref <ref>
 ```
 
 Otra opción es el MCP `supabase-write` (`deploy_edge_function` con
-`verify_jwt: false`), subiendo `index.ts` y los archivos de `_shared/` que
-importa.
+`verify_jwt: false`). Así se desplegó en CitelisDev el 2026-09-27: los archivos
+se suben con su carpeta (`notify-new-booking/index.ts`,
+`_shared/notifyNewBooking.ts`, `_shared/notifyWiring.ts`,
+`_shared/newBookingMessage.ts`) y `entrypoint_path` =
+`notify-new-booking/index.ts`, para que resuelvan los `../_shared/`. Los tests
+(`*.test.ts`) no se suben.
+
+Sin secretos, la función responde 500 y en los logs aparece
+`Falta el secreto NOTIFY_SECRET`. Eso confirma que arrancó bien.
 
 ### 4 · Vault
 
