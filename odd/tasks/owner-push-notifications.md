@@ -173,9 +173,20 @@ frontera revisada = `f7a4760`. Cuatro notas, todas atendidas en `2864548`
 
 ## Siguiente paso
 
-Feature cerrada en `develop` y probada en el iPhone. Pendiente para producción:
-migraciones `20260927000001` y `20260927000002`, claves propias
-(`node scripts/generate-vapid-keys.mjs ~/citelis-push-prod.json`), secretos,
-despliegue de la función, Vault y `VITE_VAPID_PUBLIC_KEY` en Production (ver
-`docs/push-notifications.md`). También: `.env.example` sin `VITE_VAPID_PUBLIC_KEY`
-(lectura denegada por permisos; no se tocó).
+**En producción desde el 2026-09-27** (release #25, `main` `97fa485`).
+
+- Migraciones: el historial remoto estaba vacío porque las 8 primeras se
+  aplicaron a mano el 25/09. Se verificaron sus objetos con una consulta de solo
+  lectura, se marcaron con `migration repair` y `db push --dry-run` confirmó que
+  solo entraban las 3 nuevas. `migration list`: 11 en Local y Remote.
+- Claves propias (`~/citelis-push-prod.json`), secretos por `secrets set` con
+  `$(jq ...)`, función desplegada con `--no-verify-jwt --use-api` (401 con un
+  secreto incorrecto) y Vault verificado (`200 not_requested`).
+- Frontend: `citelis.vercel.app` sirve un bundle contra `fpgzdhfrverxjtwytqxv`
+  con la clave VAPID de producción; `sw.js` responde 200.
+- **Prueba real del usuario:** la notificación llegó al iPhone. No se leyó
+  `net._http_response` de producción porque no hay acceso a esa base desde aquí.
+
+Queda por hacer: `.env.example` sin `VITE_VAPID_PUBLIC_KEY` (lectura denegada
+por permisos, no se tocó) y fijar `verify_jwt = false` de `notify-new-booking`
+en `supabase/config.toml`.
