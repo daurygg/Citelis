@@ -71,8 +71,9 @@ Ruta por tarea entre paréntesis.
 - [x] **T1a · Mensaje** (inline): `supabase/functions/_shared/newBookingMessage.ts`.
   RED (módulo inexistente) → GREEN 6/6; suite 197/197. Commit `7a98001`.
   RDD: riesgo medio, `under_budget` (queda pendiente en el slice).
-- [ ] **T1b · Lógica pura del cliente** (inline): `src/lib/push/` (clave VAPID,
-  estado del botón). RED primero. Va en el PR 2.
+- [x] **T1b · Lógica pura del cliente** (inline): `src/lib/push/pushSupport.ts`
+  (estado del botón, iOS/iPadOS, clave VAPID, fila de suscripción). RED (módulo
+  inexistente) → GREEN 17/17; suite 236/236; `tsc` limpio. PR 2.
 - [x] **T2 · Migración** (inline): `push_subscription` + RLS con `is_member` y
   `user_id = auth.uid()`, `pg_net`, trigger leyendo Vault. Test SQL.
   CitelisDev: RED (`save_push_subscription does not exist`) → aplicada
@@ -81,12 +82,29 @@ Ruta por tarea entre paréntesis.
   ya había corrido), aserción 6 añadida → VERDE 6/6, sin restos. Commit `0c4c4ed`.
 - [x] **T3 · Edge Function** `notify-new-booking` (inline). `deno check` exit 0.
   Sin desplegar (va en T6, necesita secretos). Commit `9f0c06d`.
-- [ ] **T4 · PWA** (delegada, 4+ archivos): `public/manifest.webmanifest`,
-  íconos, `public/sw.js`, registro del SW, metas de iOS en `index.html`.
-- [ ] **T5 · UI** (inline): botón en "Mi negocio"; abrir la pestaña de reservas
-  al tocar la notificación.
-- [ ] **T6 · Despliegue en CitelisDev + guía** `docs/push-notifications.md`:
-  claves, secretos, Vault, prueba en el iPhone de la dueña.
+- [x] **T4 · PWA** (delegada, 4+ archivos): `public/manifest.webmanifest`,
+  íconos (`scripts/generate-icons.mjs`, Node sin dependencias: no hay
+  ImageMagick/PIL), `public/sw.js` (sin caché), metas de iOS, registro en
+  `main.tsx`. `npm run build` deja `dist/sw.js`, manifest e íconos; PNG válidos
+  (firma + IHDR 192/512/180). Commit `1a4e0aa`.
+- [x] **T5 · UI** (delegada junto a T4): `PushNotificationSettings` en "Mi
+  negocio", adaptador `pushSubscriptionApi.ts`, deep link `?vista=reservas` con
+  `initialViewFromSearch` (RED → GREEN 4/4). Revisión del padre antes del commit:
+  `serviceWorker.ready` se colgaba sin SW → `getRegistration()`; el borrado no
+  filtraba `business_id` → filtra (INVARIANTE 1); los tipos de vista pasaron de
+  `App.tsx` a `src/lib/initialView.ts` (la lógica no depende de la UI). Suite
+  240/240, `tsc` y build limpios. Commit `3cf033d`.
+  Pendiente: `.env.example` sin `VITE_VAPID_PUBLIC_KEY` (lectura denegada por
+  permisos; no se toca sin el usuario).
+- [ ] **T6 · Despliegue en CitelisDev + guía** `docs/push-notifications.md`.
+  - [x] Guía + `scripts/generate-vapid-keys.mjs` (no imprime la privada, modo 600,
+    fuera del repo; JWK verificado con `@negrel/webpush`). Commit `7358658`.
+  - [x] Claves de CitelisDev en `~/citelis-push-dev.json` (solo se imprimió la pública).
+  - [x] `notify-new-booking` desplegada en CitelisDev vía MCP (v1, `verify_jwt:
+    false`). Arranca (`booted 28ms`); sin secretos responde 500 `Falta el secreto
+    NOTIFY_SECRET`, como se esperaba.
+  - [ ] Usuario: secretos de la función, Vault por editor SQL, `VITE_VAPID_PUBLIC_KEY` en Vercel Preview.
+  - [ ] Prueba real en el iPhone de la dueña.
 
 ## Criterios de aceptación
 
@@ -104,7 +122,11 @@ Pronóstico: ~700 líneas, por encima de las ~400 de referencia. Estrategia:
 `ask-on-risk`; cadena elegida por el usuario: **stacked-to-main** (contra `develop`).
 
 - **PR 1 · backend** (`feat/owner-push-notifications` → `develop`): T1a, T2, T3.
+  **#20** abierto 2026-09-27 (`7a98001..812c68d`, +1093/−1).
 - **PR 2 · cliente** (`feat/owner-push-client` → PR 1): T1b, T4, T5, T6.
+  **#21** abierto 2026-09-27 contra `feat/owner-push-notifications` (+1081/−17),
+  CI verde. OJO: su preview de Vercel usa las variables genéricas de Preview, que
+  apuntan a PRODUCCIÓN; solo `develop` apunta a CitelisDev. No probar ahí.
 
 Librería de push: `jsr:@negrel/webpush@0.5.0` (WebCrypto). `npm:web-push` falla
 en Deno con `crypto.createECDH is not a function`. `deno check` de la función: exit 0.
