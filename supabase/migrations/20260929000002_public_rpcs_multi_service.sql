@@ -116,7 +116,7 @@ begin
      ) then
     raise exception 'Servicio no disponible para reserva en línea';
   end if;
-  select sum(duration_min) into v_duration
+  select sum(duration_min)::integer into v_duration
     from service where id = any(p_service_ids) and business_id = v_business;
 
   -- "Ahora" en la hora del negocio, no en la del servidor (H6).
@@ -176,7 +176,9 @@ begin
       from appointment a
       join lateral (
         -- null = la cita no tiene servicios resolubles. Ver el fallo seguro abajo.
-        select case when count(*) = 0 then null else sum(s.duration_min) end as total
+        -- ::integer obligatorio: sum() devuelve bigint y make_interval(mins =>)
+        -- solo acepta integer. Sin el cast, la función revienta al primer choque.
+        select case when count(*) = 0 then null else sum(s.duration_min)::integer end as total
           from appointment_service aps
           join service s on s.id = aps.service_id
          where aps.appointment_id = a.id

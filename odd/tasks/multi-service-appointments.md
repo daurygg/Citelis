@@ -287,3 +287,18 @@ comprobando que sigue bloqueando.
 precio variable entran al portal en T5, junto con la pantalla que sabe decir "a
 convenir". Así T4 no cambia nada visible: el portal sigue mandando un solo
 servicio, ahora dentro de un arreglo.
+
+### Corrección de T4 tras correrla (2026-09-29)
+
+```
+ERROR: 42883: function make_interval(mins => bigint) does not exist
+```
+
+`sum()` devuelve `bigint` y `make_interval(mins =>)` solo acepta `integer`. El
+cast estaba puesto en `public_busy` pero NO en el lateral del choque dentro de
+`public_request_booking` — una inconsistencia que solo aparece ejecutando, no
+leyendo.
+
+Corregido en los tres `sum()` que alimentan cálculos de intervalo. Y anotado como
+recordatorio: escribir SQL sin poder correrlo tiene este coste, y la única
+defensa es que alguien lo corra antes de que llegue a producción.
