@@ -151,7 +151,7 @@ mano, no en CI**.
   necesitan que les pongas precio".
 - [~] **T3 · Migración.** `appointment_service` con su RLS, backfill, y las
   columnas del reparto congelado.
-- [ ] **T4 · RPC públicas.** `public_request_booking` y `public_busy` con sumas,
+- [~] **T4 · RPC públicas.** `public_request_booking` y `public_busy` con sumas,
   más su regresión SQL.
 - [ ] **T5 · Portal.** Selección múltiple, huecos para la suma, y el envío.
 - [ ] **T6 · Agenda de la dueña.** `ScheduleForm`, reprogramar, `AppointmentRow`.
@@ -247,3 +247,43 @@ La número 4 de la regresión: ninguna cita se queda sin línea, y ninguna cita
 COMPLETADA de un solo servicio tiene su línea con dinero distinto al de la cita.
 Si una sola cita histórica cambia de números, la migración es inaceptable
 (INVARIANTE 2).
+
+## T4 escrita, PENDIENTE de correr contra una base (2026-09-29)
+
+`supabase/migrations/20260929000002_public_rpcs_multi_service.sql` y
+`supabase/tests/public-rpcs-multi-service.sql`. Copias para pegar en
+`~/citelis-T4-migracion.sql` y `~/citelis-T4-regresion.sql`.
+
+**NO verificada**, por lo mismo que T3: sin acceso a base de datos.
+
+### Cómo se escribió, que aquí importa más que qué se escribió
+
+`public_request_booking` son 100 líneas de validaciones que se escribieron a mano
+replicando `availability.ts` "al detalle" DESPUÉS de fallos reales en producción
+(H2–H5). Reescribirla es la forma más rápida de que las dos copias se separen.
+
+Por eso no se reescribió: se partió del texto vigente y se aplicaron **cuatro
+cambios dirigidos** — la firma, la duración como suma, el choque leyendo
+`appointment_service`, y el insert de las líneas. Ninguna validación se tocó,
+reordenó ni relajó.
+
+**La regresión `self-booking-regression.sql` tiene que seguir pasando.** No es
+opcional: es la única red que avisa si esta migración tocó H1–H6 sin querer.
+
+### El fallo seguro, replicado
+
+`availability.ts` bloquea a infinito cuando no puede saber cuánto dura una cita
+(decisión A6). Lo mismo aquí, en los dos sitios: `public_busy` reporta un bloque
+de 24 h y el choque trata `d.total is null` como que choca. Sin eso, una cita sin
+líneas resolubles ocuparía cero minutos y dejaría pasar una doble reserva —
+exactamente el agujero que A6 cerró del lado del navegador.
+
+La aserción 7 de la regresión lo prueba borrando las líneas de una cita y
+comprobando que sigue bloqueando.
+
+### Lo que NO cambia
+
+`public_business` sigue filtrando `variable_price = false`. Los servicios de
+precio variable entran al portal en T5, junto con la pantalla que sabe decir "a
+convenir". Así T4 no cambia nada visible: el portal sigue mandando un solo
+servicio, ahora dentro de un arreglo.
