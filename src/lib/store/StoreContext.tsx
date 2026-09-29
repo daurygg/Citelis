@@ -354,7 +354,9 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   // Devuelve una cita que choca con el horario propuesto, o null si está libre.
   function scheduleConflict(datetime: string, serviceId: number, excludeId?: number): Appointment | null {
     const scoped = appointments.filter((a) => a.business_id === businessId);
-    return findScheduleConflict({ datetime, service_id: serviceId, id: excludeId }, scoped, services);
+    // Hoy la agenda de la dueña solo permite elegir un servicio a la vez
+    // (T6 traerá selección múltiple): se pasa como arreglo de uno solo.
+    return findScheduleConflict({ datetime, service_ids: [serviceId], id: excludeId }, scoped, services);
   }
 
   // Reprograma (cambia fecha/hora) una cita abierta. No congela dinero (INVARIANTE 2).

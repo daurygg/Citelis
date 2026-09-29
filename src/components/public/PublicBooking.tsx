@@ -221,7 +221,9 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
     const policy: BookingPolicy = { business_id: business.business_id, ...business.policy };
     return generateSlots({
       date: selectedDate,
-      service: toDomainService(selectedService, business.business_id),
+      // Hoy el portal solo deja elegir un servicio a la vez (T5/T6 traerán
+      // selección múltiple): la candidata es un arreglo de uno solo.
+      candidateServices: [toDomainService(selectedService, business.business_id)],
       hours: toBusinessHours(hoursLoad.hours, business.business_id),
       blocks: [],
       appointments,
