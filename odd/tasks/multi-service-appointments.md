@@ -302,3 +302,27 @@ leyendo.
 Corregido en los tres `sum()` que alimentan cálculos de intervalo. Y anotado como
 recordatorio: escribir SQL sin poder correrlo tiene este coste, y la única
 defensa es que alguien lo corra antes de que llegue a producción.
+
+### La red de seguridad estaba rota, y no por T4 (2026-09-29)
+
+Al correr `self-booking-regression.sql` tras T4:
+
+```
+ERROR: 42883: function "public.create_business(text)" does not exist
+```
+
+Eso NO lo rompió T4. `create_business(text)` se eliminó el **22 de septiembre**,
+en la migración del color, y la tabla de permisos de H1 seguía preguntando por
+esa firma. `has_function_privilege` revienta si la función no existe, así que la
+suite entera moría en su primera aserción.
+
+Conclusión incómoda: **la suite llevaba una semana sin correrse y nadie se
+enteró**. Es la consecuencia exacta de que sea manual y no esté en CI, que ya
+estaba anotado como deuda en `self-booking.md` y hoy pasó factura.
+
+Actualizado: la firma de `create_business` a la vigente (tres argumentos), la de
+`public_request_booking` al arreglo, y las tres llamadas del test. Con un
+comentario en la tabla para que la próxima vez se vea el porqué.
+
+**Pendiente propuesto**: meter esta suite en CI contra una base efímera. Mientras
+sea manual, va a volver a pasar.
