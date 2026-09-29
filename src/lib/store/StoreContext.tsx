@@ -388,7 +388,8 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     if (!current) return;
     const service = services.find((s) => s.id === current.service_id);
     if (!service) throw new Error(`Servicio ${current.service_id} no encontrado.`);
-    const done = completeAppointmentDomain(current, service, overridePrice);
+    // Un solo servicio por ahora: las pantallas que escriben varios llegan en T5/T6.
+    const done = completeAppointmentDomain(current, [service], { overridePrice });
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? done : a)));
     persist(
       supabase
@@ -430,7 +431,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       actual_cost: null,
       profit: null,
     };
-    const done = completeAppointmentDomain(pending, service, input.price);
+    const done = completeAppointmentDomain(pending, [service], { overridePrice: input.price });
     setAppointments((prev) => [...prev, done]);
     persist(supabase.from('appointment').insert(done));
   }
