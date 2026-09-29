@@ -149,7 +149,7 @@ mano, no en CI**.
   (D4), `completeAppointment` recibiendo N servicios, y el reparto congelado de
   D1. Aquí muere el booleano `isVariable`: pasa a ser "qué servicios de esta cita
   necesitan que les pongas precio".
-- [ ] **T3 · Migración.** `appointment_service` con su RLS, backfill, y las
+- [~] **T3 · Migración.** `appointment_service` con su RLS, backfill, y las
   columnas del reparto congelado.
 - [ ] **T4 · RPC públicas.** `public_request_booking` y `public_busy` con sumas,
   más su regresión SQL.
@@ -213,3 +213,37 @@ porque es el peso, y repartir con un peso desconocido sería inventarlo.
 `scheduling.ts` ya importaba `holdsSchedule` de allí, así que usarlo al revés
 cerraba un ciclo de imports. Se re-exporta desde `scheduling.ts` para no romper
 a quien ya lo importaba.
+
+## T3 escrita, PENDIENTE de correr contra una base (2026-09-29)
+
+`supabase/migrations/20260929000001_appointment_service.sql` y su regresión
+`supabase/tests/appointment-service.sql`.
+
+**NO verificada.** A diferencia de T1 y T2, esta no se pudo probar: los dos
+servidores MCP de Supabase piden autenticación y el CLI sigue devolviendo
+`Unauthorized`. El rojo y el verde los tiene que correr el usuario. Copias para
+pegar en `~/citelis-T3-migracion.sql` y `~/citelis-T3-regresion.sql`.
+
+### Decisiones tomadas
+
+- **Clave primaria (appointment_id, service_id)**: un mismo servicio no se repite
+  en una cita. Si algún día hace falta ("dos manicuras en la misma visita"), se
+  cambia por un id propio más una cantidad; hoy sería complejidad sin caso.
+- **`business_id` desnormalizado**: es lo que mira la RLS, igual que el resto de
+  tablas. Sin él cada comprobación saltaría a `appointment` primero.
+- **NO se añade `performed_by`**, y es deliberado. El empleado que pide la
+  factura va en esta tabla, pero el concepto de empleado no existe todavía en el
+  modelo, y apuntarlo hoy a `auth.users` obligaría a que toda empleada use la
+  aplicación — una decisión de producto que no toca tomar por accidente aquí. Lo
+  que había que contemplar era la FORMA (una fila por servicio, no un arreglo en
+  la cita), y eso está. La columna será anulable y barata.
+- **El relleno deja una línea por cita existente con SU dinero congelado**, que
+  es exactamente lo que devuelve `appointmentServiceLines` para un solo servicio.
+  Los dos lados cuentan la misma historia.
+
+### La aserción que más importa
+
+La número 4 de la regresión: ninguna cita se queda sin línea, y ninguna cita
+COMPLETADA de un solo servicio tiene su línea con dinero distinto al de la cita.
+Si una sola cita histórica cambia de números, la migración es inaceptable
+(INVARIANTE 2).
