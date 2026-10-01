@@ -197,18 +197,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return;
       }
       const businessId = (members[0] as { business_id: number }).business_id;
+      // INVARIANTE 1: cada consulta filtra por business_id de forma explícita,
+      // además de la RLS. Con varias membresías, la RLS deja ver las filas de
+      // todos los negocios del usuario; sin este filtro se mezclarían.
       const [biz, svc, sup, ss, apt, fx, bh, tb, bp] = await Promise.all([
         // El nombre del negocio sale en el .ics y en el link de Google Calendar.
         supabase.from('business').select('*').eq('id', businessId),
-        supabase.from('service').select('*'),
-        supabase.from('supply').select('*'),
-        supabase.from('service_supply').select('*'),
-        supabase.from('appointment').select('*'),
-        supabase.from('fixed_expense').select('*'),
-        supabase.from('business_hours').select('*'),
-        supabase.from('time_block').select('*'),
+        supabase.from('service').select('*').eq('business_id', businessId),
+        supabase.from('supply').select('*').eq('business_id', businessId),
+        supabase.from('service_supply').select('*').eq('business_id', businessId),
+        supabase.from('appointment').select('*').eq('business_id', businessId),
+        supabase.from('fixed_expense').select('*').eq('business_id', businessId),
+        supabase.from('business_hours').select('*').eq('business_id', businessId),
+        supabase.from('time_block').select('*').eq('business_id', businessId),
         // Una fila por negocio (PK = business_id); todavía puede no existir.
-        supabase.from('booking_policy').select('*'),
+        supabase.from('booking_policy').select('*').eq('business_id', businessId),
       ]);
       if (!active) return;
       setData({
@@ -360,7 +363,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   // Reprograma (cambia fecha/hora) una cita abierta. No congela dinero (INVARIANTE 2).
   function reschedule(appointmentId: number, datetime: string): void {
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, datetime } : a)));
-    persist(supabase.from('appointment').update({ datetime }).eq('id', appointmentId));
+    persist(supabase.from('appointment').update({ datetime }).eq('id', appointmentId).eq('business_id', businessId));
   }
 
   function schedule(input: ScheduleInput): void {
@@ -392,7 +395,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       supabase
         .from('appointment')
         .update({ status: done.status, charged_price: done.charged_price, actual_cost: done.actual_cost, profit: done.profit })
-        .eq('id', appointmentId),
+        .eq('id', appointmentId).eq('business_id', businessId),
     );
   }
 
@@ -401,7 +404,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     if (!current) return;
     const next = transition(current, 'CANCELED');
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? next : a)));
-    persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId));
+    persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId).eq('business_id', businessId));
   }
 
   function markNoShow(appointmentId: number): void {
@@ -409,7 +412,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     if (!current) return;
     const next = transition(current, 'NO_SHOW');
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? next : a)));
-    persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId));
+    persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId).eq('business_id', businessId));
   }
 
   function registerWalkIn(input: WalkInInput): void {
@@ -448,7 +451,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     );
     for (const { service, cost } of computed) {
       if (cost !== service.supply_cost) {
-        persist(supabase.from('service').update({ supply_cost: cost }).eq('id', service.id));
+        persist(supabase.from('service').update({ supply_cost: cost }).eq('id', service.id).eq('business_id', businessId));
       }
     }
   }
@@ -471,19 +474,19 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
 
   function updateService(serviceId: number, patch: ServicePatch): void {
     setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, ...patch } : s)));
-    persist(supabase.from('service').update(patch).eq('id', serviceId));
+    persist(supabase.from('service').update(patch).eq('id', serviceId).eq('business_id', businessId));
   }
 
   function deleteService(serviceId: number): void {
     setServices((prev) => prev.filter((s) => s.id !== serviceId));
     setServiceSupplies((prev) => prev.filter((l) => l.service_id !== serviceId));
     // La FK service_supply.service_id tiene ON DELETE CASCADE → borra los enlaces.
-    persist(supabase.from('service').delete().eq('id', serviceId));
+    persist(supabase.from('service').delete().eq('id', serviceId).eq('business_id', businessId));
   }
 
   function setServiceCostOverride(serviceId: number, cents: number | null): void {
     setServices((prev) => prev.map((s) => (s.id === serviceId ? { ...s, cost_override: cents } : s)));
-    persist(supabase.from('service').update({ cost_override: cents }).eq('id', serviceId));
+    persist(supabase.from('service').update({ cost_override: cents }).eq('id', serviceId).eq('business_id', businessId));
   }
 
   function addSupplyToService(serviceId: number, input: SupplyInput): void {
@@ -510,14 +513,14 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   function unlinkSupply(serviceId: number, supplyId: number): void {
     const nextLinks = serviceSupplies.filter((l) => !(l.service_id === serviceId && l.supply_id === supplyId));
     setServiceSupplies(nextLinks);
-    persist(supabase.from('service_supply').delete().eq('service_id', serviceId).eq('supply_id', supplyId));
+    persist(supabase.from('service_supply').delete().eq('service_id', serviceId).eq('supply_id', supplyId).eq('business_id', businessId));
     recomputeCaches(supplies, nextLinks);
   }
 
   function updateSupply(supplyId: number, patch: Partial<SupplyInput>): void {
     const nextSupplies = supplies.map((su) => (su.id === supplyId ? { ...su, ...patch } : su));
     setSupplies(nextSupplies);
-    persist(supabase.from('supply').update(patch).eq('id', supplyId));
+    persist(supabase.from('supply').update(patch).eq('id', supplyId).eq('business_id', businessId));
     recomputeCaches(nextSupplies, serviceSupplies);
   }
 
@@ -536,7 +539,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
 
   function removeFixedExpense(id: number): void {
     setFixedExpenses((prev) => prev.filter((e) => e.id !== id));
-    persist(supabase.from('fixed_expense').delete().eq('id', id));
+    persist(supabase.from('fixed_expense').delete().eq('id', id).eq('business_id', businessId));
   }
 
   // Copia al mes indicado los gastos del mes anterior que aún no estén (por concepto),
@@ -574,7 +577,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
 
   function removeBusinessHours(id: number): void {
     setBusinessHoursState((prev) => prev.filter((h) => h.id !== id));
-    persist(supabase.from('business_hours').delete().eq('id', id));
+    persist(supabase.from('business_hours').delete().eq('id', id).eq('business_id', businessId));
   }
 
   // Bloquea un tramo puntual (vacaciones, un asunto personal…).
@@ -586,7 +589,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
 
   function removeTimeBlock(id: number): void {
     setTimeBlocksState((prev) => prev.filter((b) => b.id !== id));
-    persist(supabase.from('time_block').delete().eq('id', id));
+    persist(supabase.from('time_block').delete().eq('id', id).eq('business_id', businessId));
   }
 
   // Valores por defecto si la dueña todavía no tiene fila en booking_policy
@@ -624,7 +627,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     if (!current) return;
     const next = transition(current, 'PENDING');
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? next : a)));
-    persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId));
+    persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId).eq('business_id', businessId));
   }
 
   // La dueña rechaza la solicitud: REQUESTED → REJECTED, vía transition() (INVARIANTE 7).
@@ -633,7 +636,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     if (!current) return;
     const next = transition(current, 'REJECTED');
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? next : a)));
-    persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId));
+    persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId).eq('business_id', businessId));
   }
 
   // Cambia el color de marca del negocio actual (T5: se puede cambiar después
