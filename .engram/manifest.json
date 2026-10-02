@@ -88,6 +88,14 @@
       "sessions": 1,
       "memories": 3,
       "prompts": 0
+    },
+    {
+      "id": "bbf1af1a",
+      "created_by": "daurygg",
+      "created_at": "2026-10-02T04:06:43Z",
+      "sessions": 2,
+      "memories": 4,
+      "prompts": 7
     }
   ]
 }
