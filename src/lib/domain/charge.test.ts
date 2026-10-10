@@ -6,6 +6,7 @@ import {
   initialChargeTexts,
   planCompletion,
 } from './charge';
+import type { LineDiscount } from './discounts';
 import type { Appointment, Employee, Service } from './types';
 
 function service(partial: Partial<Service> = {}): Service {
@@ -134,8 +135,8 @@ describe('planCompletion', () => {
     const plan = planCompletion(apt, catalog, {});
     expect(plan.completed).toMatchObject({ status: 'COMPLETED', charged_price: 9000, actual_cost: 1500, profit: 7500 });
     expect(plan.lines).toEqual([
-      { service_id: 1, charged_price: 5000, actual_cost: 1000, profit: 4000 },
-      { service_id: 2, charged_price: 4000, actual_cost: 500, profit: 3500 },
+      { service_id: 1, list_price: 5000, discount: 0, charged_price: 5000, actual_cost: 1000, profit: 4000 },
+      { service_id: 2, list_price: 4000, discount: 0, charged_price: 4000, actual_cost: 500, profit: 3500 },
     ]);
   });
 
@@ -209,5 +210,103 @@ describe('empleada por servicio (opcional)', () => {
     expect(plan.lines.find((l) => l.service_id === 2)?.employee_id).toBe(7);
     const args = completeRpcArgs(1, plan);
     expect(args.p_lines.map((l) => l.employee_id ?? null)).toEqual([null, 7]);
+  });
+});
+
+describe('descuento por servicio (P2)', () => {
+  const pct = (percent: number) => ({ kind: 'percent' as const, percent });
+  const amt = (cents: number) => ({ kind: 'amount' as const, cents });
+
+  it('sin descuento: lista = cobrado y descuento 0, igual que siempre', () => {
+    const plan = planCompletion(appointment({ service_ids: [1, 2] }), catalog, {});
+    expect(plan.lines.map((l) => [l.list_price, l.discount, l.charged_price])).toEqual([
+      [5000, 0, 5000],
+      [4000, 0, 4000],
+    ]);
+    // Un descuento vacío tampoco cambia nada.
+    const empty = planCompletion(appointment({ service_ids: [1, 2] }), catalog, { discounts: new Map() });
+    expect(empty).toEqual(plan);
+  });
+
+  it('un servicio solo, sin descuento: una línea igual a la cita', () => {
+    const plan = planCompletion(appointment(), catalog, {});
+    expect(plan.lines).toEqual([
+      { service_id: 1, list_price: 5000, discount: 0, charged_price: 5000, actual_cost: 1000, profit: 4000 },
+    ]);
+  });
+
+  it('descuento por línea (monto y %): la cita cobra la suma de los netos', () => {
+    const discounts = new Map<number, LineDiscount>([[1, amt(500)], [2, pct(10)]]);
+    const plan = planCompletion(appointment({ service_ids: [1, 2] }), catalog, { discounts });
+    expect(plan.lines.map((l) => [l.list_price, l.discount, l.charged_price])).toEqual([
+      [5000, 500, 4500],
+      [4000, 400, 3600],
+    ]);
+    expect(plan.completed).toMatchObject({ charged_price: 8100, actual_cost: 1500, profit: 6600 });
+    expect(plan.lines.reduce((s, l) => s + l.charged_price, 0)).toBe(plan.completed.charged_price);
+    expect(plan.lines.reduce((s, l) => s + l.profit, 0)).toBe(plan.completed.profit);
+    expect(plan.lines.every((l) => l.charged_price === l.list_price - l.discount)).toBe(true);
+  });
+
+  it('el costo no cambia con el descuento: la ganancia baja', () => {
+    const plan = planCompletion(appointment(), catalog, { discounts: new Map([[1, pct(20)]]) });
+    expect(plan.lines[0]).toMatchObject({ list_price: 5000, discount: 1000, charged_price: 4000, actual_cost: 1000, profit: 3000 });
+  });
+
+  it('con total pactado, el pacto fija el bruto por línea y el descuento se resta encima', () => {
+    // Pacto 8000 → lista 4444 / 3556; 10 % a la primera = 444 (4444 * 0,10 = 444,4).
+    const plan = planCompletion(appointment({ service_ids: [1, 2] }), catalog, {
+      overridePrice: 8000,
+      discounts: new Map([[1, pct(10)]]),
+    });
+    expect(plan.lines.map((l) => [l.list_price, l.discount, l.charged_price])).toEqual([
+      [4444, 444, 4000],
+      [3556, 0, 3556],
+    ]);
+    expect(plan.completed.charged_price).toBe(7556);
+  });
+
+  it('un descuento total deja la línea en 0 y la ganancia negativa (como hoy)', () => {
+    const plan = planCompletion(appointment(), catalog, { discounts: new Map([[1, pct(100)]]) });
+    expect(plan.completed).toMatchObject({ charged_price: 0, profit: -1000 });
+    expect(plan.lines[0]).toMatchObject({ list_price: 5000, discount: 5000, charged_price: 0 });
+  });
+
+  it('con un servicio variable el descuento va sobre el precio que la dueña puso', () => {
+    const plan = planCompletion(appointment({ service_ids: [1, 3] }), catalog, {
+      priceOverrides: new Map([[3, 2000]]),
+      discounts: new Map([[3, pct(50)]]),
+    });
+    expect(plan.lines.find((l) => l.service_id === 3)).toMatchObject({ list_price: 2000, discount: 1000, charged_price: 1000 });
+    expect(plan.completed.charged_price).toBe(6000);
+  });
+
+  it('un descuento mayor que el precio de la línea no se cobra: lanza', () => {
+    expect(() => planCompletion(appointment(), catalog, { discounts: new Map([[1, amt(5001)]]) })).toThrow(
+      /no puede ser mayor que el precio/,
+    );
+  });
+
+  it('la RPC recibe lista, descuento y neto por línea', () => {
+    const plan = planCompletion(appointment({ service_ids: [1, 2] }), catalog, { discounts: new Map([[1, amt(500)]]) });
+    const args = completeRpcArgs(1, plan);
+    expect(args.p_charged_price).toBe(8500);
+    expect(args.p_lines[0]).toMatchObject({ list_price: 5000, discount: 500, charged_price: 4500 });
+  });
+
+  it('buildChargeForm entiende lo tecleado: monto, % y vacío', () => {
+    const form = buildChargeForm([cejas, ondas], {
+      prices: {},
+      total: '',
+      discounts: { 1: { mode: 'amount', value: '5' }, 2: { mode: 'percent', value: '' } },
+    });
+    expect([...form.discounts]).toEqual([[1, { kind: 'amount', cents: 500 }]]);
+    expect(form.ready).toBe(true);
+  });
+
+  it('un descuento que no se entiende bloquea el cobro', () => {
+    const form = buildChargeForm([cejas], { prices: {}, total: '', discounts: { 1: { mode: 'percent', value: '150' } } });
+    expect(form.invalidDiscounts.has(1)).toBe(true);
+    expect(form.ready).toBe(false);
   });
 });

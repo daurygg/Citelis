@@ -19,6 +19,7 @@ import {
   appointmentServiceIds,
   foldServiceIds,
   previewCompletion,
+  previewLines,
   transition,
   type AppointmentServiceRow,
   type CompleteOptions,
@@ -71,6 +72,8 @@ export interface CompletionPreview {
   actual_cost: number;
   profit: number;
 }
+/** Desglose del cobro por línea (lista, descuento, neto) y descuentos que no valen. */
+export type CompletionBreakdown = NonNullable<ReturnType<typeof previewLines>>;
 export interface SupplyInput {
   name: string;
   purchase_price: number;
@@ -124,6 +127,7 @@ export interface Store {
   projectedProfitForDay: (isoDate: string) => number;
   dayReport: (isoDate: string) => WeekSummary;
   completionPreview: (appointmentId: number, options?: CompleteOptions) => CompletionPreview | null;
+  completionBreakdown: (appointmentId: number, options?: CompleteOptions) => CompletionBreakdown | null;
   scheduleConflict: (datetime: string, serviceIds: readonly number[], excludeId?: number) => Appointment | null;
   schedule: (input: ScheduleInput) => Promise<ActionResult>;
   checkServicesEdit: (appointmentId: number, serviceIds: readonly number[]) => ServicesEditCheck;
@@ -390,7 +394,13 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   function completionPreview(appointmentId: number, options: CompleteOptions = {}): CompletionPreview | null {
     const appointment = appointments.find((a) => a.id === appointmentId);
     if (!appointment) return null;
-    return previewCompletion(appointment, services, options.overridePrice, options.priceOverrides);
+    return previewCompletion(appointment, services, options.overridePrice, options.priceOverrides, options.discounts);
+  }
+
+  function completionBreakdown(appointmentId: number, options: CompleteOptions = {}): CompletionBreakdown | null {
+    const appointment = appointments.find((a) => a.id === appointmentId);
+    if (!appointment) return null;
+    return previewLines(appointment, services, options);
   }
 
   function suppliesForService(serviceId: number): Supply[] {
@@ -907,6 +917,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     projectedProfitForDay,
     dayReport,
     completionPreview,
+    completionBreakdown,
     scheduleConflict,
     schedule,
     checkServicesEdit: servicesEditCheck,
