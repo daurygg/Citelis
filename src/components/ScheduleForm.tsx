@@ -32,7 +32,7 @@ export function ScheduleForm() {
   // daría por buena sin serlo.
   useEffect(() => {
     setDraftId(null);
-  }, [client, selectedIds, datetime, walkIn]);
+  }, [client, selectedIds, datetime, walkIn, quotedText, depositText, chargeTexts]);
 
   const selection = summarizeSelection(store.services, selectedIds);
   const selectedServices = selection.service_ids.flatMap((id) => store.services.find((s) => s.id === id) ?? []);
