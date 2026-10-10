@@ -64,6 +64,13 @@ export interface Appointment {
   id: number;
   business_id: number; // INVARIANTE 1
   service_id: number;
+  /**
+   * Servicios de la cita. OPCIONAL a propósito durante la fase de expansión:
+   * la base todavía guarda un solo `service_id` y ninguna pantalla escribe
+   * varios. Cuando existan escritores de varias (T5/T6) pasa a obligatoria, o
+   * una pantalla que se quede atrás borraría servicios en silencio.
+   */
+  service_ids?: number[];
   client: string;
   // Solo en citas nacidas del portal público. Opcionales porque las citas que la
   // dueña registró antes de esta función no los traen.
