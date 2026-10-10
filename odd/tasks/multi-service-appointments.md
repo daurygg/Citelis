@@ -145,7 +145,7 @@ mano, no en CI**.
   cambia lo que cada test verifica.
 
   Commit: `feat(dominio): duración de citas soporta varios servicios (suma)`.
-- [ ] **T2 · Dominio: el dinero.** Una función pura "precio de este conjunto"
+- [x] **T2 · Dominio: el dinero.** Una función pura "precio de este conjunto"
   (D4), `completeAppointment` recibiendo N servicios, y el reparto congelado de
   D1. Aquí muere el booleano `isVariable`: pasa a ser "qué servicios de esta cita
   necesitan que les pongas precio".
@@ -168,3 +168,48 @@ mano. 33 tests existentes tocan un `service_id` único y hay que reescribirlos.
 Muy por encima de las 400 líneas: va en PRs encadenados. Corte natural: dominio y
 migración primero (T1–T3), servidor después (T4), y las pantallas al final
 (T5–T8), que es también el orden en que se puede verificar cada pieza.
+
+## T2 cerrada (2026-09-29)
+
+ROJO observado en dos tandas: 11 fallos (`priceForServices`, `allocateProportionally`)
+y luego 8 (`completeAppointment` con N, `appointmentServiceLines`).
+VERDE: **302 tests** (22 nuevos), typecheck limpio, build correcto.
+
+### Lo implementado
+
+- `priceForServices(services, priceOverrides?)` en `costs.ts` — la costura de D4.
+  Un servicio de precio variable sin precio NO se cuenta como cero: se devuelve
+  en `needsPrice`.
+- `allocateProportionally(total, weights)` — reparto por **resto mayor**, con la
+  suma exactamente igual al total. Pesos todos en cero → reparto por igual (una
+  cita regalada no puede producir un NaN).
+- `completeAppointment(appointment, services[], options?)` — suma precios y
+  costos, valida negocio y que el conjunto sea EXACTAMENTE el de la cita.
+- `appointmentServiceLines(appointment, services, priceOverrides?)` — el reparto
+  congelado de D1. El **costo no se prorratea**: cada servicio aporta su propio
+  `effectiveCost`, que es el valor de verdad y suma exacto. Solo se reparte el
+  precio cobrado, porque la dueña puede cobrar un total distinto al de lista. La
+  ganancia de cada línea se **deriva** restando, así cuadra sola aunque sea
+  negativa.
+
+### Una regla que hubo que afinar, y la cazó un test que ya existía
+
+La primera versión se negaba a completar en cuanto un servicio de precio
+variable no tenía precio propio. Eso **rompía el comportamiento de siempre**: un
+`quoted_price` acordado al agendar ya cubría a un servicio variable, y hay un
+test desde hace tiempo que lo afirma.
+
+Regla corregida: solo se bloquea cuando **no hay ningún número en ninguna parte**
+—ni `overridePrice`, ni `quoted_price`, ni precio de lista—. Un total acordado
+cubre a los variables. Fijado con su propio test para que nadie lo deshaga.
+
+Consecuencia en el reparto: con UN servicio no hay nada que repartir y se lleva
+todo tenga o no precio propio; con VARIOS sí hace falta el precio de cada uno,
+porque es el peso, y repartir con un peso desconocido sería inventarlo.
+
+### Cambio de sitio
+
+`appointmentServiceIds` se movió de `scheduling.ts` a `appointments.ts`:
+`scheduling.ts` ya importaba `holdsSchedule` de allí, así que usarlo al revés
+cerraba un ciclo de imports. Se re-exporta desde `scheduling.ts` para no romper
+a quien ya lo importaba.

@@ -9,7 +9,10 @@
 // los servicios de una cita — nadie más debe leer `service_id`/`service_ids`
 // directamente para ese propósito.
 import type { Appointment, Service } from './types';
-import { holdsSchedule } from './appointments';
+import { appointmentServiceIds, holdsSchedule } from './appointments';
+
+// Se re-exporta para no romper a quien ya lo importaba desde acá.
+export { appointmentServiceIds };
 
 /** Duración del servicio en milisegundos. */
 export function serviceDurationMs(service: Service): number {
@@ -19,17 +22,6 @@ export function serviceDurationMs(service: Service): number {
 /** Duración TOTAL (ms) de un conjunto de servicios: la suma de cada uno. */
 export function servicesDurationMs(services: readonly Service[]): number {
   return services.reduce((total, s) => total + serviceDurationMs(s), 0);
-}
-
-/**
- * IDs de servicio de una cita. ÚNICA fuente de verdad de "qué servicios tiene
- * esta cita": si trae `service_ids` (varios), se usan esos; si no (toda cita
- * agendada antes de esta fase, o cualquier pantalla que todavía no escribe
- * varios), se cae al `service_id` único. Ver el comentario de `service_ids`
- * en types.ts.
- */
-export function appointmentServiceIds(appointment: Appointment): number[] {
-  return appointment.service_ids ?? [appointment.service_id];
 }
 
 /** Resultado de resolver una lista de ids de servicio contra un catálogo. */

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { isValidTransition, transition, completeAppointment, holdsSchedule } from './appointments';
+import {
+  isValidTransition,
+  transition,
+  completeAppointment,
+  holdsSchedule,
+  appointmentServiceLines,
+} from './appointments';
 import type { Appointment, AppointmentStatus, Service } from './types';
 
 function service(partial: Partial<Service> = {}): Service {
@@ -75,7 +81,7 @@ describe('completeAppointment', () => {
     const original = appointment({ status: 'PENDING' });
     const svc = service({ price: 5000, supply_cost: 1000 });
 
-    const done = completeAppointment(original, svc);
+    const done = completeAppointment(original, [svc]);
 
     expect(done.status).toBe('COMPLETED');
     expect(done.charged_price).toBe(5000);
@@ -90,37 +96,37 @@ describe('completeAppointment', () => {
   });
 
   it('permite el atajo PENDING → COMPLETED', () => {
-    const done = completeAppointment(appointment({ status: 'PENDING' }), service());
+    const done = completeAppointment(appointment({ status: 'PENDING' }), [service()]);
     expect(done.status).toBe('COMPLETED');
   });
 
   it('completa desde IN_PROGRESS', () => {
-    const done = completeAppointment(appointment({ status: 'IN_PROGRESS' }), service());
+    const done = completeAppointment(appointment({ status: 'IN_PROGRESS' }), [service()]);
     expect(done.status).toBe('COMPLETED');
   });
 
   it('respeta el override de precio (descuento)', () => {
     const svc = service({ price: 5000, supply_cost: 1000 });
-    const done = completeAppointment(appointment(), svc, 4000); // descuento
+    const done = completeAppointment(appointment(), [svc], { overridePrice: 4000 }); // descuento
     expect(done.charged_price).toBe(4000);
     expect(done.profit).toBe(3000);
   });
 
   it('usa el precio acordado (quoted_price) si no hay override', () => {
     const svc = service({ price: 5000, supply_cost: 1000, variable_price: true });
-    const done = completeAppointment(appointment({ quoted_price: 7000 }), svc);
+    const done = completeAppointment(appointment({ quoted_price: 7000 }), [svc]);
     expect(done.charged_price).toBe(7000); // acordado manda sobre el precio del servicio
     expect(done.profit).toBe(6000);
   });
 
   it('el override del cobro manda sobre el precio acordado', () => {
-    const done = completeAppointment(appointment({ quoted_price: 7000 }), service({ price: 5000, supply_cost: 1000 }), 8000);
+    const done = completeAppointment(appointment({ quoted_price: 7000 }), [service({ price: 5000, supply_cost: 1000 })], { overridePrice: 8000 });
     expect(done.charged_price).toBe(8000);
   });
 
   it('usa el cost_override del servicio como costo real si existe', () => {
     const svc = service({ price: 5000, supply_cost: 1000, cost_override: 700 });
-    const done = completeAppointment(appointment(), svc);
+    const done = completeAppointment(appointment(), [svc]);
     expect(done.actual_cost).toBe(700);
     expect(done.profit).toBe(4300);
   });
@@ -128,7 +134,7 @@ describe('completeAppointment', () => {
   // DoD Slice 0: cambiar service.price DESPUÉS de completar NO altera la ganancia congelada
   it('cambiar el precio del servicio después de completar NO altera la cita', () => {
     const svc = service({ price: 5000, supply_cost: 1000 });
-    const done = completeAppointment(appointment(), svc);
+    const done = completeAppointment(appointment(), [svc]);
     const gananciaCongelada = done.profit;
 
     // La dueña sube el precio del servicio más tarde.
@@ -142,32 +148,32 @@ describe('completeAppointment', () => {
   });
 
   it('no se puede completar una cita ya COMPLETED (lanza error)', () => {
-    const done = completeAppointment(appointment(), service());
-    expect(() => completeAppointment(done, service())).toThrow();
+    const done = completeAppointment(appointment(), [service()]);
+    expect(() => completeAppointment(done, [service()])).toThrow();
   });
 
   it('no se puede completar una cita CANCELED (lanza error)', () => {
     const canceled = appointment({ status: 'CANCELED' });
-    expect(() => completeAppointment(canceled, service())).toThrow();
+    expect(() => completeAppointment(canceled, [service()])).toThrow();
   });
 
   // INVARIANTE 1: aislamiento por tenant
   it('lanza error si el servicio es de otro negocio (business_id distinto)', () => {
     const apt = appointment({ business_id: 1, service_id: 1 });
     const svcOtroTenant = service({ id: 1, business_id: 2 });
-    expect(() => completeAppointment(apt, svcOtroTenant)).toThrow();
+    expect(() => completeAppointment(apt, [svcOtroTenant])).toThrow();
   });
 
   it('lanza error si el servicio no corresponde al service_id de la cita', () => {
     const apt = appointment({ service_id: 1 });
     const otroServicio = service({ id: 2 });
-    expect(() => completeAppointment(apt, otroServicio)).toThrow();
+    expect(() => completeAppointment(apt, [otroServicio])).toThrow();
   });
 
   // Slice B: una solicitud sin confirmar no es una cita completable.
   it('no se puede completar una cita REQUESTED (lanza error)', () => {
     const requested = appointment({ status: 'REQUESTED' });
-    expect(() => completeAppointment(requested, service())).toThrow();
+    expect(() => completeAppointment(requested, [service()])).toThrow();
   });
 });
 
@@ -228,5 +234,116 @@ describe('holdsSchedule (Slice B)', () => {
     expect(holdsSchedule('CANCELED')).toBe(false);
     expect(holdsSchedule('NO_SHOW')).toBe(false);
     expect(holdsSchedule('REJECTED')).toBe(false);
+  });
+});
+
+describe('completeAppointment con varios servicios', () => {
+  const cejas = service({ id: 1, name: 'Cejas', price: 150000, supply_cost: 20000 });
+  const labios = service({ id: 2, name: 'Labios', price: 400000, supply_cost: 50000 });
+
+  it('congela la suma de los precios y la suma de los costos', () => {
+    const cita = appointment({ service_id: 1, service_ids: [1, 2] });
+    const hecha = completeAppointment(cita, [cejas, labios]);
+    expect(hecha.charged_price).toBe(550000);
+    expect(hecha.actual_cost).toBe(70000);
+    expect(hecha.profit).toBe(480000);
+  });
+
+  it('una cita de un solo servicio sigue dando exactamente lo de siempre', () => {
+    // La regresión que más importa: lo múltiple no puede cambiar el dinero de
+    // las citas que ya existen.
+    const cita = appointment({ service_id: 1 });
+    const hecha = completeAppointment(cita, [cejas]);
+    expect(hecha.charged_price).toBe(150000);
+    expect(hecha.actual_cost).toBe(20000);
+    expect(hecha.profit).toBe(130000);
+  });
+
+  it('se NIEGA a completar si un servicio de precio variable no tiene precio', () => {
+    // Cobrar de menos en silencio es peor que no dejar cerrar la cuenta.
+    const trenzas = service({ id: 2, name: 'Trenzas', price: 0, variable_price: true });
+    const cita = appointment({ service_id: 1, service_ids: [1, 2] });
+    expect(() => completeAppointment(cita, [cejas, trenzas])).toThrow(/Trenzas/);
+  });
+
+  it('completa cuando la dueña le pone precio al servicio variable', () => {
+    const trenzas = service({ id: 2, name: 'Trenzas', price: 0, variable_price: true, supply_cost: 10000 });
+    const cita = appointment({ service_id: 1, service_ids: [1, 2] });
+    const hecha = completeAppointment(cita, [cejas, trenzas], {
+      priceOverrides: new Map([[2, 250000]]),
+    });
+    expect(hecha.charged_price).toBe(400000);
+    expect(hecha.actual_cost).toBe(30000);
+  });
+
+  it('un total acordado cubre a un servicio variable sin precio propio', () => {
+    // Regla afinada al chocar con un test que ya existía: bloquear por "falta
+    // precio" cuando la dueña YA acordó un total rompía el comportamiento de
+    // siempre. Solo se bloquea cuando no hay ningún número en ninguna parte.
+    const trenzas = service({ id: 2, name: 'Trenzas', price: 0, variable_price: true, supply_cost: 10000 });
+    const cita = appointment({ service_id: 1, service_ids: [1, 2], quoted_price: 500000 });
+    const hecha = completeAppointment(cita, [cejas, trenzas]);
+    expect(hecha.charged_price).toBe(500000);
+    expect(hecha.actual_cost).toBe(30000);
+  });
+
+  it('rechaza servicios de otro negocio (INVARIANTE 1)', () => {
+    const ajeno = service({ id: 2, business_id: 99 });
+    const cita = appointment({ service_id: 1, service_ids: [1, 2] });
+    expect(() => completeAppointment(cita, [cejas, ajeno])).toThrow();
+  });
+
+  it('rechaza un conjunto que no es el de la cita', () => {
+    const otro = service({ id: 7 });
+    const cita = appointment({ service_id: 1, service_ids: [1, 2] });
+    expect(() => completeAppointment(cita, [cejas, otro])).toThrow();
+  });
+});
+
+describe('appointmentServiceLines', () => {
+  const micro = service({ id: 1, name: 'Micropigmentación', price: 500000, supply_cost: 60000 });
+  const labios = service({ id: 2, name: 'Labios', price: 400000, supply_cost: 40000 });
+
+  it('reparte el dinero congelado sin perder un céntimo', () => {
+    // El caso del usuario: 5.000 + 4.000 de lista, pero se cobran 8.000.
+    const cita = appointment({ service_id: 1, service_ids: [1, 2] });
+    const hecha = completeAppointment(cita, [micro, labios], { overridePrice: 800000 });
+    const lineas = appointmentServiceLines(hecha, [micro, labios]);
+
+    expect(lineas).toHaveLength(2);
+    expect(lineas.reduce((a, l) => a + l.charged_price, 0)).toBe(hecha.charged_price);
+    expect(lineas.reduce((a, l) => a + l.actual_cost, 0)).toBe(hecha.actual_cost);
+    expect(lineas.reduce((a, l) => a + l.profit, 0)).toBe(hecha.profit);
+  });
+
+  it('la ganancia de cada línea es su propio cobrado menos su propio costo', () => {
+    const cita = appointment({ service_id: 1, service_ids: [1, 2] });
+    const hecha = completeAppointment(cita, [micro, labios], { overridePrice: 800000 });
+    for (const linea of appointmentServiceLines(hecha, [micro, labios])) {
+      expect(linea.profit).toBe(linea.charged_price - linea.actual_cost);
+    }
+  });
+
+  it('una cita de un solo servicio da UNA línea igual a la cita', () => {
+    const cita = appointment({ service_id: 1 });
+    const hecha = completeAppointment(cita, [micro]);
+    const lineas = appointmentServiceLines(hecha, [micro]);
+    expect(lineas).toHaveLength(1);
+    expect(lineas[0]).toEqual({
+      service_id: 1,
+      charged_price: hecha.charged_price,
+      actual_cost: hecha.actual_cost,
+      profit: hecha.profit,
+    });
+  });
+
+  it('una cita regalada no revienta ni inventa céntimos', () => {
+    const gratis1 = service({ id: 1, price: 0, supply_cost: 0 });
+    const gratis2 = service({ id: 2, price: 0, supply_cost: 0 });
+    const cita = appointment({ service_id: 1, service_ids: [1, 2] });
+    const hecha = completeAppointment(cita, [gratis1, gratis2]);
+    const lineas = appointmentServiceLines(hecha, [gratis1, gratis2]);
+    expect(lineas.reduce((a, l) => a + l.charged_price, 0)).toBe(0);
+    expect(lineas.every((l) => Number.isInteger(l.profit))).toBe(true);
   });
 });
