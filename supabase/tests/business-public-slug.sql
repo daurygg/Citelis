@@ -4,7 +4,7 @@
 --   Editor SQL de Supabase, MCP (`execute_sql`) o psql. Pégalo entero.
 --
 -- QUÉ NO ES
---   Esto NO corre en CI: el workflow solo ejecuta vitest, sin base de datos.
+--   Corre en CI (job `sql-regression`), contra una base efímera.
 --   Hay que lanzarlo a mano tras tocar `create_business`.
 --
 -- POR QUÉ EXISTE

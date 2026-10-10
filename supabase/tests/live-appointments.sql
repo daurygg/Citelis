@@ -3,7 +3,7 @@
 --
 -- CÓMO CORRERLO
 --   Editor SQL de Supabase, MCP (`execute_sql`) o psql. Pégalo entero.
---   NO corre en CI: el workflow solo ejecuta vitest, sin base de datos.
+--   Corre en CI (job `sql-regression`), contra una base efímera.
 --   No escribe nada: solo lee el catálogo.
 
 do $$
