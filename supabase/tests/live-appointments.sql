@@ -10,7 +10,7 @@ do $$
 begin
   -- 1 · Sin esto, Realtime no emite ni un solo evento de `appointment`.
   if not exists (select 1 from pg_publication_tables
-                  where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'appointment') then
+                  where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'appointment_BREAK') then
     raise exception 'FALLÓ 1: appointment no está en la publicación supabase_realtime';
   end if;
 
