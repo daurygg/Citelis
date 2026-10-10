@@ -225,7 +225,15 @@ mano, no en CI**.
   cae al servicio principal si no hay líneas. RED: 19 + 12 tests fallando; GREEN: 398 passed.
   ACCIÓN DE LA DUEÑA: `supabase functions deploy notify-new-booking` (no se desplegó). `index.ts`
   no tiene test (Deno) ni lo cubre tsc: sin ver el aviso real.
-- [ ] **T8 · Reportes.** Leer el reparto congelado en vez de atribuir a uno.
+- [x] **T8 · Reportes.** Leer el reparto congelado en vez de atribuir a uno.
+  `weekSummary(..., lines)` suma la `profit` congelada de cada línea de `appointment_service` para el
+  servicio más rentable; los totales siguen saliendo de la cita. Cita COMPLETED sin líneas con
+  ganancia: a su servicio principal (defensivo, nunca se redistribuye). Carga: el store trae `profit`
+  en la MISMA consulta de `appointment_service` y guarda las líneas en un estado aparte
+  (`serviceLines.ts`), sin tocar la sincronización de `service_ids`; `complete()`/`registerWalkIn()`
+  las ponen desde el plan al confirmar el servidor, y un efecto pide una vez las líneas de citas
+  COMPLETED que llegan por Realtime sin ellas (cobradas en otro dispositivo). RED: 2 tests de
+  reports fallando; GREEN: 408 passed. Sin ver el reporte en navegador.
 
 ## Verificación
 
