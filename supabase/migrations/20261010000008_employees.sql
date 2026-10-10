@@ -7,9 +7,12 @@
 --
 -- BAJA, NO BORRADO
 --   Una empleada con servicios cobrados no se borra: se desactiva (`active =
---   false`). La UI solo ofrece desactivar. La columna usa `on delete restrict`:
+--   false`). La UI solo ofrece desactivar. La columna usa `on delete no action`:
 --   la base se niega a borrar una empleada con servicios cobrados, porque
---   ponerlos en NULL borraría historia congelada (INVARIANTE 2).
+--   ponerlos en NULL borraría historia congelada (INVARIANTE 2). Es `no action`
+--   y no `restrict` porque se comprueba al final de la sentencia: al borrar un
+--   negocio entero, la cascada se lleva líneas y empleadas en cualquier orden, y
+--   `restrict` (inmediato) podría fallar según cuál borre primero.
 --
 -- COBRAR (`complete_appointment`)
 --   Cada línea de `p_lines` puede traer `employee_id` (opcional). Si viene, tiene
@@ -42,7 +45,7 @@ begin
 end $$;
 
 alter table appointment_service
-  add column if not exists employee_id bigint references employee (id) on delete restrict;
+  add column if not exists employee_id bigint references employee (id) on delete no action;
 
 create or replace function complete_appointment(
   p_business_id    bigint,
