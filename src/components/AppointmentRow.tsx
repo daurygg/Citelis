@@ -7,6 +7,8 @@ import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, statusLabel } from '../lib/format';
 import type { AppointmentStatus, Appointment } from '../lib/domain/types';
 import { appointmentServiceIds, serviceNames } from '../lib/domain/appointments';
+import { canEditServices, servicesChanged } from '../lib/domain/editServices';
+import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
 import { appointmentServices, buildChargeForm, initialChargeTexts, type ChargeTexts } from '../lib/domain/charge';
 import { useToast } from './Toast';
 import { CalendarActions } from './CalendarActions';
@@ -35,6 +37,9 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   // Se precarga el precio acordado al agendar (si lo hay) donde corresponde.
   const [texts, setTexts] = useState<ChargeTexts>(() => initialChargeTexts(appointment, cobroServices ?? []));
   const [saving, setSaving] = useState(false);
+  const [editingServices, setEditingServices] = useState(false);
+  const [editIds, setEditIds] = useState<number[]>([]);
+  const [savingServices, setSavingServices] = useState(false);
 
   const isOpen = appointment.status === 'PENDING' || appointment.status === 'IN_PROGRESS';
   const form = buildChargeForm(cobroServices ?? [], texts);
@@ -43,6 +48,39 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
     priceOverrides: form.priceOverrides,
   });
   const canComplete = cobroServices !== null && form.ready && !saving;
+
+  const editable = canEditServices(appointment.status);
+  const currentIds = appointmentServiceIds(appointment);
+  const editSummary = summarizeSelection(store.services, editIds);
+  const editCheck = editingServices ? store.checkServicesEdit(appointment.id, editIds) : null;
+  const editChanged = servicesChanged(currentIds, editIds);
+  const canSaveServices = editCheck !== null && editCheck.ok && editChanged && !savingServices;
+
+  function toggleEditServices() {
+    if (!editingServices) {
+      // Se parte de lo que la cita tiene hoy (sin ids que ya no estén en el catálogo).
+      setEditIds(summarizeSelection(store.services, currentIds).service_ids);
+    }
+    setEditingServices((v) => !v);
+  }
+
+  async function handleSaveServices() {
+    if (!canSaveServices) return;
+    setSavingServices(true);
+    let result;
+    try {
+      result = await store.updateAppointmentServices(appointment.id, editIds);
+    } finally {
+      // Pase lo que pase, el botón no se queda bloqueado en "Guardando…".
+      setSavingServices(false);
+    }
+    if (!result.ok) {
+      notify(result.message, 'error');
+      return;
+    }
+    setEditingServices(false);
+    notify('✓ Servicios actualizados');
+  }
 
   async function handleComplete() {
     if (!canComplete) return;
@@ -100,47 +138,60 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
         )}
       </div>
 
-      {isOpen && (
+      {(isOpen || editable) && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={btnPrimary + ' px-3 py-1.5 text-sm'} onClick={() => setCharging((v) => !v)}>
-            {charging ? 'Cerrar' : 'Cobrar'}
-          </button>
-          <button
-            type="button"
-            className={btnGhost + ' px-3 py-1.5 text-sm'}
-            onClick={() => setRescheduling((v) => !v)}
-          >
-            {rescheduling ? 'Cerrar' : 'Reprogramar'}
-          </button>
-          <button
-            type="button"
-            className={btnGhost + ' px-3 py-1.5 text-sm'}
-            onClick={() => setSharingCalendar((v) => !v)}
-          >
-            {sharingCalendar ? 'Cerrar' : 'Calendario'}
-          </button>
-          <button
-            type="button"
-            className={btnGhost + ' px-3 py-1.5 text-sm'}
-            onClick={() => {
-              store.markNoShow(appointment.id);
-              notify('Marcada como “no llegó”');
-            }}
-          >
-            No llegó
-          </button>
-          <button
-            type="button"
-            className="px-3 py-1.5 text-sm text-red-600 hover:underline"
-            onClick={() => {
-              if (window.confirm('¿Cancelar esta cita?')) {
-                store.cancel(appointment.id);
-                notify('Cita cancelada');
-              }
-            }}
-          >
-            Cancelar
-          </button>
+          {isOpen && (
+            <>
+              <button type="button" className={btnPrimary + ' px-3 py-1.5 text-sm'} onClick={() => setCharging((v) => !v)}>
+                {charging ? 'Cerrar' : 'Cobrar'}
+              </button>
+              <button
+                type="button"
+                className={btnGhost + ' px-3 py-1.5 text-sm'}
+                onClick={() => setRescheduling((v) => !v)}
+              >
+                {rescheduling ? 'Cerrar' : 'Reprogramar'}
+              </button>
+            </>
+          )}
+          {editable && (
+            <button type="button" className={btnGhost + ' px-3 py-1.5 text-sm'} onClick={toggleEditServices}>
+              {editingServices ? 'Cerrar' : 'Editar servicios'}
+            </button>
+          )}
+          {isOpen && (
+            <>
+              <button
+                type="button"
+                className={btnGhost + ' px-3 py-1.5 text-sm'}
+                onClick={() => setSharingCalendar((v) => !v)}
+              >
+                {sharingCalendar ? 'Cerrar' : 'Calendario'}
+              </button>
+              <button
+                type="button"
+                className={btnGhost + ' px-3 py-1.5 text-sm'}
+                onClick={() => {
+                  store.markNoShow(appointment.id);
+                  notify('Marcada como “no llegó”');
+                }}
+              >
+                No llegó
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 text-sm text-red-600 hover:underline"
+                onClick={() => {
+                  if (window.confirm('¿Cancelar esta cita?')) {
+                    store.cancel(appointment.id);
+                    notify('Cita cancelada');
+                  }
+                }}
+              >
+                Cancelar
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -163,6 +214,54 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
           </label>
           <button type="button" className={btnPrimary} onClick={handleReschedule} disabled={newDatetime === ''}>
             Guardar nuevo horario
+          </button>
+        </div>
+      )}
+
+      {/* Si la cita deja de ser editable con el panel abierto (se cobró, o un
+          cambio en vivo la canceló), el panel se cierra: su botón de cerrar ya no se ve. */}
+      {editingServices && editable && (
+        <div className="flex flex-col gap-3 rounded-xl bg-neutral-50 p-3">
+          <fieldset className={field}>
+            <legend className={fieldLabel}>Servicios de esta cita</legend>
+            <div className="flex flex-wrap gap-2">
+              {store.services.map((service) => {
+                const on = editIds.includes(service.id);
+                return (
+                  <button
+                    key={service.id}
+                    type="button"
+                    aria-pressed={on}
+                    disabled={savingServices}
+                    onClick={() => setEditIds((ids) => toggleServiceId(ids, service.id))}
+                    className={
+                      'rounded-full border px-3 py-2 text-sm ' +
+                      (on ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white text-neutral-700')
+                    }
+                  >
+                    {service.name}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+          {editSummary.service_ids.length > 0 && (
+            <p className="text-sm text-neutral-600">
+              Duran {editSummary.duration_min} min · Precio estimado:{' '}
+              {editSummary.estimate.hasVariable
+                ? editSummary.estimate.total > 0
+                  ? `${formatMoney(editSummary.estimate.total)} + a convenir`
+                  : 'a convenir'
+                : formatMoney(editSummary.estimate.total)}
+            </p>
+          )}
+          {/* Sin esto el botón quedaría apagado sin explicar por qué. */}
+          {editCheck !== null && !editCheck.ok && <p className="text-sm text-red-600">{editCheck.reason}</p>}
+          {editCheck !== null && editCheck.ok && !editChanged && (
+            <p className="text-sm text-neutral-500">Aún no cambiaste nada.</p>
+          )}
+          <button type="button" className={btnPrimary} onClick={handleSaveServices} disabled={!canSaveServices}>
+            {savingServices ? 'Guardando…' : 'Guardar servicios'}
           </button>
         </div>
       )}

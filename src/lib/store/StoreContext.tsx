@@ -24,6 +24,7 @@ import {
 } from '../domain/appointments';
 import { completeRpcArgs, planCompletion } from '../domain/charge';
 import { scheduleRpcArgs } from '../domain/selection';
+import { checkServicesEdit, updateServicesRpcArgs, type ServicesEditCheck } from '../domain/editServices';
 import { applyAppointmentChange, applyServiceIds, keepKnownServiceIds } from './appointmentSync';
 import { isAlreadySaved, type WriteError } from './writeResult';
 import { startLiveAppointments } from './liveAppointments';
@@ -119,6 +120,8 @@ export interface Store {
   completionPreview: (appointmentId: number, options?: CompleteOptions) => CompletionPreview | null;
   scheduleConflict: (datetime: string, serviceIds: readonly number[], excludeId?: number) => Appointment | null;
   schedule: (input: ScheduleInput) => Promise<ActionResult>;
+  checkServicesEdit: (appointmentId: number, serviceIds: readonly number[]) => ServicesEditCheck;
+  updateAppointmentServices: (appointmentId: number, serviceIds: readonly number[]) => Promise<ActionResult>;
   reschedule: (appointmentId: number, datetime: string) => void;
   complete: (appointmentId: number, options?: CompleteOptions) => Promise<ActionResult>;
   cancel: (appointmentId: number) => void;
@@ -469,6 +472,43 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     const error = await insertScheduled(appointment);
     if (error) return { ok: false, message: error.message };
     putAppointment(appointment);
+    return { ok: true };
+  }
+
+  // ¿Cabe este conjunto de servicios en la cita? Sirve a la pantalla para
+  // explicar por qué no, antes de intentar guardar.
+  function servicesEditCheck(appointmentId: number, serviceIds: readonly number[]): ServicesEditCheck {
+    const current = appointments.find((a) => a.id === appointmentId && a.business_id === businessId);
+    if (!current) return { ok: false, reason: 'No encontramos esa cita.' };
+    return checkServicesEdit({
+      appointment: current,
+      serviceIds,
+      services,
+      appointments: appointments.filter((a) => a.business_id === businessId),
+      hours: businessHours.filter((h) => h.business_id === businessId),
+      blocks: timeBlocks.filter((b) => b.business_id === businessId),
+    });
+  }
+
+  // Cambia los servicios de una cita aún abierta (`update_appointment_services`).
+  // Como `schedule` y `complete`, ESPERA al servidor: reemplazar las líneas son
+  // varias escrituras y a medias dejarían la cita con servicios de menos. El
+  // dominio decide si la nueva suma de duraciones cabe en el horario; el
+  // servidor vuelve a comprobar estado, negocio y lista. El estado local solo
+  // cambia cuando el servidor confirma, y el dinero no se toca (INVARIANTE 2).
+  async function updateAppointmentServices(appointmentId: number, serviceIds: readonly number[]): Promise<ActionResult> {
+    const check = servicesEditCheck(appointmentId, serviceIds);
+    if (!check.ok) return { ok: false, message: check.reason };
+    let error: { message: string } | null;
+    try {
+      ({ error } = await supabase.rpc('update_appointment_services', updateServicesRpcArgs(businessId, appointmentId, check.service_ids)));
+    } catch (e) {
+      error = { message: e instanceof Error ? e.message : 'No se pudo conectar con el servidor.' };
+    }
+    if (error) return { ok: false, message: error.message };
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === appointmentId ? { ...a, service_id: check.service_ids[0], service_ids: check.service_ids } : a)),
+    );
     return { ok: true };
   }
 
@@ -833,6 +873,8 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     completionPreview,
     scheduleConflict,
     schedule,
+    checkServicesEdit: servicesEditCheck,
+    updateAppointmentServices,
     reschedule,
     complete,
     cancel,
