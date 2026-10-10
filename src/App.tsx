@@ -18,6 +18,7 @@ import { CreditsScreen } from './components/CreditsScreen';
 import { Login } from './components/Login';
 import { PublicBooking } from './components/public/PublicBooking';
 import { BookingSettings } from './components/owner/BookingSettings';
+import { EmployeeSettings } from './components/owner/EmployeeSettings';
 import { BrandSettings } from './components/owner/BrandSettings';
 import { PublicLinkSettings } from './components/owner/PublicLinkSettings';
 import { PushNotificationSettings } from './components/owner/PushNotificationSettings';
@@ -213,6 +214,7 @@ function AppShell() {
           <div className="flex flex-col gap-6">
             <BrandSettings />
             <PublicLinkSettings />
+            <EmployeeSettings />
             <PushNotificationSettings />
           </div>
         ) : mode === 'services' ? (

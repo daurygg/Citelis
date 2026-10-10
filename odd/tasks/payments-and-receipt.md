@@ -43,9 +43,16 @@ el logo del negocio y un QR a un recibo digital.
 
 ## Tareas
 
-- [ ] **P1 · Empleadas.** Tabla `employee` (por negocio, no exige usuaria de la
+- [x] **P1 · Empleadas.** Tabla `employee` (por negocio, no exige usuaria de la
   app), pantalla para darlas de alta y bajarlas, y `appointment_service.employee_id`
   elegido al cobrar. Se congela con la línea.
+  Evidencia: migración `20261010000008_employees.sql` + suite
+  `supabase/tests/employees.sql` (usuarias ...09aa/...09ab; NO ejecutada en local,
+  la corre el job `sql-regression`); RED observado (employees.test.ts sin módulo y
+  4 pruebas de charge en rojo) y luego `npm run test:run` 454/454, `typecheck` y
+  `build` verdes. Reglas: la empleada es opcional por línea; al cobrar debe ser del
+  negocio y estar activa; se da de baja, no se borra. Sección "Tu equipo" en la
+  pantalla del negocio y selector "¿Quién hizo X?" en el cobro.
 - [ ] **P2 · Descuentos.** Descuento por línea (monto o %); `charged_price` pasa a
   ser el neto y la línea guarda el precio de lista y el descuento.
   `complete_appointment` lo valida.
