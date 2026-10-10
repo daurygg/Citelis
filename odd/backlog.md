@@ -155,6 +155,20 @@ que el sistema de planes completo.
    Esto aplica a lo que estamos construyendo AHORA: combos, factura y métodos de
    pago son exactamente el tipo de cosa que va a vivir en un plan superior.
 
+### Implementado (2026-10-10): una cuenta, un negocio
+
+Regla decidida por la dueña del producto: **una cuenta solo puede CREAR un
+negocio**. Ser invitada a otro (`redeem_invitation`) no cuenta y sigue permitido.
+
+- Migración `20261010000005_one_business_per_account.sql`: columna
+  `business.created_by`, backfill solo donde no hay ambigüedad (negocios con un
+  único miembro), índice único parcial `business_created_by_unique` (la garantía,
+  a prueba de carreras) y `create_business` que rellena `created_by` y devuelve
+  "Tu cuenta ya creó un negocio…" al chocar.
+- Prueba: `supabase/tests/one-business-per-account.sql`.
+- Queda abierto: planes, suscripción, vigencia y cupos distintos de uno. Los
+  negocios con historia ambigua quedan con `created_by` NULL, fuera de la regla.
+
 ### Lo que no se pudo comprobar
 
 Si el registro de usuarios está abierto en Supabase Auth. Es lo que decide si la
