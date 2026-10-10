@@ -4,7 +4,9 @@
 // Inputs CONTROLADOS: cada campo tiene su estado y su onChange.
 import { useState, type FormEvent } from 'react';
 import { useStore } from '../lib/store/StoreContext';
-import { formatTime, nowLocalDatetime, parseMoneyToCents } from '../lib/format';
+import { formatMoney, formatTime, nowLocalDatetime, parseMoneyToCents } from '../lib/format';
+import { buildChargeForm } from '../lib/domain/charge';
+import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
 import { useToast } from './Toast';
 import { btnPrimary, card, field, fieldLabel, input } from './ui';
 
@@ -12,25 +14,25 @@ export function ScheduleForm() {
   const store = useStore();
   const { notify } = useToast();
   const [client, setClient] = useState('');
-  const [serviceId, setServiceId] = useState<number>(store.services[0]?.id ?? 0);
+  const [selectedIds, setSelectedIds] = useState<number[]>(store.services[0] ? [store.services[0].id] : []);
   const [saving, setSaving] = useState(false);
   const [datetime, setDatetime] = useState('');
   const [walkIn, setWalkIn] = useState(false);
-  const [priceText, setPriceText] = useState('');
+  // Cobro al paso: un precio por cada servicio variable + total opcional (igual que cobrar una cita).
+  const [chargeTexts, setChargeTexts] = useState<{ prices: Record<number, string>; total: string }>({ prices: {}, total: '' });
   const [quotedText, setQuotedText] = useState(''); // precio acordado (al agendar)
   const [depositText, setDepositText] = useState(''); // abono/adelanto (al agendar)
 
-  const selectedService = store.services.find((s) => s.id === serviceId);
-  const isVariable = selectedService?.variable_price ?? false;
-  const parsedPrice = parseMoneyToCents(priceText);
-  const priceCents = priceText.trim() === '' ? undefined : (parsedPrice ?? undefined);
+  const selection = summarizeSelection(store.services, selectedIds);
+  const selectedServices = selection.service_ids.flatMap((id) => store.services.find((s) => s.id === id) ?? []);
+  const charge = buildChargeForm(selectedServices, chargeTexts);
+  const hasVariable = selection.estimate.hasVariable;
   const quotedCents = quotedText.trim() === '' ? undefined : (parseMoneyToCents(quotedText) ?? undefined);
   const depositCents = depositText.trim() === '' ? undefined : (parseMoneyToCents(depositText) ?? undefined);
 
-  const baseValid = client.trim() !== '' && serviceId > 0;
-  // Al cobrar (walk-in) un servicio de precio variable, el precio es obligatorio.
-  const priceOk = !isVariable || (parsedPrice !== null && parsedPrice > 0);
-  const canSubmit = walkIn ? baseValid && priceOk : baseValid && datetime !== '';
+  const baseValid = client.trim() !== '' && selection.ready;
+  // Al cobrar (walk-in), cada servicio de precio variable necesita su precio.
+  const canSubmit = walkIn ? baseValid && charge.ready : baseValid && datetime !== '';
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -41,10 +43,11 @@ export function ScheduleForm() {
       let result;
       try {
         result = await store.registerWalkIn({
-          service_id: serviceId,
+          service_ids: selection.service_ids,
           client: client.trim(),
           datetime: datetime || nowLocalDatetime(),
-          price: priceCents,
+          priceOverrides: charge.priceOverrides,
+          price: charge.overridePrice,
         });
       } finally {
         setSaving(false);
@@ -59,23 +62,34 @@ export function ScheduleForm() {
         notify('✓ Atención registrada y cobrada');
       }
     } else {
-      const conflict = store.scheduleConflict(datetime, [serviceId]);
+      const conflict = store.scheduleConflict(datetime, selection.service_ids);
       if (conflict) {
         notify(`Ese horario choca con ${conflict.client} (${formatTime(conflict.datetime)})`, 'error');
         return;
       }
-      store.schedule({
-        client: client.trim(),
-        service_id: serviceId,
-        datetime,
-        quoted_price: quotedCents,
-        deposit: depositCents,
-      });
+      setSaving(true);
+      let result;
+      try {
+        result = await store.schedule({
+          client: client.trim(),
+          service_ids: selection.service_ids,
+          datetime,
+          quoted_price: quotedCents,
+          deposit: depositCents,
+        });
+      } finally {
+        setSaving(false);
+      }
+      // Si el servidor no la guardó, el formulario conserva lo escrito.
+      if (!result.ok) {
+        notify(result.message, 'error');
+        return;
+      }
       notify('✓ Cita agendada');
     }
     setClient('');
     setDatetime('');
-    setPriceText('');
+    setChargeTexts({ prices: {}, total: '' });
     setQuotedText('');
     setDepositText('');
   }
@@ -95,16 +109,38 @@ export function ScheduleForm() {
         />
       </label>
 
-      <label className={field}>
-        <span className={fieldLabel}>Servicio</span>
-        <select className={input} value={serviceId} onChange={(e) => setServiceId(Number(e.target.value))}>
-          {store.services.map((service) => (
-            <option key={service.id} value={service.id}>
-              {service.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <fieldset className={field}>
+        <legend className={fieldLabel}>Servicios (puedes elegir varios)</legend>
+        <div className="flex flex-wrap gap-2">
+          {store.services.map((service) => {
+            const on = selectedIds.includes(service.id);
+            return (
+              <button
+                key={service.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setSelectedIds((ids) => toggleServiceId(ids, service.id))}
+                className={
+                  'rounded-full border px-3 py-2 text-sm ' +
+                  (on ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white text-neutral-700')
+                }
+              >
+                {service.name}
+              </button>
+            );
+          })}
+        </div>
+        {selection.service_ids.length > 0 && (
+          <p className="text-sm text-neutral-600">
+            Duran {selection.duration_min} min · Precio estimado:{' '}
+            {hasVariable
+              ? selection.estimate.total > 0
+                ? `${formatMoney(selection.estimate.total)} + a convenir`
+                : 'a convenir'
+              : formatMoney(selection.estimate.total)}
+          </p>
+        )}
+      </fieldset>
 
       <label className={field}>
         <span className={fieldLabel}>
@@ -114,22 +150,42 @@ export function ScheduleForm() {
       </label>
 
       {walkIn && (
-        <label className={field}>
-          <span className={fieldLabel}>
-            {isVariable ? '¿Cuánto cobraste? (obligatorio)' : '¿Cobraste otro precio? (opcional)'}
-          </span>
-          <input
-            className={input}
-            type="text"
-            inputMode="decimal"
-            value={priceText}
-            onChange={(e) => setPriceText(e.target.value)}
-            placeholder={isVariable ? 'Precio de esta cita' : 'Dejar vacío para el precio normal'}
-          />
-        </label>
+        <>
+          {/* Un precio por cada servicio de precio variable, con su nombre. */}
+          {charge.variableServices.map((service) => (
+            <label key={service.id} className={field}>
+              <span className={fieldLabel}>¿Cuánto cobraste por {service.name}? (obligatorio)</span>
+              <input
+                className={input}
+                type="text"
+                inputMode="decimal"
+                value={chargeTexts.prices[service.id] ?? ''}
+                onChange={(e) => setChargeTexts((t) => ({ ...t, prices: { ...t.prices, [service.id]: e.target.value } }))}
+                placeholder={`Precio de ${service.name}`}
+              />
+            </label>
+          ))}
+          {charge.showTotalField && (
+            <label className={field}>
+              <span className={fieldLabel}>
+                {selectedServices.length > 1
+                  ? '¿Pactaste un precio por todo? (opcional)'
+                  : '¿Cobraste otro precio? (opcional)'}
+              </span>
+              <input
+                className={input}
+                type="text"
+                inputMode="decimal"
+                value={chargeTexts.total}
+                onChange={(e) => setChargeTexts((t) => ({ ...t, total: e.target.value }))}
+                placeholder="Dejar vacío para el precio normal"
+              />
+            </label>
+          )}
+        </>
       )}
 
-      {!walkIn && isVariable && (
+      {!walkIn && hasVariable && (
         <label className={field}>
           <span className={fieldLabel}>Precio acordado (opcional; puedes ponerlo al cobrar)</span>
           <input

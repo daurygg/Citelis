@@ -46,3 +46,26 @@ export function summarizeSelection(catalog: readonly Service[], selected: readon
     ready: services.length > 0 && services.every((s) => s.duration_min > 0),
   };
 }
+
+/** Lo que hace falta para agendar: la cita con SUS servicios (el primero es el principal). */
+export interface ScheduleDraft {
+  id: number;
+  client: string;
+  datetime: string;
+  service_ids: readonly number[];
+  quoted_price?: number | null;
+  deposit?: number | null;
+}
+
+/** Argumentos de la RPC `schedule_appointment`. El negocio va explícito (INVARIANTE 1). */
+export function scheduleRpcArgs(businessId: number, draft: ScheduleDraft) {
+  return {
+    p_business_id: businessId,
+    p_appointment_id: draft.id,
+    p_client: draft.client,
+    p_datetime: draft.datetime,
+    p_quoted_price: draft.quoted_price ?? null,
+    p_deposit: draft.deposit ?? null,
+    p_service_ids: [...draft.service_ids],
+  };
+}

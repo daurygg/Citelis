@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summarizeSelection, toggleServiceId } from './selection';
+import { scheduleRpcArgs, summarizeSelection, toggleServiceId } from './selection';
 import type { Service } from './types';
 
 function service(partial: Partial<Service> = {}): Service {
@@ -73,5 +73,38 @@ describe('summarizeSelection', () => {
   it('un servicio sin duración positiva impide agendar', () => {
     const s = summarizeSelection([service({ id: 7, duration_min: 0 })], [7]);
     expect(s.ready).toBe(false);
+  });
+});
+
+describe('scheduleRpcArgs', () => {
+  it('manda el negocio explícito, la lista de servicios y null donde no hay dato', () => {
+    const args = scheduleRpcArgs(1, {
+      id: 55,
+      client: 'Ana',
+      datetime: '2026-10-12T10:00',
+      service_ids: [2, 1],
+    });
+    expect(args).toEqual({
+      p_business_id: 1,
+      p_appointment_id: 55,
+      p_client: 'Ana',
+      p_datetime: '2026-10-12T10:00',
+      p_quoted_price: null,
+      p_deposit: null,
+      p_service_ids: [2, 1],
+    });
+  });
+
+  it('lleva el precio acordado y el abono si existen', () => {
+    const args = scheduleRpcArgs(1, {
+      id: 55,
+      client: 'Ana',
+      datetime: '2026-10-12T10:00',
+      service_ids: [1],
+      quoted_price: 7000,
+      deposit: 1500,
+    });
+    expect(args.p_quoted_price).toBe(7000);
+    expect(args.p_deposit).toBe(1500);
   });
 });

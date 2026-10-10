@@ -23,6 +23,7 @@ import {
   type CompleteOptions,
 } from '../domain/appointments';
 import { completeRpcArgs, planCompletion } from '../domain/charge';
+import { scheduleRpcArgs } from '../domain/selection';
 import { applyAppointmentChange, applyServiceIds, keepKnownServiceIds } from './appointmentSync';
 import { startLiveAppointments } from './liveAppointments';
 import { findScheduleConflict } from '../domain/scheduling';
@@ -35,16 +36,21 @@ import { Onboarding } from '../../components/Onboarding';
 
 // ── Tipos de la fachada (idénticos a las fases en memoria) ──────────────────
 export interface ScheduleInput {
-  service_id: number;
+  /** Servicios de la cita. El primero es el principal (`service_id`). */
+  service_ids: number[];
   client: string;
   datetime: string;
   quoted_price?: number; // precio acordado (servicios variables), opcional
   deposit?: number; // abono/adelanto pagado al reservar, opcional
 }
 export interface WalkInInput {
-  service_id: number;
+  /** Servicios de la atención. El primero es el principal (`service_id`). */
+  service_ids: number[];
   client: string;
   datetime: string;
+  /** Precio de cada servicio de precio variable, por id (de `buildChargeForm`). */
+  priceOverrides?: ReadonlyMap<number, number>;
+  /** Total pactado, si lo hay: manda sobre la suma. */
   price?: number;
 }
 // Resultado de una escritura que SÍ espera al servidor (cobrar). `message` va en
@@ -106,7 +112,7 @@ export interface Store {
   dayReport: (isoDate: string) => WeekSummary;
   completionPreview: (appointmentId: number, options?: CompleteOptions) => CompletionPreview | null;
   scheduleConflict: (datetime: string, serviceIds: readonly number[], excludeId?: number) => Appointment | null;
-  schedule: (input: ScheduleInput) => void;
+  schedule: (input: ScheduleInput) => Promise<ActionResult>;
   reschedule: (appointmentId: number, datetime: string) => void;
   complete: (appointmentId: number, options?: CompleteOptions) => Promise<ActionResult>;
   cancel: (appointmentId: number) => void;
@@ -381,11 +387,30 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     persist(supabase.from('appointment').update({ datetime }).eq('id', appointmentId).eq('business_id', businessId));
   }
 
-  function schedule(input: ScheduleInput): void {
+  // Agenda una cita con TODOS sus servicios en UNA transacción
+  // (`schedule_appointment`, T6c). Como `complete`, rompe a propósito el patrón
+  // fire-and-forget: con dos escrituras sueltas la cita podría quedar sin sus
+  // líneas. El estado local solo cambia cuando el servidor confirma, y si falla
+  // el formulario conserva lo escrito para reintentar.
+  async function insertScheduled(appointment: Appointment): Promise<{ message: string } | null> {
+    try {
+      const { error } = await supabase.rpc(
+        'schedule_appointment',
+        scheduleRpcArgs(businessId, { ...appointment, service_ids: appointmentServiceIds(appointment) }),
+      );
+      return error;
+    } catch (e) {
+      return { message: e instanceof Error ? e.message : 'No se pudo conectar con el servidor.' };
+    }
+  }
+
+  async function schedule(input: ScheduleInput): Promise<ActionResult> {
+    if (input.service_ids.length === 0) return { ok: false, message: 'Elige al menos un servicio.' };
     const appointment: Appointment = {
       id: newId(),
       business_id: businessId,
-      service_id: input.service_id,
+      service_id: input.service_ids[0],
+      service_ids: input.service_ids,
       client: input.client,
       datetime: input.datetime,
       status: 'PENDING',
@@ -395,8 +420,10 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       actual_cost: null,
       profit: null,
     };
-    setAppointments((prev) => [...prev, appointment]);
-    persist(supabase.from('appointment').insert(appointment));
+    const error = await insertScheduled(appointment);
+    if (error) return { ok: false, message: error.message };
+    putAppointment(appointment);
+    return { ok: true };
   }
 
   // Llama a la RPC de cobro. Un fallo de red puede llegar como excepción en vez de
@@ -457,18 +484,20 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
 
   // La atención de mostrador nace ya cobrada, pero pasa por el MISMO camino
   // atómico que cobrar una cita: se inserta PENDING y se completa con la RPC, que
-  // escribe también su línea de servicio. Un solo servicio por ahora (la
-  // selección múltiple llega en T6c), pero la forma persistida ya lleva líneas.
+  // escribe también sus líneas de servicio (una por servicio, T6c).
   // Se calcula ANTES de escribir, para no dejar una cita huérfana por un error
   // de cálculo. Si la RPC falla después de insertar, la cita queda PENDING (y
   // visible en la agenda) para que la dueña la cobre otra vez.
   async function registerWalkIn(input: WalkInInput): Promise<ActionResult> {
-    const service = services.find((s) => s.id === input.service_id);
-    if (!service) return { ok: false, message: 'No encontramos ese servicio.' };
+    if (input.service_ids.length === 0) return { ok: false, message: 'Elige al menos un servicio.' };
+    if (input.service_ids.some((id) => !services.some((s) => s.id === id))) {
+      return { ok: false, message: 'No encontramos ese servicio.' };
+    }
     const pending: Appointment = {
       id: newId(),
       business_id: businessId,
-      service_id: input.service_id,
+      service_id: input.service_ids[0],
+      service_ids: input.service_ids,
       client: input.client,
       datetime: input.datetime,
       status: 'PENDING',
@@ -480,16 +509,12 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     };
     let plan;
     try {
-      plan = planCompletion(pending, services, { overridePrice: input.price });
+      plan = planCompletion(pending, services, { overridePrice: input.price, priceOverrides: input.priceOverrides });
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : 'No se pudo calcular el cobro.' };
     }
-    let insertError: { message: string } | null;
-    try {
-      insertError = (await supabase.from('appointment').insert(pending)).error;
-    } catch (e) {
-      insertError = { message: e instanceof Error ? e.message : 'No se pudo guardar la atención.' };
-    }
+    // Por `schedule_appointment`: la cita y sus líneas nacen juntas.
+    const insertError = await insertScheduled(pending);
     if (insertError) return { ok: false, message: insertError.message };
     putAppointment(pending);
     const { error } = await callCompleteRpc(plan);
