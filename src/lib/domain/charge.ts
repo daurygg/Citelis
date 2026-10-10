@@ -12,9 +12,11 @@ import {
   appointmentServiceIds,
   appointmentServiceLines,
   completeAppointment,
+  lineDiscountCents,
   type AppointmentServiceLine,
   type CompleteOptions,
 } from './appointments';
+import { parseDiscountText, type DiscountText, type LineDiscount } from './discounts';
 import { parseMoneyToCents } from '../format';
 
 /** Lo que la dueña ha tecleado en la pantalla de cobro (texto crudo). */
@@ -25,6 +27,8 @@ export interface ChargeTexts {
   total: string;
   /** Empleada elegida por servicio (id de servicio → id de empleada). Opcional. */
   employees?: Record<number, number | null>;
+  /** Descuento tecleado por servicio (id de servicio → monto o %). Opcional. */
+  discounts?: Record<number, DiscountText>;
 }
 
 export interface ChargeForm {
@@ -34,6 +38,10 @@ export interface ChargeForm {
   priceOverrides: Map<number, number>;
   /** Empleada elegida por servicio (opcional): solo las activas y de esta cita. */
   employeeIds: Map<number, number>;
+  /** Descuento pedido por servicio (solo los que la dueña tecleó y se entienden). */
+  discounts: Map<number, LineDiscount>;
+  /** Servicios cuyo descuento tecleado no se entiende (letras, % mayor que 100). */
+  invalidDiscounts: Set<number>;
   /** Total que manda sobre la suma, si lo hay. */
   overridePrice: number | undefined;
   /** ¿Se puede completar? Todos los variables tienen precio. */
@@ -79,6 +87,17 @@ export function buildChargeForm(
     if (chosen != null && assignable.has(chosen)) employeeIds.set(service.id, chosen);
   }
 
+  // El descuento es opcional por servicio. Que no se entienda bloquea el cobro
+  // (`ready`): cobrar sin él sería cobrar más de lo que la dueña quería. Que sea
+  // MAYOR que el precio de la línea lo detecta `previewLines`, que sí conoce el precio.
+  const discounts = new Map<number, LineDiscount>();
+  const invalidDiscounts = new Set<number>();
+  for (const service of services) {
+    const parsed = parseDiscountText(texts.discounts?.[service.id]);
+    if (parsed.invalid) invalidDiscounts.add(service.id);
+    else if (parsed.discount !== null) discounts.set(service.id, parsed.discount);
+  }
+
   const single = services.length === 1;
   const totalCents = texts.total.trim() === '' ? undefined : (parseMoneyToCents(texts.total) ?? undefined);
 
@@ -91,8 +110,10 @@ export function buildChargeForm(
     variableServices,
     priceOverrides,
     employeeIds,
+    discounts,
+    invalidDiscounts,
     overridePrice: singleVariable ?? totalCents,
-    ready: variableServices.every((s) => priceOverrides.has(s.id)),
+    ready: variableServices.every((s) => priceOverrides.has(s.id)) && invalidDiscounts.size === 0,
     showTotalField: !(single && variableServices.length === 1),
   };
 }
@@ -134,7 +155,8 @@ export function planCompletion(
   }
   const completed = completeAppointment(appointment, services, options);
   const employeeIds = options.employeeIds;
-  const lines = appointmentServiceLines(completed, services, options.priceOverrides).map((line) => {
+  const discountCents = lineDiscountCents(appointment, services, options);
+  const lines = appointmentServiceLines(completed, services, options.priceOverrides, discountCents).map((line) => {
     const employeeId = employeeIds?.get(line.service_id);
     return employeeId === undefined ? line : { ...line, employee_id: employeeId };
   });

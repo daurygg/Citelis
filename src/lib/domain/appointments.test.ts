@@ -9,6 +9,7 @@ import {
   foldServiceIds,
   serviceNames,
   previewCompletion,
+  previewLines,
 } from './appointments';
 import type { Appointment, AppointmentStatus, Service } from './types';
 
@@ -335,6 +336,8 @@ describe('appointmentServiceLines', () => {
     expect(lineas).toHaveLength(1);
     expect(lineas[0]).toEqual({
       service_id: 1,
+      list_price: hecha.charged_price,
+      discount: 0,
       charged_price: hecha.charged_price,
       actual_cost: hecha.actual_cost,
       profit: hecha.profit,
@@ -448,5 +451,58 @@ describe('previewCompletion', () => {
   it('si falta algún servicio del catálogo devuelve null', () => {
     const apt = appointment({ service_id: 1, service_ids: [1, 2] });
     expect(previewCompletion(apt, [a])).toBeNull();
+  });
+});
+
+describe('descuentos por línea', () => {
+  const a = service({ id: 1, name: 'Cejas', price: 5000, supply_cost: 1000 });
+  const b = service({ id: 2, name: 'Ondas', price: 4000, supply_cost: 500 });
+  const cita = () => appointment({ service_id: 1, service_ids: [1, 2] });
+
+  it('sin descuentos completeAppointment da los mismos números de siempre', () => {
+    const base = completeAppointment(cita(), [a, b]);
+    expect(completeAppointment(cita(), [a, b], { discounts: new Map() })).toEqual(base);
+    expect(base).toMatchObject({ charged_price: 9000, actual_cost: 1500, profit: 7500 });
+  });
+
+  it('el cobrado es el bruto menos los descuentos; el costo no cambia', () => {
+    const hecha = completeAppointment(cita(), [a, b], { discounts: new Map([[1, { kind: 'amount', cents: 500 }]]) });
+    expect(hecha).toMatchObject({ charged_price: 8500, actual_cost: 1500, profit: 7000 });
+  });
+
+  it('lanza si el descuento supera el precio de su línea', () => {
+    expect(() =>
+      completeAppointment(cita(), [a, b], { discounts: new Map([[2, { kind: 'amount', cents: 4001 }]]) }),
+    ).toThrow(/Ondas/);
+  });
+
+  it('appointmentServiceLines reparte el bruto y resta cada descuento', () => {
+    const discounts = new Map([[1, 500]]);
+    const hecha = completeAppointment(cita(), [a, b], { discounts: new Map([[1, { kind: 'amount', cents: 500 }]]) });
+    const lineas = appointmentServiceLines(hecha, [a, b], undefined, discounts);
+    expect(lineas.map((l) => [l.list_price, l.discount, l.charged_price])).toEqual([
+      [5000, 500, 4500],
+      [4000, 0, 4000],
+    ]);
+    expect(lineas.reduce((s, l) => s + l.charged_price, 0)).toBe(hecha.charged_price);
+  });
+
+  it('previewLines da el desglose y avisa de un descuento demasiado grande', () => {
+    const ok = previewLines(cita(), [a, b], { discounts: new Map([[1, { kind: 'percent', percent: 10 }]]) });
+    expect(ok?.lines.map((l) => [l.service_id, l.list_price, l.discount, l.charged_price])).toEqual([
+      [1, 5000, 500, 4500],
+      [2, 4000, 0, 4000],
+    ]);
+    expect(ok?.errors.size).toBe(0);
+
+    const bad = previewLines(cita(), [a, b], { discounts: new Map([[2, { kind: 'amount', cents: 9999 }]]) });
+    expect(bad?.errors.get(2)).toMatch(/mayor que el precio/);
+    expect(bad?.lines[1]).toMatchObject({ discount: 4000, charged_price: 0 });
+  });
+
+  it('previewLines es null si falta un servicio o un precio', () => {
+    expect(previewLines(cita(), [a])).toBeNull();
+    const variable = service({ id: 2, variable_price: true, price: 0 });
+    expect(previewLines(cita(), [a, variable])).toBeNull();
   });
 });

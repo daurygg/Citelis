@@ -15,6 +15,7 @@
 
 import type { Appointment, AppointmentStatus, Service } from './types';
 import { allocateProportionally, effectiveCost, priceForServices, profit } from './costs';
+import { discountCents, discountError, type LineDiscount, type PricedLine } from './discounts';
 
 
 /** Transiciones permitidas, indexadas por estado de origen. */
@@ -159,6 +160,11 @@ export function previewCompletion(
 /** Una línea del dinero congelado: lo que le tocó a UN servicio de la cita. */
 export interface AppointmentServiceLine {
   service_id: number;
+  /** Precio bruto de la línea, antes del descuento (P2). */
+  list_price: number;
+  /** Descuento de la línea en centavos (0 si no hay). */
+  discount: number;
+  /** El NETO: list_price − discount. Es lo que los reportes leen. */
   charged_price: number;
   actual_cost: number;
   profit: number;
@@ -173,6 +179,115 @@ export interface CompleteOptions {
   overridePrice?: number;
   /** Precio que la dueña le pone a cada servicio de precio variable, por id. */
   priceOverrides?: ReadonlyMap<number, number>;
+  /** Descuento de cada servicio, por id de servicio (opcional, solo donde se pidió). */
+  discounts?: ReadonlyMap<number, LineDiscount>;
+}
+
+/**
+ * Precio de lista de cada línea: el total BRUTO (antes de descuentos) repartido
+ * entre los servicios, ponderado por el precio de cada uno. Con UN servicio se
+ * lleva todo. Es el mismo reparto de siempre (D1), solo que sobre el bruto.
+ *
+ * Con un total pactado (`overridePrice`/`quoted_price`) ese total ES el bruto: el
+ * pacto fija el reparto entre líneas y el descuento por línea se resta DESPUÉS.
+ */
+function grossLines(
+  gross: number,
+  services: readonly Service[],
+  priceOverrides?: ReadonlyMap<number, number>,
+): { service_id: number; list_price: number }[] {
+  if (services.length === 1) return [{ service_id: services[0].id, list_price: gross }];
+  const quote = priceForServices(services, priceOverrides);
+  const shares = allocateProportionally(gross, quote.lines.map((line) => line.price));
+  return quote.lines.map((line, index) => ({ service_id: line.service_id, list_price: shares[index] }));
+}
+
+/** Resultado de aplicar los descuentos pedidos al bruto de un cobro. */
+export interface ResolvedDiscounts {
+  lines: { service_id: number; list_price: number; discount: number }[];
+  /** Por servicio, por qué su descuento no vale (mayor que su precio, etc.). */
+  errors: Map<number, string>;
+}
+
+/**
+ * Convierte los descuentos pedidos a centavos sobre el precio de lista de cada
+ * línea. No lanza: devuelve los errores aparte para que la pantalla los muestre.
+ * Un descuento inválido se recorta (nunca más que el precio) pero queda en `errors`.
+ */
+export function resolveDiscounts(
+  gross: number,
+  services: readonly Service[],
+  priceOverrides?: ReadonlyMap<number, number>,
+  discounts?: ReadonlyMap<number, LineDiscount>,
+): ResolvedDiscounts {
+  const errors = new Map<number, string>();
+  const lines = grossLines(gross, services, priceOverrides).map((line) => {
+    const requested = discounts?.get(line.service_id);
+    if (requested === undefined) return { ...line, discount: 0 };
+    const error = discountError(line.list_price, requested);
+    if (error !== null) errors.set(line.service_id, error);
+    return { ...line, discount: discountCents(line.list_price, requested) };
+  });
+  return { lines, errors };
+}
+
+/**
+ * Descuento en centavos de cada servicio que lo tiene, para `appointmentServiceLines`.
+ * Lanza si alguno no es válido: cobrar otra cosa que lo que la dueña escribió no se admite.
+ */
+export function lineDiscountCents(
+  appointment: Appointment,
+  services: readonly Service[],
+  options: CompleteOptions = {},
+): Map<number, number> {
+  const gross = grossPrice(appointment, services, options);
+  if (gross === null || options.discounts === undefined || options.discounts.size === 0) return new Map();
+  return discountCentsById(resolveDiscounts(gross, services, options.priceOverrides, options.discounts), services);
+}
+
+/** Descuento en centavos por servicio. Lanza si alguno no es válido. */
+function discountCentsById(resolved: ResolvedDiscounts, services: readonly Service[]): Map<number, number> {
+  if (resolved.errors.size > 0) {
+    const [serviceId, message] = [...resolved.errors][0];
+    const name = services.find((s) => s.id === serviceId)?.name ?? `servicio ${serviceId}`;
+    throw new Error(`Descuento de ${name}: ${message}`);
+  }
+  return new Map(resolved.lines.filter((l) => l.discount > 0).map((l) => [l.service_id, l.discount]));
+}
+
+/**
+ * Total BRUTO de un cobro (antes de descuentos): override > acordado al agendar >
+ * precio del conjunto. null si falta algún precio variable y no hay total dado.
+ */
+export function grossPrice(
+  appointment: Appointment,
+  services: readonly Service[],
+  options: Pick<CompleteOptions, 'overridePrice' | 'priceOverrides'> = {},
+): number | null {
+  const quote = priceForServices(services, options.priceOverrides);
+  const totalGiven = options.overridePrice ?? appointment.quoted_price ?? null;
+  if (quote.needsPrice.length > 0 && totalGiven === null) return null;
+  return totalGiven ?? quote.total;
+}
+
+/**
+ * Desglose de un cobro por línea (lista, descuento, neto) para la vista previa de
+ * la pantalla de cobro. No congela nada. null si faltan servicios o precios.
+ */
+export function previewLines(
+  appointment: Appointment,
+  services: readonly Service[],
+  options: CompleteOptions = {},
+): { lines: (PricedLine & { service_id: number })[]; errors: Map<number, string> } | null {
+  const ids = appointmentServiceIds(appointment);
+  if (ids.some((id) => !services.some((s) => s.id === id))) return null;
+  const gross = grossPrice(appointment, services, options);
+  if (gross === null) return null;
+  const resolved = resolveDiscounts(gross, services, options.priceOverrides, options.discounts);
+  return {
+    lines: resolved.lines.map((l) => ({ ...l, charged_price: l.list_price - l.discount })),
+    errors: resolved.errors,
+  };
 }
 
 /**
@@ -181,7 +296,8 @@ export interface CompleteOptions {
  * 1. Valida la transición a COMPLETED.
  * 2. Valida que los servicios sean del mismo negocio (INVARIANTE 1) y que sean
  *    EXACTAMENTE los de la cita.
- * 3. charged_price = overridePrice ?? quoted_price ?? precio del conjunto
+ * 3. bruto         = overridePrice ?? quoted_price ?? precio del conjunto
+ *    charged_price = bruto − descuentos por línea (el NETO; sin descuentos = el bruto)
  * 4. actual_cost   = suma de los costos efectivos
  * 5. profit        = charged_price − actual_cost
  *
@@ -236,7 +352,10 @@ export function completeAppointment(
   }
 
   // Prioridad: precio del cobro (override) > precio acordado al agendar > precio del conjunto.
-  const charged_price = totalGiven ?? quote.total;
+  const gross = totalGiven ?? quote.total;
+  // Sin descuentos pedidos no se toca nada: los números son exactamente los de siempre.
+  const discountTotal = [...lineDiscountCents(appointment, services, options).values()].reduce((sum, d) => sum + d, 0);
+  const charged_price = gross - discountTotal;
   const actual_cost = services.reduce((sum, s) => sum + effectiveCost(s), 0);
 
   return {
@@ -267,6 +386,7 @@ export function appointmentServiceLines(
   appointment: Appointment,
   services: readonly Service[],
   priceOverrides?: ReadonlyMap<number, number>,
+  discountsByService?: ReadonlyMap<number, number>,
 ): AppointmentServiceLine[] {
   if (appointment.charged_price === null || appointment.actual_cost === null) {
     throw new Error(
@@ -284,28 +404,21 @@ export function appointmentServiceLines(
         `${quote.needsPrice.map((s) => s.name).join(', ')} no tiene precio.`,
     );
   }
-  if (services.length === 1) {
-    const only = services[0];
-    const cost = effectiveCost(only);
-    return [
-      {
-        service_id: only.id,
-        charged_price: appointment.charged_price,
-        actual_cost: cost,
-        profit: profit(appointment.charged_price, cost),
-      },
-    ];
-  }
+  // `appointment.charged_price` es el NETO; el bruto es lo cobrado más lo descontado.
+  // Ese bruto se reparte entre las líneas (lista) y a cada una se le resta su descuento.
+  const discountOf = (serviceId: number) => discountsByService?.get(serviceId) ?? 0;
+  const totalDiscount = services.reduce((sum, s) => sum + discountOf(s.id), 0);
+  const lists = grossLines(appointment.charged_price + totalDiscount, services, priceOverrides);
 
-  const weights = quote.lines.map((line) => line.price);
-  const chargedShares = allocateProportionally(appointment.charged_price, weights);
-
-  return quote.lines.map((line, index) => {
+  return lists.map((line) => {
     const service = services.find((s) => s.id === line.service_id)!;
-    const charged = chargedShares[index];
+    const discount = discountOf(line.service_id);
+    const charged = line.list_price - discount;
     const cost = effectiveCost(service);
     return {
       service_id: line.service_id,
+      list_price: line.list_price,
+      discount,
       charged_price: charged,
       actual_cost: cost,
       profit: profit(charged, cost),
