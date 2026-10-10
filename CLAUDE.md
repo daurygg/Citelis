@@ -63,6 +63,9 @@ src/
   El loop de tests se cierra en local: `npm run test:run` (vitest) y `npm run typecheck` (tsc --noEmit).
 - GitHub Actions (`.github/workflows/ci.yml`) vuelve a correr los tests en cada push; es la red de
   seguridad, no el único sitio donde se verifica. Despliegue en Vercel.
+- Las suites SQL de `supabase/tests/*.sql` corren en CI, en el job `sql-regression` de
+  `ci.yml`, contra una base Postgres efímera (`supabase db start`, sin tocar ningún proyecto
+  remoto). Cada una por separado; un `raise exception` rompe el job.
 - Trabajo por **slices verticales** (ver `PLAN.md` §4). No empezar un slice sin cumplir el DoD del anterior.
 
 ## Ramas

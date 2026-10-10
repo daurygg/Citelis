@@ -3,9 +3,9 @@
 -- CÓMO CORRERLO
 --   Editor SQL de Supabase, MCP (`execute_sql`) o psql. Pégalo entero.
 --
--- QUÉ NO ES
---   Esto NO corre en CI: el workflow solo ejecuta vitest, sin base de datos.
---   Hay que lanzarlo a mano tras tocar `create_business`.
+-- DÓNDE CORRE
+--   Corre en CI (job `sql-regression`), contra una base efímera.
+--   También se puede lanzar a mano al tocar `create_business`.
 --
 -- POR QUÉ EXISTE
 --   El slug se armaba como `negocio-<id>` en el cliente, y la fila de

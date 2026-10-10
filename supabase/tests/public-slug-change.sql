@@ -3,7 +3,7 @@
 --
 -- CÓMO CORRERLO
 --   Editor SQL de Supabase, MCP (`execute_sql`) o psql. Pégalo entero.
---   NO corre en CI: el workflow solo ejecuta vitest, sin base de datos.
+--   Corre en CI (job `sql-regression`), contra una base efímera.
 --
 -- VALIDADO CONTRA UNA REGRESIÓN REAL (2026-09-23)
 --   La aserción 1 no comprueba solo que la dirección cambie: comprueba que

@@ -3,7 +3,7 @@
 --
 -- CÓMO CORRERLO
 --   Editor SQL de Supabase, MCP (`execute_sql`) o psql. Pégalo entero.
---   NO corre en CI: el workflow solo ejecuta vitest, sin base de datos.
+--   Corre en CI (job `sql-regression`), contra una base efímera.
 --
 -- Trabaja sobre negocios de prueba y los borra al final; el borrado en cascada
 -- se lleva servicios, citas y suscripciones. Si crea la configuración de Vault

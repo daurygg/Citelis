@@ -7,6 +7,7 @@ on:
   push:
     branches: [main, develop, maintenance]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -30,3 +31,44 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  # Suites SQL de supabase/tests/ contra una base Postgres efímera (solo la DB local,
+  # nunca un proyecto remoto). Las migraciones se aplican al arrancar.
+  sql-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Start local database
+        run: npx --no supabase db start
+
+      - name: Load fixtures
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/_fixtures.sql
+        env:
+          DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+
+      - name: Run SQL suites
+        env:
+          DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: |
+          # Cada suite por separado para que el log nombre la que falla.
+          # ON_ERROR_STOP=1: cualquier `raise exception` rompe el job.
+          failed=0
+          for f in supabase/tests/*.sql; do
+            case "$(basename "$f")" in _*) continue ;; esac
+            echo "::group::$f"
+            if ! psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$f"; then
+              echo "::error file=$f::suite SQL fallida"
+              failed=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $failed

@@ -6,9 +6,9 @@
 --   Con psql, si prefieres no escribir nada: `begin;` … `rollback;`.
 --
 -- QUÉ NO ES
---   Esto NO corre en CI: el workflow solo ejecuta vitest, sin base de datos.
---   Hay que lanzarlo a mano tras tocar las funciones del portal. Es una red de
---   seguridad real, pero manual, y conviene no fingir lo contrario.
+--   Corre solo en CI: el job `sql-regression` de .github/workflows/ci.yml lo ejecuta
+--   en cada PR contra una base efímera (migraciones aplicadas + usuarios de
+--   supabase/tests/_fixtures.sql). Sigue siendo válido lanzarlo a mano al iterar.
 --
 -- Trabaja sobre un negocio propio (ids 999xxx) y borra todo al final, así que no
 -- toca los datos reales. Si una aserción falla, la excepción aborta la
