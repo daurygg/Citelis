@@ -119,12 +119,20 @@ begin
     raise exception 'FALLÓ 8a: se aceptó un servicio de duración 0';
   exception when others then
     if sqlerrm like 'FALLÓ%' then raise; end if;
+    -- El motivo tiene que ser el servicio, no otro rechazo cualquiera (horario,
+    -- límite por teléfono...), o la aserción pasaría sin probar nada.
+    if sqlerrm not like 'Servicio no disponible%' then
+      raise exception 'FALLÓ 8a: se rechazó, pero por otro motivo: %', sqlerrm;
+    end if;
   end;
   begin
     perform public_request_booking(v_slug, array[v_trenzas, 999899], v_fecha || 'T17:00', 'Sol', '8290000104');
     raise exception 'FALLÓ 8b: se aceptó un servicio inexistente junto a uno variable';
   exception when others then
     if sqlerrm like 'FALLÓ%' then raise; end if;
+    if sqlerrm not like 'Servicio no disponible%' then
+      raise exception 'FALLÓ 8b: se rechazó, pero por otro motivo: %', sqlerrm;
+    end if;
   end;
 
   -- Limpieza (cascade se lleva líneas, horarios, política y membresía).

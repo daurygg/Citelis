@@ -12,5 +12,7 @@ export interface WriteError {
  * confirma que ya estaba guardado: no es un fallo ni hay que duplicar nada.
  */
 export function isAlreadySaved(error: WriteError | null): boolean {
-  return error?.code === '23505';
+  // Solo la clave primaria de `appointment` lo prueba: un 23505 de otra
+  // restricción (las líneas, o un índice futuro) es un fallo de verdad.
+  return error?.code === '23505' && error.message.includes('"appointment_pkey"');
 }
