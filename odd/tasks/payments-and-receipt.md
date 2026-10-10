@@ -106,8 +106,16 @@ el logo del negocio y un QR a un recibo digital.
   vía (o "a crédito"); (7) clientas agrupadas por nombre normalizado (sin acentos, mayúsculas
   ni espacios de más), el teléfono no entra en la clave; (8) reporte: pagos por vía de las
   citas COMPLETED del periodo (por fecha de la cita) junto a cobrado y crédito.
-- [ ] **P4 · Datos del recibo.** Logo (Supabase Storage), dirección, teléfono y
+- [x] **P4 · Datos del recibo.** Logo (Supabase Storage), dirección, teléfono y
   nombre visible de quien cobra.
+  Evidencia: migración `20261010000011` (columnas `business.address/phone/logo_path`,
+  `business_member.display_name` vía RPC `set_my_display_name`, RPC
+  `business_member_names`, bucket público `business-logos` con policies por carpeta
+  `<business_id>/`, `appointment.charged_by` fijado en `complete_appointment`); suite
+  `supabase/tests/business-receipt-profile.sql`; dominio `receiptProfile.ts` (RED
+  observado: módulo ausente); UI `ReceiptSettings`. typecheck, 535 tests y build en verde.
+  PENDIENTE: la suite SQL no se corrió localmente (sin Docker); la valida el job
+  `sql-regression` de CI. Los pasos de storage se omiten con aviso si el stack no trae `storage`.
 - [ ] **P5 · Recibo térmico.** Numeración `V-000001` por negocio, asignada de
   forma atómica al cobrar; vista imprimible de 80 mm (`@media print`).
 - [ ] **P6 · Recibo digital.** Token no adivinable, RPC pública que no expone
