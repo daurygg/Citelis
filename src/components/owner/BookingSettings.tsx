@@ -6,7 +6,7 @@ import { useState, type FormEvent } from 'react';
 import { formatClock, formatDateShort, formatTime } from '../../lib/format';
 import { useStore } from '../../lib/store/StoreContext';
 import { useToast } from '../Toast';
-import { btnGhost, card, field, fieldLabel, input } from '../ui';
+import { btnGhost, btnGhostSm, card, field, fieldLabel, input } from '../ui';
 
 const WEEKDAY_LABELS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -72,15 +72,15 @@ export function BookingSettings() {
               Con esto abierto, tus clientas pueden pedir su cita por su cuenta.
             </p>
           </div>
-          <label className="flex shrink-0 cursor-pointer items-center gap-2">
-            <input type="checkbox" checked={policy?.enabled ?? false} onChange={handleTogglePortal} />
+          <label className="flex min-h-11 shrink-0 cursor-pointer items-center gap-2">
+            <input className="size-5" type="checkbox" checked={policy?.enabled ?? false} onChange={handleTogglePortal} />
             <span className="text-sm font-medium">{policy?.enabled ? 'Abierto' : 'Cerrado'}</span>
           </label>
         </div>
         {publicUrl && (
           <div className="flex flex-wrap items-center gap-2 rounded-xl bg-neutral-50 p-3">
             <span className="min-w-0 flex-1 truncate text-sm text-neutral-700">{publicUrl}</span>
-            <button type="button" className={btnGhost + ' px-3 py-1.5 text-sm'} onClick={handleCopyLink}>
+            <button type="button" className={btnGhostSm} onClick={handleCopyLink}>
               Copiar enlace
             </button>
           </div>

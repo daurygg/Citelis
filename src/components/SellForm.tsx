@@ -90,8 +90,8 @@ export function SellForm() {
         <input className={input} type="text" value={clientText} onChange={(e) => setClientText(e.target.value)} placeholder="Nombre de la clienta" />
       </label>
 
-      <label className="flex items-center gap-2 text-sm text-neutral-700">
-        <input type="checkbox" checked={credit} onChange={(e) => setCredit(e.target.checked)} />
+      <label className="flex min-h-11 items-center gap-2 text-sm text-neutral-700">
+        <input className="size-5" type="checkbox" checked={credit} onChange={(e) => setCredit(e.target.checked)} />
         Venta a crédito (fiado)
       </label>
 

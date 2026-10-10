@@ -2,7 +2,7 @@
 // y Cancelar. Al cobrar, muestra precio/costo/ganancia (ya calculados por el store).
 // Pide UN precio por cada servicio de precio variable antes de completar; lo que
 // se pide, y cuándo se puede cobrar, lo decide `buildChargeForm` (dominio puro).
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, statusLabel } from '../lib/format';
 import type { AppointmentStatus, Appointment } from '../lib/domain/types';
@@ -13,7 +13,7 @@ import { appointmentServices, buildChargeForm, initialChargeTexts, type ChargeTe
 import { useToast } from './Toast';
 import { CalendarActions } from './CalendarActions';
 import { ClientNotice } from './ClientNotice';
-import { btnGhost, btnPrimary, card, field, fieldLabel, input } from './ui';
+import { btnGhostSm, btnPrimary, btnPrimarySm, btnText, card, chip, field, fieldLabel, input } from './ui';
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
   // Violeta: pide acción de la dueña y no se confunde con el ámbar de Pendiente.
@@ -50,6 +50,12 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const canComplete = cobroServices !== null && form.ready && !saving;
 
   const editable = canEditServices(appointment.status);
+  // Si la cita deja de ser editable con el panel abierto (se cobró, o un cambio
+  // en vivo la canceló), el panel se cierra de verdad: sin esto quedaría oculto
+  // pero abierto, y reaparecería con una selección vieja.
+  useEffect(() => {
+    if (!editable) setEditingServices(false);
+  }, [editable]);
   const currentIds = appointmentServiceIds(appointment);
   const editSummary = summarizeSelection(store.services, editIds);
   const editCheck = editingServices ? store.checkServicesEdit(appointment.id, editIds) : null;
@@ -118,8 +124,8 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
 
   return (
     <li className={card + ' flex flex-col gap-3'}>
-      <div className="flex items-center gap-3">
-        <span className="w-20 shrink-0 font-semibold tabular-nums">{formatTime(appointment.datetime)}</span>
+      <div className="flex items-start gap-3">
+        <span className="w-14 shrink-0 font-semibold tabular-nums">{formatTime(appointment.datetime)}</span>
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium">{appointment.client}</div>
           <div className="truncate text-sm text-neutral-500">{serviceNames(appointment, store.services) || 'Servicio desconocido'}</div>
@@ -127,27 +133,30 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             <div className="text-xs text-brand-700">Abonó {formatMoney(appointment.deposit)}</div>
           )}
         </div>
-        <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + STATUS_BADGE[appointment.status]}>
-          {statusLabel(appointment.status)}
-        </span>
-        {appointment.status === 'COMPLETED' && appointment.profit !== null && (
-          <div className="text-right">
-            <div className="font-semibold text-green-700">+{formatMoney(appointment.profit)}</div>
-            <div className="text-xs text-neutral-500">Cobró {formatMoney(appointment.charged_price ?? 0)}</div>
-          </div>
-        )}
+        {/* Estado y ganancia en una columna aparte: el nombre se queda con el ancho sobrante. */}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + STATUS_BADGE[appointment.status]}>
+            {statusLabel(appointment.status)}
+          </span>
+          {appointment.status === 'COMPLETED' && appointment.profit !== null && (
+            <div className="text-right">
+              <div className="font-semibold text-green-700">+{formatMoney(appointment.profit)}</div>
+              <div className="text-xs text-neutral-500">Cobró {formatMoney(appointment.charged_price ?? 0)}</div>
+            </div>
+          )}
+        </div>
       </div>
 
       {(isOpen || editable) && (
         <div className="flex flex-wrap gap-2">
           {isOpen && (
             <>
-              <button type="button" className={btnPrimary + ' px-3 py-1.5 text-sm'} onClick={() => setCharging((v) => !v)}>
+              <button type="button" className={btnPrimarySm} onClick={() => setCharging((v) => !v)}>
                 {charging ? 'Cerrar' : 'Cobrar'}
               </button>
               <button
                 type="button"
-                className={btnGhost + ' px-3 py-1.5 text-sm'}
+                className={btnGhostSm}
                 onClick={() => setRescheduling((v) => !v)}
               >
                 {rescheduling ? 'Cerrar' : 'Reprogramar'}
@@ -155,7 +164,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             </>
           )}
           {editable && (
-            <button type="button" className={btnGhost + ' px-3 py-1.5 text-sm'} onClick={toggleEditServices}>
+            <button type="button" className={btnGhostSm} onClick={toggleEditServices}>
               {editingServices ? 'Cerrar' : 'Editar servicios'}
             </button>
           )}
@@ -163,14 +172,14 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             <>
               <button
                 type="button"
-                className={btnGhost + ' px-3 py-1.5 text-sm'}
+                className={btnGhostSm}
                 onClick={() => setSharingCalendar((v) => !v)}
               >
                 {sharingCalendar ? 'Cerrar' : 'Calendario'}
               </button>
               <button
                 type="button"
-                className={btnGhost + ' px-3 py-1.5 text-sm'}
+                className={btnGhostSm}
                 onClick={() => {
                   store.markNoShow(appointment.id);
                   notify('Marcada como “no llegó”');
@@ -180,7 +189,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
               </button>
               <button
                 type="button"
-                className="px-3 py-1.5 text-sm text-red-600 hover:underline"
+                className={btnText + ' text-red-600'}
                 onClick={() => {
                   if (window.confirm('¿Cancelar esta cita?')) {
                     store.cancel(appointment.id);
@@ -218,8 +227,6 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
         </div>
       )}
 
-      {/* Si la cita deja de ser editable con el panel abierto (se cobró, o un
-          cambio en vivo la canceló), el panel se cierra: su botón de cerrar ya no se ve. */}
       {editingServices && editable && (
         <div className="flex flex-col gap-3 rounded-xl bg-neutral-50 p-3">
           <fieldset className={field}>
@@ -235,7 +242,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
                     disabled={savingServices}
                     onClick={() => setEditIds((ids) => toggleServiceId(ids, service.id))}
                     className={
-                      'rounded-full border px-3 py-2 text-sm ' +
+                      chip + ' ' +
                       (on ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white text-neutral-700')
                     }
                   >

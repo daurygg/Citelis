@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatDateShort, formatMoney, shiftISODate, todayISODate } from '../lib/format';
 import { AppointmentRow } from './AppointmentRow';
-import { btnGhost, card } from './ui';
+import { btnGhost, card, kpi } from './ui';
 
 export function DayAgenda() {
   const store = useStore();
@@ -23,7 +23,7 @@ export function DayAgenda() {
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className={btnGhost + ' px-3 py-1.5'}
+          className={btnGhost + ' px-3'}
           onClick={() => setDate((d) => shiftISODate(d, -1))}
           aria-label="Día anterior"
         >
@@ -35,14 +35,14 @@ export function DayAgenda() {
           </div>
           <input
             type="date"
-            className="mt-1 text-sm text-neutral-500 outline-none"
+            className="mt-1 min-h-11 text-base text-neutral-500 outline-none"
             value={date}
             onChange={(e) => setDate(e.target.value || today)}
           />
         </div>
         <button
           type="button"
-          className={btnGhost + ' px-3 py-1.5'}
+          className={btnGhost + ' px-3'}
           onClick={() => setDate((d) => shiftISODate(d, 1))}
           aria-label="Día siguiente"
         >
@@ -56,21 +56,21 @@ export function DayAgenda() {
         </button>
       )}
 
-      <div className="grid grid-cols-3 gap-3">
-        <div className={card}>
+      <div className="grid grid-cols-2 gap-3">
+        <div className={kpi}>
           <div className="text-xs text-neutral-400">Ganado</div>
-          <div className="text-xl font-bold text-green-700">{formatMoney(realized.gross_profit)}</div>
+          <div className="text-lg font-bold text-green-700">{formatMoney(realized.gross_profit)}</div>
           <div className="text-xs text-neutral-500">{realized.completed_count} completada(s)</div>
         </div>
-        <div className={card}>
+        <div className={kpi}>
           <div className="text-xs text-neutral-400">Proyectado (pendientes)</div>
-          <div className="text-xl font-bold text-brand-700">{formatMoney(projected)}</div>
+          <div className="text-lg font-bold text-brand-700">{formatMoney(projected)}</div>
           <div className="text-xs text-neutral-500">aún no realizado</div>
         </div>
 
-        <div className={card}>
+        <div className={kpi + ' col-span-2'}>
           <div className="text-xs text-neutral-400">Cobrado</div>
-          <div className="text-xl font-bold">{formatMoney(realized.total_income)}</div>
+          <div className="text-lg font-bold">{formatMoney(realized.total_income)}</div>
         </div>
       </div>
 

@@ -8,7 +8,7 @@ import { appointmentUID, buildICS, googleCalendarUrl, revisionSequence } from '.
 import { resolveAppointmentServices } from '../lib/domain/scheduling';
 import type { Appointment } from '../lib/domain/types';
 import { useStore } from '../lib/store/StoreContext';
-import { btnGhost } from './ui';
+import { btnGhostSm } from './ui';
 
 /** Nombre de archivo seguro en cualquier sistema: sin acentos, espacios ni signos. */
 function safeFileName(client: string, datetime: string): string {
@@ -55,10 +55,10 @@ export function CalendarActions({ appointment }: { appointment: Appointment }) {
     <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
       <p className="text-sm text-neutral-600">Agrégala a tu calendario para que te avise.</p>
       <div className="flex flex-wrap gap-2">
-        <button type="button" className={btnGhost + ' px-3 py-1.5 text-sm'} onClick={handleDownload}>
+        <button type="button" className={btnGhostSm} onClick={handleDownload}>
           Descargar para mi calendario
         </button>
-        <button type="button" className={btnGhost + ' px-3 py-1.5 text-sm'} onClick={handleOpenGoogleCalendar}>
+        <button type="button" className={btnGhostSm} onClick={handleOpenGoogleCalendar}>
           Abrir en Google Calendar
         </button>
       </div>

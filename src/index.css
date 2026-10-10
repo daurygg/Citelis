@@ -25,3 +25,17 @@
 :root {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
+
+/* iOS: no reescala el texto al girar el teléfono. */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Sin el retraso/zoom por doble toque en controles. */
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
