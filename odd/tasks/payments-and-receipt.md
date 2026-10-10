@@ -116,8 +116,21 @@ el logo del negocio y un QR a un recibo digital.
   observado: módulo ausente); UI `ReceiptSettings`. typecheck, 535 tests y build en verde.
   PENDIENTE: la suite SQL no se corrió localmente (sin Docker); la valida el job
   `sql-regression` de CI. Los pasos de storage se omiten con aviso si el stack no trae `storage`.
-- [ ] **P5 · Recibo térmico.** Numeración `V-000001` por negocio, asignada de
-  forma atómica al cobrar; vista imprimible de 80 mm (`@media print`).
+- [x] **P5 · Recibo térmico.** Numeración `V-000001` por negocio, asignada de
+  forma atómica; vista imprimible de 80 mm (`@media print`).
+  Evidencia: migración `20261010000012_receipts.sql` (`receipt_counter`, `receipt`, RPC
+  `issue_receipt` idempotente) + suite `supabase/tests/receipts.sql` (usuarias
+  ...09ca/...09cb, datos 9999xx; NO ejecutada en local, la corre `sql-regression`).
+  Dominio `receipt.ts` con `ReceiptData` neutro; RED observado (`receipt.test.ts` sin
+  módulo), luego `npm run test:run` 549/549, `typecheck` y `build` verdes.
+  Reglas: (1) emisión PEREZOSA, al abrir "Recibo" en una cita COMPLETED (el número sigue el
+  orden de emisión y las citas históricas también pueden tener recibo); (2) sin huecos: el
+  upsert del contador bloquea su fila hasta el commit y la cita se bloquea `for update`, así
+  que emisiones concurrentes hacen cola; repetir no gasta número; (3) `public_token` uuid
+  aparte del número (P6: el número es adivinable); (4) cajero = nombre visible de
+  `charged_by`, o el nombre del negocio si falta; (5) moneda con `formatMoney` ("$", como el
+  resto de la app); (6) el recibo se niega a armarse si Σ neto ≠ `charged_price`;
+  (7) hueco del QR: `ReceiptSheet` acepta `qr` y no imprime nada sin él (P6).
 - [ ] **P6 · Recibo digital.** Token no adivinable, RPC pública que no expone
   costos ni ganancias, ruta `/recibo/:token` y QR en el recibo impreso.
 
