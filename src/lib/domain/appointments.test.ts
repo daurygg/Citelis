@@ -510,6 +510,20 @@ describe('descuentos por línea', () => {
     expect(bad?.lines[1]).toMatchObject({ discount: 4000, charged_price: 0 });
   });
 
+  it('previewLines usa solo los servicios de la cita, aunque reciba todo el catálogo', () => {
+    // La pantalla le pasa el catálogo entero del negocio: un servicio ajeno a la
+    // cita no puede sumar al subtotal ni llevarse parte del total pactado.
+    const ajeno = service({ id: 99, name: 'Ajeno', price: 7000 });
+    const desglose = previewLines(cita(), [a, b, ajeno]);
+    expect(desglose?.lines.map((l) => [l.service_id, l.list_price])).toEqual([
+      [1, 5000],
+      [2, 4000],
+    ]);
+    const pactado = previewLines({ ...cita(), quoted_price: 8000 }, [ajeno, a, b]);
+    expect(pactado?.lines.map((l) => l.service_id)).toEqual([1, 2]);
+    expect(pactado?.lines.reduce((s, l) => s + l.list_price, 0)).toBe(8000);
+  });
+
   it('previewLines es null si falta un servicio o un precio', () => {
     expect(previewLines(cita(), [a])).toBeNull();
     const variable = service({ id: 2, variable_price: true, price: 0 });

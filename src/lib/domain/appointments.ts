@@ -287,11 +287,15 @@ export function previewLines(
   services: readonly Service[],
   options: CompleteOptions = {},
 ): { lines: (PricedLine & { service_id: number })[]; errors: Map<number, string> } | null {
-  const ids = appointmentServiceIds(appointment);
-  if (ids.some((id) => !services.some((s) => s.id === id))) return null;
-  const gross = grossPrice(appointment, services, options);
+  // Solo los servicios DE LA CITA, en su orden: quien llama puede pasar el
+  // catálogo entero, y un servicio ajeno inflaría el subtotal o se llevaría
+  // parte del total pactado.
+  const found = appointmentServiceIds(appointment).map((id) => services.find((s) => s.id === id));
+  if (found.some((s) => s === undefined)) return null;
+  const own = found as Service[];
+  const gross = grossPrice(appointment, own, options);
   if (gross === null) return null;
-  const resolved = resolveDiscounts(gross, services, options.priceOverrides, options.discounts);
+  const resolved = resolveDiscounts(gross, own, options.priceOverrides, options.discounts);
   return {
     lines: resolved.lines.map((l) => ({ ...l, charged_price: l.list_price - l.discount })),
     errors: resolved.errors,
