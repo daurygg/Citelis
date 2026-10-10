@@ -16,6 +16,13 @@ el logo del negocio y un QR a un recibo digital.
   cliente; líneas con cantidad × precio, nota y descuento; subtotal, descuentos,
   TOTAL; crédito; QR "Tu recibo digital"; "¡Gracias por su compra!").
 - Se pueden aplicar **descuentos**.
+- Una cita puede tener **varios pagos**: el abono al reservar y el resto al cobrar (o
+  después), cada uno por su vía (efectivo, transferencia, tarjeta).
+- Una cita **se puede completar con saldo pendiente**: queda como **crédito** (fiado)
+  de la clienta, para pagarlo luego.
+- Un pago posterior **nunca cambia el dinero congelado** (INVARIANTE 2): solo añade filas.
+- Servicios y productos no se mezclan (INVARIANTE 3): el crédito de servicios es aparte
+  del de ropa.
 
 ## Valores por defecto tomados (avisados al usuario, revisables)
 
@@ -24,10 +31,14 @@ el logo del negocio y un QR a un recibo digital.
 - Papel de 80 mm.
 - Cajero: el nombre de quien está en la app al cobrar.
 
-## Pregunta abierta
+## Preguntas abiertas
 
-- ¿Se puede completar una cita con saldo pendiente (fiado / "Crédito")?
-  Condiciona P3.
+- Ingresos por vía: hoy cada pago cuenta en el periodo de SU CITA (así cobrado, pagado y
+  crédito cuadran). Un pago de crédito de este mes a una cita del mes pasado sube el
+  "pagado" del mes pasado. ¿Prefiere verlo por fecha de pago (caja)?
+- Abonos de citas canceladas / que no llegaron: no hay devolución. Hoy el abono queda
+  como pago de una cita cerrada. ¿Se necesita registrar devoluciones?
+- Dos clientas con el mismo nombre se agrupan juntas en Créditos (no hay ficha de clienta).
 
 ## Lo que hay (mapeo 2026-10-10)
 
@@ -76,8 +87,25 @@ el logo del negocio y un QR a un recibo digital.
   ganancia sí y puede ser negativa (como ya pasaba); (6) sin descuento los números
   son exactamente los de antes. `list_price` queda nulo solo en líneas que escribió el
   trigger de la UI vieja: leer siempre `coalesce(list_price, charged_price)`.
-- [ ] **P3 · Pagos.** Tabla de pagos por cita (monto, vía, momento, abono o
-  cobro); el abono existente pasa a ser un pago. Reporte por vía.
+- [x] **P3 · Pagos y crédito.** Tabla `appointment_payment` (append-only), cobro con
+  varios pagos, crédito de servicios, pago posterior y reporte por vía.
+  Evidencia: migración `20261010000010_appointment_payments.sql` + suite
+  `supabase/tests/appointment-payments.sql` (usuarias ...09a4/...09a5, datos 9998xx; NO
+  ejecutada en local: sin Docker ni Postgres, la corre `sql-regression`). RED observado:
+  `payments.test.ts` sin módulo y 4 pruebas en rojo (`completeRpcArgs`, `scheduleRpcArgs`);
+  luego `npm run test:run` 519/519, `typecheck` y `build` verdes.
+  Reglas: (1) lo pagado = Σ `appointment_payment`; `appointment.deposit` queda como columna
+  LEGADA de solo lectura (se sigue escribiendo por compatibilidad, no manda); (2) abono
+  histórico respaldado con `method` NULO (no se inventa 'cash'; "Sin vía registrada"); el
+  check solo permite vía nula en `deposit`; (3) escritura solo por RPC (`complete_appointment`
+  con `p_payments`, `add_appointment_payment`, `schedule_appointment` con `p_deposit_method`
+  atómico); los clientes solo leen (RLS select + privilegios revocados); (4) antes de cobrar
+  no hay tope (el total aún no está congelado); al cobrar y en pagos de crédito el sobrepago
+  se rechaza, y cobrar con saldo SÍ se permite; (5) `add_appointment_payment` acepta
+  `p_payment_id` para que un reintento no pague dos veces; (6) la atención al paso pide la
+  vía (o "a crédito"); (7) clientas agrupadas por nombre normalizado (sin acentos, mayúsculas
+  ni espacios de más), el teléfono no entra en la clave; (8) reporte: pagos por vía de las
+  citas COMPLETED del periodo (por fecha de la cita) junto a cobrado y crédito.
 - [ ] **P4 · Datos del recibo.** Logo (Supabase Storage), dirección, teléfono y
   nombre visible de quien cobra.
 - [ ] **P5 · Recibo térmico.** Numeración `V-000001` por negocio, asignada de
