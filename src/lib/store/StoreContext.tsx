@@ -22,7 +22,7 @@ import {
   transition,
   type AppointmentServiceRow,
 } from '../domain/appointments';
-import { applyAppointmentChange, applyServiceIds } from './appointmentSync';
+import { applyAppointmentChange, applyServiceIds, keepKnownServiceIds } from './appointmentSync';
 import { startLiveAppointments } from './liveAppointments';
 import { findScheduleConflict } from '../domain/scheduling';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
@@ -284,7 +284,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
         businessId,
         onChange: (change) => setAppointments((prev) => applyAppointmentChange(prev, change, businessId)),
         onServiceIds: (id, ids) => setAppointments((prev) => applyServiceIds(prev, id, ids, businessId)),
-        onResync: (fresh) => setAppointments(fresh),
+        onResync: (fresh) => setAppointments((prev) => keepKnownServiceIds(prev, fresh)),
       }),
     [businessId],
   );

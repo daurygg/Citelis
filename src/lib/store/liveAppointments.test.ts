@@ -312,8 +312,22 @@ describe('startLiveAppointments: servicios de cada cita', () => {
     ]);
   });
 
-  it('si falla la consulta de líneas no se pisa la lista: se conserva lo que había', async () => {
+  it('si falla la consulta de líneas, igual se pone al día con las citas (sin service_ids) y avisa', async () => {
+    // Si appointment_service no se pudiera leer nunca (p. ej. el frontend llega
+    // antes que la migración), negarse a aplicar la foto dejaría la agenda sin
+    // ponerse al día para siempre. El store conserva los service_ids conocidos.
     const fake = fakeClient({ data: [row(1)], error: null }, { linesError: { message: 'sin red' } });
+    const onResync = vi.fn();
+    const onError = vi.fn();
+    startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync, onError });
+    fake.emitStatus('SUBSCRIBED');
+    await flush();
+    expect(onResync).toHaveBeenCalledWith([row(1)]);
+    expect(onError).toHaveBeenCalled();
+  });
+
+  it('si fallan las citas, no se pisa la lista aunque las líneas lleguen', async () => {
+    const fake = fakeClient({ data: null, error: { message: 'sin red' } }, { lines: [line(1, 10)] });
     const onResync = vi.fn();
     const onError = vi.fn();
     startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync, onError });

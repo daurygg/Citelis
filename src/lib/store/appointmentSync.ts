@@ -86,3 +86,25 @@ export function applyServiceIds(
   next[index] = { ...list[index], service_ids: [...serviceIds] };
   return next;
 }
+
+/**
+ * Aplica una foto nueva de citas conservando los `service_ids` ya conocidos de
+ * las citas que la foto trae sin ellos (cuando no se pudieron leer las líneas).
+ * Las líneas de una cita solo desaparecen si se borra la cita, así que lo ya
+ * conocido sigue siendo verdad. INVARIANTE 1: solo se copian dentro del mismo
+ * negocio.
+ */
+export function keepKnownServiceIds(
+  previous: readonly Appointment[],
+  fresh: readonly Appointment[],
+): Appointment[] {
+  const known = new Map<string, number[]>();
+  for (const a of previous) {
+    if (a.service_ids !== undefined) known.set(`${a.business_id}:${a.id}`, a.service_ids);
+  }
+  return fresh.map((a) => {
+    if (a.service_ids !== undefined) return a;
+    const ids = known.get(`${a.business_id}:${a.id}`);
+    return ids === undefined ? a : { ...a, service_ids: ids };
+  });
+}

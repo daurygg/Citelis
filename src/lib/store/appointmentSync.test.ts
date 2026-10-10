@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Appointment } from '../domain/types';
-import { applyAppointmentChange, applyServiceIds } from './appointmentSync';
+import { applyAppointmentChange, applyServiceIds, keepKnownServiceIds } from './appointmentSync';
 
 const BUSINESS = 7;
 
@@ -122,5 +122,32 @@ describe('applyServiceIds', () => {
   it('no toca citas de otro negocio (INVARIANTE 1)', () => {
     const list = [appointment({ id: 1, business_id: 99 })];
     expect(applyServiceIds(list, 1, [10, 11], BUSINESS)).toBe(list);
+  });
+});
+
+describe('keepKnownServiceIds', () => {
+  it('una cita de la foto sin service_ids conserva los que ya se conocían', () => {
+    const previous = [appointment({ id: 1, service_ids: [10, 11] })];
+    const fresh = [appointment({ id: 1, status: 'IN_PROGRESS' })];
+    expect(keepKnownServiceIds(previous, fresh)).toEqual([
+      appointment({ id: 1, status: 'IN_PROGRESS', service_ids: [10, 11] }),
+    ]);
+  });
+
+  it('si la foto trae service_ids, ganan los de la foto', () => {
+    const previous = [appointment({ id: 1, service_ids: [10, 11] })];
+    const fresh = [appointment({ id: 1, service_ids: [10, 12] })];
+    expect(keepKnownServiceIds(previous, fresh)).toEqual(fresh);
+  });
+
+  it('una cita nueva sin service_ids se queda sin ellos (cae a su service_id)', () => {
+    const fresh = [appointment({ id: 2 })];
+    expect(keepKnownServiceIds([], fresh)).toEqual(fresh);
+  });
+
+  it('no mezcla citas de otro negocio aunque coincida el id', () => {
+    const previous = [appointment({ id: 1, business_id: 99, service_ids: [10, 11] })];
+    const fresh = [appointment({ id: 1 })];
+    expect(keepKnownServiceIds(previous, fresh)).toEqual(fresh);
   });
 });

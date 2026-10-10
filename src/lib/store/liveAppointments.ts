@@ -69,14 +69,24 @@ export function startLiveAppointments(options: LiveAppointmentsOptions): () => v
     const arrivedIds = idsSinceFetch ?? new Map<number, number[]>();
     sinceFetch = null;
     idsSinceFetch = null;
-    if (error || !data || lines.error || !lines.data) {
+    if (error || !data) {
       // Se conserva lo que había: una lista vacía por un corte de red sería
-      // peor que una lista con un rato de atraso. Y sin las líneas tampoco se
-      // reemplaza: la foto de citas sola borraría los `service_ids` hidratados.
-      onError('No se pudieron poner al día las citas', error ?? lines.error);
+      // peor que una lista con un rato de atraso.
+      onError('No se pudieron poner al día las citas', error);
       return;
     }
-    const withServices = foldServiceIds(data as Appointment[], lines.data as AppointmentServiceRow[], businessId);
+    if (lines.error || !lines.data) {
+      // Sin las líneas la foto de citas se aplica igual: si appointment_service
+      // no se pudiera leer nunca, negarse dejaría la agenda sin ponerse al día.
+      // Las citas llegan sin `service_ids` y quien recibe la foto conserva los
+      // que ya conocía (keepKnownServiceIds).
+      onError('No se pudieron traer los servicios de las citas', lines.error);
+    }
+    const withServices = foldServiceIds(
+      data as Appointment[],
+      (lines.data ?? []) as AppointmentServiceRow[],
+      businessId,
+    );
     const withEvents = arrived.reduce<readonly Appointment[]>(
       (list, change) => applyAppointmentChange(list, change, businessId),
       withServices,
