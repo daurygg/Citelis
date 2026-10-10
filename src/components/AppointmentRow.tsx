@@ -17,6 +17,7 @@ import { useToast } from './Toast';
 import { CalendarActions } from './CalendarActions';
 import { ClientNotice } from './ClientNotice';
 import { PaymentMethodChips, RegisterPaymentPanel } from './PaymentPanel';
+import { ReceiptDialog } from './ReceiptDialog';
 import { btnGhostSm, btnPrimary, btnPrimarySm, btnText, card, chip, field, fieldLabel, input } from './ui';
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
@@ -47,6 +48,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   // Pagos tecleados al cobrar. null = no los tocó: se ofrece el saldo en efectivo.
   const [payRows, setPayRows] = useState<PaymentRowText[] | null>(null);
   const [registeringPayment, setRegisteringPayment] = useState(false);
+  const [showingReceipt, setShowingReceipt] = useState(false);
 
   const isOpen = appointment.status === 'PENDING' || appointment.status === 'IN_PROGRESS';
   const form = buildChargeForm(cobroServices ?? [], texts, store.employees);
@@ -178,13 +180,19 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
         </div>
       </div>
 
-      {owes > 0 && (
+      {appointment.status === 'COMPLETED' && (
         <div className="flex flex-wrap gap-2">
-          <button type="button" className={btnPrimarySm} onClick={() => setRegisteringPayment((v) => !v)}>
-            {registeringPayment ? 'Cerrar' : 'Registrar pago'}
+          {owes > 0 && (
+            <button type="button" className={btnPrimarySm} onClick={() => setRegisteringPayment((v) => !v)}>
+              {registeringPayment ? 'Cerrar' : 'Registrar pago'}
+            </button>
+          )}
+          <button type="button" className={btnGhostSm} onClick={() => setShowingReceipt(true)}>
+            Recibo
           </button>
         </div>
       )}
+      {showingReceipt && <ReceiptDialog appointmentId={appointment.id} onClose={() => setShowingReceipt(false)} />}
       {owes > 0 && registeringPayment && (
         <RegisterPaymentPanel appointment={appointment} onDone={() => setRegisteringPayment(false)} />
       )}

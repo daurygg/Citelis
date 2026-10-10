@@ -30,6 +30,7 @@ import {
 } from '../domain/appointments';
 import { completeRpcArgs, planCompletion, type ChargePayment } from '../domain/charge';
 import { creditsByClient, incomeByMethod, paymentStatus, type ClientCredit, type IncomeByMethod, type PaymentStatus } from '../domain/payments';
+import { buildReceiptData, type ReceiptLineInput, type ReceiptResult } from '../domain/receipt';
 import { scheduleRpcArgs } from '../domain/selection';
 import { checkServicesEdit, updateServicesRpcArgs, type ServicesEditCheck } from '../domain/editServices';
 import { applyAppointmentChange, applyServiceIds, keepKnownServiceIds } from './appointmentSync';
@@ -205,6 +206,12 @@ export interface Store {
   // Dirección pública del negocio (T3, odd/tasks/editable-public-slug.md).
   // A diferencia de todo lo demás de este store, esto NO es optimista: ver el
   // comentario junto a su implementación.
+  /**
+   * Emite (idempotente) el recibo de una cita COMPLETED y arma su `ReceiptData`.
+   * Lee del servidor la cita, sus líneas y sus pagos al abrirlo: las líneas con
+   * descuento y empleada no viven en memoria y así el recibo nunca va desfasado.
+   */
+  loadReceipt: (appointmentId: number) => Promise<ReceiptResult>;
   updatePublicSlug: (slug: string) => Promise<{ ok: true; slug: string } | { ok: false; message: string }>;
 }
 
@@ -1013,6 +1020,48 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   // optimista y revertirlo si el servidor dice que no le mostraría, por un
   // instante, una dirección que nunca llegó a ser suya. Por eso se espera la
   // respuesta y el estado local solo cambia si `set_public_slug` la acepta.
+  async function loadReceipt(appointmentId: number): Promise<ReceiptResult> {
+    const fail = (message: string): ReceiptResult => ({ ok: false, message });
+    if (!business) return fail('No se encontró tu negocio.');
+    try {
+      const { data: issued, error: issueError } = await supabase.rpc('issue_receipt', {
+        p_business_id: businessId,
+        p_appointment_id: appointmentId,
+      });
+      if (issueError) return fail(issueError.message);
+      const receipt = (issued as { number: number; issued_at: string }[] | null)?.[0];
+      if (!receipt) return fail('No se pudo emitir el recibo.');
+
+      // INVARIANTE 1: todo filtrado por negocio, además de la RLS.
+      const [apt, lines, pay] = await Promise.all([
+        supabase.from('appointment').select('*').eq('business_id', businessId).eq('id', appointmentId),
+        supabase
+          .from('appointment_service')
+          .select('service_id, list_price, discount, charged_price, employee_id')
+          .eq('business_id', businessId)
+          .eq('appointment_id', appointmentId)
+          .order('service_id', { ascending: true }),
+        supabase.from('appointment_payment').select('*').eq('business_id', businessId).eq('appointment_id', appointmentId),
+      ]);
+      const appointment = ((apt.data ?? [])[0] ?? null) as Appointment | null;
+      if (apt.error || lines.error || pay.error || !appointment) return fail('No se pudieron cargar los datos del recibo.');
+
+      return buildReceiptData({
+        business,
+        logoUrl: businessLogoUrl,
+        appointment,
+        lines: (lines.data ?? []) as ReceiptLineInput[],
+        services,
+        employees,
+        payments: (pay.data ?? []) as AppointmentPayment[],
+        memberNames,
+        receipt,
+      });
+    } catch (e) {
+      return fail(e instanceof Error ? e.message : 'No se pudo conectar con el servidor.');
+    }
+  }
+
   async function updatePublicSlug(
     slug: string,
   ): Promise<{ ok: true; slug: string } | { ok: false; message: string }> {
@@ -1194,6 +1243,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     acceptRequest,
     rejectRequest,
     updateBusinessTheme,
+    loadReceipt,
     updatePublicSlug,
   };
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
