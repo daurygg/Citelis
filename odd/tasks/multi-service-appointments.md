@@ -153,11 +153,24 @@ mano, no en CI**.
   columnas del reparto congelado. Verificada en CitelisDev el 2026-10-09.
 - [x] **T4 · RPC públicas.** `public_request_booking` y `public_busy` con sumas,
   más su regresión SQL. Verificada en CitelisDev el 2026-10-09.
-- [ ] **T6a · La agenda LEE los servicios de cada cita.** Cargar `appointment_service`
+- [x] **T6a · La agenda LEE los servicios de cada cita.** Cargar `appointment_service`
   y volcarlo en `service_ids`, también en la sincronización en vivo. Nombres de
   todos los servicios en `AppointmentRow`, `RequestsInbox` y `ClientNotice`.
   Reprogramar comprueba choques con la duración de todos. Vista previa del cobro
   y proyección del día con el precio del conjunto.
+
+  Hecho en `feat/multi-service-6a-read` (TDD): `foldServiceIds`, `serviceNames`,
+  `previewCompletion` (appointments.ts), `expectedProfitForServices` (reports.ts),
+  `applyServiceIds` (appointmentSync.ts). Live sync: `applyAppointmentChange`
+  conserva el `service_ids` en memoria si la fila del servidor no lo trae; tras
+  cada evento se piden las líneas de ESA cita (Realtime no emite
+  `appointment_service`); la puesta al día pide citas y líneas juntas y no
+  reemplaza nada si falla alguna. `scheduleConflict` ahora recibe un arreglo de
+  ids. `AppointmentRow` exige precio si CUALQUIER servicio es variable y ya no
+  oculta el panel de cobro cuando la vista previa es null.
+  RED: 30 tests fallando (appointments 14, reports 6, appointmentSync 6,
+  liveAppointments 4 nuevos). GREEN: 340 passed (340) en 21 archivos; typecheck
+  y build limpios. Sin ver en navegador. Commit: `f0a8d98`.
 - [ ] **T6b · Cobrar una cita de varios servicios.** Un precio por cada servicio
   variable (muere `isVariable` en la UI). Congelar la cita y sus líneas
   (`appointmentServiceLines`) en UNA transacción, con una RPC que solo persiste
