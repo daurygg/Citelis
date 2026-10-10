@@ -171,10 +171,26 @@ mano, no en CI**.
   RED: 30 tests fallando (appointments 14, reports 6, appointmentSync 6,
   liveAppointments 4 nuevos). GREEN: 340 passed (340) en 21 archivos; typecheck
   y build limpios. Sin ver en navegador. Commit: `f0a8d98`.
-- [ ] **T6b · Cobrar una cita de varios servicios.** Un precio por cada servicio
+- [x] **T6b · Cobrar una cita de varios servicios.** Un precio por cada servicio
   variable (muere `isVariable` en la UI). Congelar la cita y sus líneas
   (`appointmentServiceLines`) en UNA transacción, con una RPC que solo persiste
   lo que calculó el dominio y rechaza tocar una cita ya `COMPLETED`.
+
+  Hecho en `feat/multi-service-6b-charge` (TDD). Dominio puro nuevo
+  `src/lib/domain/charge.ts` (`buildChargeForm`, `initialChargeTexts`,
+  `planCompletion`, `completeRpcArgs`, `appointmentServices`); `previewCompletion`
+  acepta `priceOverrides`. `AppointmentRow` pide un precio por servicio variable
+  (con su nombre) + total opcional; `isVariable` ya no existe en la UI.
+  `store.complete` y `registerWalkIn` son ahora `async`, esperan la RPC
+  `complete_appointment` (migración `20261010000001`) y solo cambian el estado
+  local si el servidor confirma; el error se muestra con el toast. La atención de mostrador
+  inserta PENDING y completa con la misma RPC (una línea). La RPC exige membresía,
+  cita del negocio, estado PENDING/IN_PROGRESS, conjunto de servicios exacto,
+  sumas y ganancia por línea cuadradas.
+  RED: 1 test fallando + suite `charge.test.ts` sin cargar (módulo inexistente).
+  GREEN: 366 passed (366) en 22 archivos (+26); typecheck y build limpios.
+  Regresión SQL `supabase/tests/complete-appointment.sql` escrita, PENDIENTE de
+  correr contra la base de desarrollo. Sin ver en navegador.
 - [ ] **T6c · La dueña agenda varios servicios.** `ScheduleForm` y la cita de
   mostrador con selección múltiple; la cita nace con sus líneas.
 - [ ] **T5 · Portal.** Selección múltiple, huecos para la suma, y el envío.
