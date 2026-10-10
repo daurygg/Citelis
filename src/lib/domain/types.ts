@@ -123,6 +123,9 @@ export interface Appointment {
   charged_price: number | null;
   actual_cost: number | null;
   profit: number | null;
+  // Quién cobró (auth.uid, fijado por `complete_appointment`, P4). Nulo en citas
+  // anteriores o sin completar; el nombre sale de `MemberName`.
+  charged_by?: string | null;
 }
 
 // Gasto fijo del negocio (luz, agua, transporte…) NO atribuible a una cita.

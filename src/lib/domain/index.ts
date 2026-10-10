@@ -9,3 +9,4 @@ export * from './selection';
 export * from './discounts';
 export * from './payments';
 export * from './receiptProfile';
+export * from './receipt';
