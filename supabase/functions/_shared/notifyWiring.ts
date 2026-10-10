@@ -36,11 +36,14 @@ export interface AppointmentRow {
   client: string;
   datetime: string;
   status: string;
+  /** Servicio principal; si llega, sus líneas se ordenan con él primero. */
+  service_id?: number;
   service: ServiceJoin;
 }
 
 /** Una línea de `appointment_service` con el nombre de su servicio. */
 export interface ServiceLineRow {
+  service_id?: number;
   service: ServiceJoin;
 }
 
@@ -56,7 +59,13 @@ function joinedName(join: ServiceJoin): string | null {
  * que no trajo nombres— se cae al servicio principal de la cita.
  */
 export function toBookingForNotice(row: AppointmentRow, lines: ServiceLineRow[] = []): BookingForNotice {
-  const fromLines = lines.map((l) => joinedName(l.service)).filter((n): n is string => n !== null);
+  // `appointment_service` no guarda orden: el principal se pone primero, como en
+  // el resto de la app (serviceIdsFromRows); los demás conservan su orden.
+  const ordered =
+    row.service_id === undefined
+      ? lines
+      : [...lines.filter((l) => l.service_id === row.service_id), ...lines.filter((l) => l.service_id !== row.service_id)];
+  const fromLines = ordered.map((l) => joinedName(l.service)).filter((n): n is string => n !== null);
   const primary = joinedName(row.service);
   return {
     id: row.id,

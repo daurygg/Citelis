@@ -63,6 +63,16 @@ describe('toBookingForNotice', () => {
     expect(toBookingForNotice({ ...row, service: { name: 'Corte' } }, lines).service_names).toEqual(['Corte', 'Tinte']);
   });
 
+  it('el servicio principal va primero aunque la consulta devuelva las líneas en otro orden', () => {
+    const lines = [
+      { service_id: 9, service: { name: 'Tinte' } },
+      { service_id: 3, service: { name: 'Corte' } },
+    ];
+    expect(
+      toBookingForNotice({ ...row, service_id: 3, service: { name: 'Corte' } }, lines).service_names,
+    ).toEqual(['Corte', 'Tinte']);
+  });
+
   it('salta las líneas cuyo servicio no se pudo leer', () => {
     const lines = [{ service: null }, { service: { name: 'Tinte' } }];
     expect(toBookingForNotice({ ...row, service: { name: 'Corte' } }, lines).service_names).toEqual(['Tinte']);
