@@ -149,10 +149,10 @@ mano, no en CI**.
   (D4), `completeAppointment` recibiendo N servicios, y el reparto congelado de
   D1. Aquí muere el booleano `isVariable`: pasa a ser "qué servicios de esta cita
   necesitan que les pongas precio".
-- [~] **T3 · Migración.** `appointment_service` con su RLS, backfill, y las
-  columnas del reparto congelado.
-- [~] **T4 · RPC públicas.** `public_request_booking` y `public_busy` con sumas,
-  más su regresión SQL.
+- [x] **T3 · Migración.** `appointment_service` con su RLS, backfill, y las
+  columnas del reparto congelado. Verificada en CitelisDev el 2026-10-09.
+- [x] **T4 · RPC públicas.** `public_request_booking` y `public_busy` con sumas,
+  más su regresión SQL. Verificada en CitelisDev el 2026-10-09.
 - [ ] **T5 · Portal.** Selección múltiple, huecos para la suma, y el envío.
 - [ ] **T6 · Agenda de la dueña.** `ScheduleForm`, reprogramar, `AppointmentRow`.
 - [ ] **T7 · Calendario y aviso push.** Título con N nombres, fin en la suma.
@@ -326,3 +326,18 @@ comentario en la tabla para que la próxima vez se vea el porqué.
 
 **Pendiente propuesto**: meter esta suite en CI contra una base efímera. Mientras
 sea manual, va a volver a pasar.
+
+## T3 y T4 verificadas en CitelisDev (2026-10-09)
+
+El usuario corrió las migraciones y las regresiones a mano el 2026-10-01. Hoy se
+confirmó con una consulta de solo lectura (`supabase db query --linked`):
+`appointment_service` existe con RLS activa, `public_busy` y
+`public_request_booking` llevan el cast `::integer` corregido, y solo hay una
+versión de `public_request_booking`.
+
+Como se corrieron a mano, no estaban en el historial. Se marcaron con
+`migration repair --status applied 20260929000001 20260929000002`, y
+`migration list` muestra las 13 con Local = Remote.
+
+La rama trae `develop` (#27, filtro `business_id`) sin conflictos. Typecheck
+limpio, 302/302 tests.
