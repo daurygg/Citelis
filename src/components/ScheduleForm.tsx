@@ -13,6 +13,7 @@ export function ScheduleForm() {
   const { notify } = useToast();
   const [client, setClient] = useState('');
   const [serviceId, setServiceId] = useState<number>(store.services[0]?.id ?? 0);
+  const [saving, setSaving] = useState(false);
   const [datetime, setDatetime] = useState('');
   const [walkIn, setWalkIn] = useState(false);
   const [priceText, setPriceText] = useState('');
@@ -33,20 +34,30 @@ export function ScheduleForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canSubmit) return;
+    // `saving`: un doble clic o doble Enter no registra (ni cobra) dos veces.
+    if (!canSubmit || saving) return;
     if (walkIn) {
-      const result = await store.registerWalkIn({
-        service_id: serviceId,
-        client: client.trim(),
-        datetime: datetime || nowLocalDatetime(),
-        price: priceCents,
-      });
-      // Si el servidor no la aceptó, el formulario NO se limpia: no se pierde lo escrito.
+      setSaving(true);
+      let result;
+      try {
+        result = await store.registerWalkIn({
+          service_id: serviceId,
+          client: client.trim(),
+          datetime: datetime || nowLocalDatetime(),
+          price: priceCents,
+        });
+      } finally {
+        setSaving(false);
+      }
       if (!result.ok) {
         notify(result.message, 'error');
-        return;
+        // Si el servidor no la aceptó, el formulario NO se limpia: no se pierde
+        // lo escrito. Salvo que la cita SÍ se guardara sin cobrar: reintentar
+        // desde aquí la duplicaría.
+        if (!result.leftPending) return;
+      } else {
+        notify('✓ Atención registrada y cobrada');
       }
-      notify('✓ Atención registrada y cobrada');
     } else {
       const conflict = store.scheduleConflict(datetime, [serviceId]);
       if (conflict) {
@@ -151,8 +162,8 @@ export function ScheduleForm() {
         Ya la atendí (cobrar ahora)
       </label>
 
-      <button type="submit" className={btnPrimary} disabled={!canSubmit}>
-        {walkIn ? 'Registrar y cobrar' : 'Agendar'}
+      <button type="submit" className={btnPrimary} disabled={!canSubmit || saving}>
+        {saving ? 'Guardando…' : walkIn ? 'Registrar y cobrar' : 'Agendar'}
       </button>
     </form>
   );

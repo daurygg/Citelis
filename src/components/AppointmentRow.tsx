@@ -47,11 +47,16 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   async function handleComplete() {
     if (!canComplete) return;
     setSaving(true);
-    const result = await store.complete(appointment.id, {
-      overridePrice: form.overridePrice,
-      priceOverrides: form.priceOverrides,
-    });
-    setSaving(false);
+    let result;
+    try {
+      result = await store.complete(appointment.id, {
+        overridePrice: form.overridePrice,
+        priceOverrides: form.priceOverrides,
+      });
+    } finally {
+      // Pase lo que pase, el botón no se queda bloqueado en "Guardando…".
+      setSaving(false);
+    }
     if (!result.ok) {
       notify(result.message, 'error');
       return;

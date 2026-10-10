@@ -49,7 +49,9 @@ export interface WalkInInput {
 }
 // Resultado de una escritura que SÍ espera al servidor (cobrar). `message` va en
 // el idioma de la dueña porque la UI lo muestra tal cual.
-export type ActionResult = { ok: true } | { ok: false; message: string };
+// `leftPending`: la cita SÍ se guardó, pero quedó sin cobrar (la RPC falló después
+// de insertarla). Quien llama no debe reintentar el alta, o la duplicaría.
+export type ActionResult = { ok: true } | { ok: false; message: string; leftPending?: true };
 export interface CompletionPreview {
   charged_price: number;
   actual_cost: number;
@@ -397,6 +399,17 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     persist(supabase.from('appointment').insert(appointment));
   }
 
+  // Llama a la RPC de cobro. Un fallo de red puede llegar como excepción en vez de
+  // como `error`; se normaliza para que quien llama siempre reciba un resultado.
+  async function callCompleteRpc(plan: Parameters<typeof completeRpcArgs>[1]): Promise<{ error: { message: string } | null }> {
+    try {
+      const { error } = await supabase.rpc('complete_appointment', completeRpcArgs(businessId, plan));
+      return { error };
+    } catch (e) {
+      return { error: { message: e instanceof Error ? e.message : 'No se pudo conectar con el servidor.' } };
+    }
+  }
+
   // Pone en el estado local una cita ya persistida. Si el evento en vivo de
   // Realtime se adelantó y ya la trajo, la reemplaza en vez de duplicarla.
   function putAppointment(next: Appointment): void {
@@ -419,7 +432,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : 'No se pudo calcular el cobro.' };
     }
-    const { error } = await supabase.rpc('complete_appointment', completeRpcArgs(businessId, plan));
+    const { error } = await callCompleteRpc(plan);
     if (error) return { ok: false, message: error.message };
     const { status, charged_price, actual_cost, profit } = plan.completed;
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, status, charged_price, actual_cost, profit } : a)));
@@ -471,11 +484,24 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : 'No se pudo calcular el cobro.' };
     }
-    const inserted = await supabase.from('appointment').insert(pending);
-    if (inserted.error) return { ok: false, message: inserted.error.message };
+    let insertError: { message: string } | null;
+    try {
+      insertError = (await supabase.from('appointment').insert(pending)).error;
+    } catch (e) {
+      insertError = { message: e instanceof Error ? e.message : 'No se pudo guardar la atención.' };
+    }
+    if (insertError) return { ok: false, message: insertError.message };
     putAppointment(pending);
-    const { error } = await supabase.rpc('complete_appointment', completeRpcArgs(businessId, plan));
-    if (error) return { ok: false, message: error.message };
+    const { error } = await callCompleteRpc(plan);
+    if (error) {
+      // La cita ya existe (PENDING, visible en la agenda). Reintentar el alta la
+      // duplicaría, así que se avisa que se cobre desde la agenda.
+      return {
+        ok: false,
+        leftPending: true,
+        message: `La atención quedó en la agenda sin cobrar (${error.message}). Cóbrala desde ahí.`,
+      };
+    }
     putAppointment({ ...pending, ...plan.completed });
     return { ok: true };
   }
