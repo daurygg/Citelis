@@ -9,6 +9,9 @@
 -- se lleva servicios, citas y suscripciones. Si crea la configuración de Vault
 -- para la aserción 4, también la borra.
 
+-- Usa SUS PROPIAS usuarias: cada cuenta solo puede crear un negocio (20261010000005),
+-- y esta prueba crea dos (el propio y el ajeno).
+
 do $$
 declare
   v_uid        uuid;
@@ -22,15 +25,22 @@ declare
   v_had_secret boolean;
   v_queue_max  bigint;
 begin
-  select id into v_uid from auth.users order by created_at limit 1;
-  if v_uid is null then
-    raise exception 'FALLÓ preparación: no hay usuario en auth.users con el que impersonar a la dueña';
-  end if;
+  -- Usuarias propias de la prueba (ver cabecera); limpieza previa por si una corrida murió a medias.
+  v_uid := '00000000-0000-0000-0000-0000000009c1';
+  v_other_uid := '00000000-0000-0000-0000-0000000009c2';
+  delete from business where created_by in (v_uid, v_other_uid);
+  delete from auth.users where id in (v_uid, v_other_uid);
+  insert into auth.users (id, aud, role, email, created_at, updated_at) values
+    (v_uid, 'authenticated', 'authenticated', 'prueba-c1@citelis.test', now(), now()),
+    (v_other_uid, 'authenticated', 'authenticated', 'prueba-c2@citelis.test', now(), now());
   perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
 
   v_mine := create_business('PRUEBA Push propio', '#e11d48');
-  -- Negocio ajeno: se crea como la dueña y se le quita la membresía.
+  -- Negocio ajeno: lo crea OTRA usuaria (una cuenta solo crea un negocio) y la dueña
+  -- no es miembro.
+  perform set_config('request.jwt.claims', json_build_object('sub', v_other_uid)::text, true);
   v_foreign := create_business('PRUEBA Push ajeno', '#e11d48');
+  perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
   delete from business_member where business_id = v_foreign and user_id = v_uid;
 
   -- 1 · Guardar la suscripción del dispositivo, y volver a guardarla (el
@@ -113,7 +123,6 @@ begin
   --     la tabla), para que la aserción no pase en vacío en un entorno limpio.
   insert into push_subscription (business_id, user_id, endpoint, p256dh, auth)
   values (v_foreign, v_uid, 'https://push.example/ajena-negocio', 'x', 'y');
-  select id into v_other_uid from auth.users where id <> v_uid order by created_at limit 1;
   if v_other_uid is not null then
     insert into push_subscription (business_id, user_id, endpoint, p256dh, auth)
     values (v_mine, v_other_uid, 'https://push.example/ajena-persona', 'x', 'y');
@@ -146,6 +155,7 @@ begin
 
   execute 'reset role';
   delete from business where id in (v_mine, v_foreign);
+  delete from auth.users where id in (v_uid, v_other_uid);
 end $$;
 
 -- 6 · Superficie cero desde fuera. `revoke ... from public` no basta en

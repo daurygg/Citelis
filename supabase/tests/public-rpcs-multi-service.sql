@@ -12,6 +12,9 @@
 --
 -- Crea sus propios datos (ids 9998xx) y los borra al final.
 
+-- Usa SU PROPIA usuaria: una cuenta solo puede crear un negocio (20261010000005), y la
+-- primera usuaria real ya es dueña del negocio 1. Se borra al final.
+
 do $$
 declare
   v_uid    uuid;
@@ -25,8 +28,12 @@ declare
   v_ok     boolean;
   v_fecha  text;
 begin
-  select id into v_uid from auth.users order by created_at limit 1;
-  if v_uid is null then raise exception 'FALLÓ preparación: no hay usuario en auth.users'; end if;
+  -- Usuarias propias de la prueba (ver cabecera); limpieza previa por si una corrida murió a medias.
+  v_uid := '00000000-0000-0000-0000-0000000009h1';
+  delete from business where created_by in (v_uid);
+  delete from auth.users where id in (v_uid);
+  insert into auth.users (id, aud, role, email, created_at, updated_at) values
+    (v_uid, 'authenticated', 'authenticated', 'prueba-h1@citelis.test', now(), now());
   perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
 
   v_biz := create_business('PRUEBA RPC Multi', '#e11d48', v_slug);
@@ -125,6 +132,7 @@ begin
   delete from business_hours where business_id = v_biz;
   delete from service where id in (v_cejas, v_labios);
   delete from business where id = v_biz;
+  delete from auth.users where id = v_uid;
 end $$;
 
 select 'VERDE: las 7 aserciones pasaron. Ahora corre self-booking-regression.sql' as resultado;

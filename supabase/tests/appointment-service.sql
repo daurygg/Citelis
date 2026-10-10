@@ -14,9 +14,13 @@
 --
 -- Crea sus propios datos (ids 999xxx) y los borra al final.
 
+-- Usa SUS PROPIAS usuarias: cada cuenta solo puede crear un negocio (20261010000005),
+-- y esta prueba crea dos. Se borran al final.
+
 do $$
 declare
   v_uid       uuid;
+  v_uid2      uuid;
   v_biz       bigint;
   v_ajeno     bigint;
   v_svc       bigint := 999801;
@@ -31,14 +35,22 @@ begin
     raise exception 'FALLÓ 0: la tabla appointment_service no existe. ¿Aplicaste la migración?';
   end if;
 
-  select id into v_uid from auth.users order by created_at limit 1;
-  if v_uid is null then
-    raise exception 'FALLÓ preparación: no hay usuario en auth.users con el que impersonar a la dueña';
-  end if;
+  -- Usuarias propias de la prueba (ver cabecera); limpieza previa por si una corrida murió a medias.
+  v_uid := '00000000-0000-0000-0000-0000000009d1';
+  v_uid2 := '00000000-0000-0000-0000-0000000009d2';
+  delete from business where created_by in (v_uid, v_uid2);
+  delete from auth.users where id in (v_uid, v_uid2);
+  insert into auth.users (id, aud, role, email, created_at, updated_at) values
+    (v_uid, 'authenticated', 'authenticated', 'prueba-d1@citelis.test', now(), now()),
+    (v_uid2, 'authenticated', 'authenticated', 'prueba-d2@citelis.test', now(), now());
   perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
 
   v_biz   := create_business('PRUEBA MultiServicio', '#e11d48', 'prueba-multiservicio');
+  perform set_config('request.jwt.claims', json_build_object('sub', v_uid2)::text, true);
   v_ajeno := create_business('PRUEBA Ajeno MS', '#e11d48', 'prueba-ajeno-ms');
+  -- Como antes de la regla de un negocio por cuenta: la dueña también es miembro del segundo.
+  insert into business_member (user_id, business_id) values (v_uid, v_ajeno);
+  perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
 
   insert into service (id, business_id, name, price, supply_cost, cost_override, duration_min, variable_price)
   values (v_svc,  v_biz, 'Cejas',  150000, 20000, null, 30, false),
@@ -110,9 +122,8 @@ end $$;
 -- 5 · Aislamiento por tenant (INVARIANTE 1): hablando como la dueña, no se ven
 --     las líneas de otro negocio.
 do $$
-declare v_uid uuid; v_visibles integer;
+declare v_uid uuid := '00000000-0000-0000-0000-0000000009d1'; v_visibles integer;
 begin
-  select id into v_uid from auth.users order by created_at limit 1;
   perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
   execute 'set local role authenticated';
   select count(*) into v_visibles
@@ -122,5 +133,7 @@ begin
     raise exception 'FALLÓ 5: viola INVARIANTE 1, se ven % líneas de negocios ajenos', v_visibles;
   end if;
 end $$;
+
+delete from auth.users where id in ('00000000-0000-0000-0000-0000000009d1', '00000000-0000-0000-0000-0000000009d2');
 
 select 'VERDE: las 5 aserciones pasaron' as resultado;

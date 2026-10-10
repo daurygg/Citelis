@@ -23,9 +23,13 @@
 --
 -- Crea sus propios datos (ids 999xxx) y los borra al final.
 
+-- Usa SUS PROPIAS usuarias: cada cuenta solo puede crear un negocio (20261010000005),
+-- y esta prueba crea dos. Se borran al final.
+
 do $$
 declare
   v_uid     uuid;
+  v_uid2    uuid;
   v_biz     bigint;
   v_otro    bigint;
   v_svc1    bigint := 999811;
@@ -46,14 +50,22 @@ begin
     raise exception 'FALLÓ 0: complete_appointment no existe. ¿Aplicaste la migración?';
   end if;
 
-  select id into v_uid from auth.users order by created_at limit 1;
-  if v_uid is null then
-    raise exception 'FALLÓ preparación: no hay usuario en auth.users con el que impersonar a la dueña';
-  end if;
+  -- Usuarias propias de la prueba (ver cabecera); limpieza previa por si una corrida murió a medias.
+  v_uid := '00000000-0000-0000-0000-0000000009e1';
+  v_uid2 := '00000000-0000-0000-0000-0000000009e2';
+  delete from business where created_by in (v_uid, v_uid2);
+  delete from auth.users where id in (v_uid, v_uid2);
+  insert into auth.users (id, aud, role, email, created_at, updated_at) values
+    (v_uid, 'authenticated', 'authenticated', 'prueba-e1@citelis.test', now(), now()),
+    (v_uid2, 'authenticated', 'authenticated', 'prueba-e2@citelis.test', now(), now());
   perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
 
   v_biz  := create_business('PRUEBA Cobro', '#e11d48', 'prueba-cobro');
+  perform set_config('request.jwt.claims', json_build_object('sub', v_uid2)::text, true);
   v_otro := create_business('PRUEBA Cobro Ajeno', '#e11d48', 'prueba-cobro-ajeno');
+  -- Como antes de la regla de un negocio por cuenta: la dueña también es miembro del segundo.
+  insert into business_member (user_id, business_id) values (v_uid, v_otro);
+  perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
 
   insert into service (id, business_id, name, price, supply_cost, cost_override, duration_min, variable_price)
   values (v_svc1,  v_biz,  'Cejas',  5000, 1000, null, 30, false),
@@ -212,4 +224,5 @@ begin
 
   -- Limpieza: el borrado en cascada se lleva servicios, citas y líneas.
   delete from business where id in (v_biz, v_otro);
+  delete from auth.users where id in (v_uid, v_uid2);
 end $$;
