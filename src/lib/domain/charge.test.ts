@@ -179,7 +179,18 @@ describe('completeRpcArgs', () => {
       p_actual_cost: 1500,
       p_profit: 7500,
       p_lines: plan.lines,
+      p_payments: [],
     });
+  });
+
+  it('lleva los pagos tecleados al cobrar (monto y vía), y sin pagos va vacío', () => {
+    const plan = planCompletion(appointment({ service_ids: [1, 2] }), catalog, {});
+    const payments = [
+      { amount: 5000, method: 'cash' as const },
+      { amount: 2000, method: 'transfer' as const },
+    ];
+    expect(completeRpcArgs(1, plan, payments).p_payments).toEqual(payments);
+    expect(completeRpcArgs(1, plan).p_payments).toEqual([]);
   });
 });
 

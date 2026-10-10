@@ -6,7 +6,7 @@
 // servicios les falta precio?", y se contesta uno por uno (D2 de
 // odd/tasks/multi-service-appointments.md).
 
-import type { Appointment, Employee, Service } from './types';
+import type { Appointment, Employee, PaymentMethod, Service } from './types';
 import { activeEmployees } from './employees';
 import {
   appointmentServiceIds,
@@ -163,8 +163,17 @@ export function planCompletion(
   return { completed, lines };
 }
 
-/** Argumentos de la RPC `complete_appointment`. El negocio va explícito (INVARIANTE 1). */
-export function completeRpcArgs(businessId: number, plan: CompletionPlan) {
+/** Un pago que se registra al cobrar: lo que la clienta pagó y por qué vía. */
+export interface ChargePayment {
+  amount: number;
+  method: PaymentMethod;
+}
+
+/**
+ * Argumentos de la RPC `complete_appointment`. El negocio va explícito (INVARIANTE 1).
+ * `payments` son los pagos NUEVOS al cobrar; lo que falte para el total queda a crédito.
+ */
+export function completeRpcArgs(businessId: number, plan: CompletionPlan, payments: readonly ChargePayment[] = []) {
   const { completed, lines } = plan;
   return {
     p_business_id: businessId,
@@ -173,5 +182,6 @@ export function completeRpcArgs(businessId: number, plan: CompletionPlan) {
     p_actual_cost: completed.actual_cost as number,
     p_profit: completed.profit as number,
     p_lines: lines,
+    p_payments: payments.map((p) => ({ amount: p.amount, method: p.method })),
   };
 }
