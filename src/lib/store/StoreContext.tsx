@@ -321,7 +321,10 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   useEffect(() => {
     if (missingLineIds.length === 0) return;
     missingLineIds.forEach((id) => linesRequested.current.add(id));
-    let active = true;
+    // Sin bandera de cancelación A PROPÓSITO: la propia petición cambia
+    // `missingKey` (los ids pasan a "pedidos"), así que cancelar en la limpieza
+    // del efecto descartaba la respuesta y esas citas no se volvían a pedir.
+    // Una respuesta de otro negocio la descarta mergeServiceLines (INVARIANTE 1).
     void (async () => {
       try {
         // INVARIANTE 1: filtro explícito por negocio, además de la RLS.
@@ -334,14 +337,11 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
           missingLineIds.forEach((id) => linesRequested.current.delete(id)); // reintentable
           return;
         }
-        if (active) setServiceLines((prev) => mergeServiceLines(prev, rows as ServiceProfitLine[], businessId));
+        setServiceLines((prev) => mergeServiceLines(prev, rows as ServiceProfitLine[], businessId));
       } catch {
         missingLineIds.forEach((id) => linesRequested.current.delete(id));
       }
     })();
-    return () => {
-      active = false;
-    };
     // missingKey resume missingLineIds: solo se vuelve a pedir si cambia el conjunto.
   }, [missingKey, businessId]);
 
