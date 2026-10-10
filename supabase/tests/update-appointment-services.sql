@@ -192,11 +192,13 @@ begin
     if v_msg is distinct from 'Esta cita ya no se puede modificar.' then
       raise exception 'FALLÓ 4b: editar la cita % dio "%"', s, v_msg;
     end if;
-    -- Sigue con su única línea original (Cejas).
+    -- Sigue con su única línea original (Cejas): una sola línea, y es la de Cejas.
     select count(*) into v_n from appointment_service where appointment_id = s::bigint;
-    select count(*) + v_n into v_n from appointment_service where appointment_id = s::bigint and service_id = v_svc1;
-    if v_n <> 2 then
-      raise exception 'FALLÓ 4b: las líneas de la cita % cambiaron', s;
+    if v_n is distinct from 1 then
+      raise exception 'FALLÓ 4b: la cita % quedó con % líneas, esperaba 1', s, v_n;
+    end if;
+    if not exists (select 1 from appointment_service where appointment_id = s::bigint and service_id = v_svc1) then
+      raise exception 'FALLÓ 4b: la línea de la cita % ya no es la original (Cejas)', s;
     end if;
   end loop;
 

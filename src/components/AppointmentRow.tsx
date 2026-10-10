@@ -218,7 +218,9 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
         </div>
       )}
 
-      {editingServices && (
+      {/* Si la cita deja de ser editable con el panel abierto (se cobró, o un
+          cambio en vivo la canceló), el panel se cierra: su botón de cerrar ya no se ve. */}
+      {editingServices && editable && (
         <div className="flex flex-col gap-3 rounded-xl bg-neutral-50 p-3">
           <fieldset className={field}>
             <legend className={fieldLabel}>Servicios de esta cita</legend>
