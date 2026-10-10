@@ -190,8 +190,8 @@ function AppShell() {
       {screen === 'work' && (
         /* Pestañas del modo activo */
         <nav className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur">
-          <div className="mx-auto flex max-w-xl gap-1 px-4 py-2">
-            <div className="flex flex-1 gap-1 rounded-xl bg-neutral-100 p-1">
+          <div className="mx-auto max-w-xl px-4 py-2">
+            <div className="flex gap-1 rounded-xl bg-neutral-100 p-1">
               {mode === 'services'
                 ? SERVICE_TABS.map((tab) => (
                     <button key={tab.id} type="button" className={tabButtonClass(serviceView === tab.id)} onClick={() => setServiceView(tab.id)}>
