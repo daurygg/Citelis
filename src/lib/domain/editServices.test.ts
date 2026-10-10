@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canEditServices, checkServicesEdit, updateServicesRpcArgs } from './editServices';
+import { canEditServices, checkServicesEdit, servicesChanged, updateServicesRpcArgs } from './editServices';
 import type { Appointment, AppointmentStatus, BusinessHours, Service, TimeBlock } from './types';
 
 // 2026-10-12 es lunes (weekday 1).
@@ -233,5 +233,18 @@ describe('updateServicesRpcArgs', () => {
     const args = updateServicesRpcArgs(1, 10, ids);
     expect(args).toEqual({ p_business_id: 1, p_appointment_id: 10, p_service_ids: [3, 1] });
     expect(args.p_service_ids).not.toBe(ids);
+  });
+});
+
+describe('servicesChanged', () => {
+  it('igual lista y mismo orden → sin cambios', () => {
+    expect(servicesChanged([1, 2], [1, 2])).toBe(false);
+  });
+  it('agregar o quitar → cambió', () => {
+    expect(servicesChanged([1], [1, 2])).toBe(true);
+    expect(servicesChanged([1, 2], [2])).toBe(true);
+  });
+  it('el orden cambia el servicio principal → cambió', () => {
+    expect(servicesChanged([1, 2], [2, 1])).toBe(true);
   });
 });

@@ -159,6 +159,14 @@ export function checkServicesEdit(input: ServicesEditInput): ServicesEditCheck {
   return ok;
 }
 
+/**
+ * ¿La selección difiere de lo que la cita ya tiene? El ORDEN cuenta: el primero
+ * es el servicio principal. Sin cambios no hay nada que guardar.
+ */
+export function servicesChanged(current: readonly number[], next: readonly number[]): boolean {
+  return current.length !== next.length || current.some((id, i) => id !== next[i]);
+}
+
 /** Argumentos de la RPC `update_appointment_services`. El negocio va explícito (INVARIANTE 1). */
 export function updateServicesRpcArgs(businessId: number, appointmentId: number, serviceIds: readonly number[]) {
   return {

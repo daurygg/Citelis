@@ -49,10 +49,31 @@ Ruta: un solo escritor, delegado directo.
   y `supabase/tests/update-appointment-services.sql`.
   Escrita; NO ejecutada localmente (sin Docker ni psql): la corre el job
   `sql-regression` de CI. Usuarias de la suite: `...09f3` y `...09f4`.
-- [ ] **E3 · Store** `updateAppointmentServices(id, serviceIds): Promise<ActionResult>`.
-- [ ] **E4 · UI** "Editar servicios" en `AppointmentRow`.
+- [x] **E3 · Store** `updateAppointmentServices(id, serviceIds): Promise<ActionResult>`
+  y `checkServicesEdit(id, serviceIds)` (para explicar en pantalla por qué no cabe).
+  Espera al servidor; el estado local (`service_id`, `service_ids`) cambia solo si
+  confirma. Sin test propio (el store no es testeable en vitest/node): la lógica
+  vive en el dominio.
+- [x] **E4 · UI** "Editar servicios" en `AppointmentRow`: chips (mismo patrón que
+  `ScheduleForm`), duración y estimado nuevos, guardado deshabilitado con la razón
+  visible, guardia `savingServices`, toasts. Visible en REQUESTED, PENDING e
+  IN_PROGRESS. Helper puro `servicesChanged` (RED: 3 tests fallando; GREEN).
+  Sin verlo en navegador.
 
 ## Verificación
 
 `npm run typecheck`, `npm run test:run`, `npm run build`; la regresión SQL corre en
 CI (`sql-regression`) al abrir el PR.
+
+## Cierre (2026-10-10)
+
+`npm run typecheck` limpio; `npm run test:run` 445 passed (+36) en 27 archivos;
+`npm run build` correcto. La regresión SQL NO se corrió localmente.
+
+## Preguntas abiertas de producto
+
+- Si la cita tiene `quoted_price` (precio acordado) y se agregan servicios, el
+  acuerdo se conserva tal cual y manda al cobrar. ¿Debe avisarse a la dueña de que
+  el total acordado ya no incluye lo agregado?
+- ¿La clienta debe enterarse del cambio (aviso por WhatsApp)? Hoy no se avisa.
+- Negocio sin horarios definidos: el horario no limita (como agendar hoy).
