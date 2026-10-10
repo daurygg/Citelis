@@ -12,9 +12,11 @@ import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
 import { activeEmployees } from '../lib/domain/employees';
 import { chargeTotals, type DiscountMode } from '../lib/domain/discounts';
 import { appointmentServices, buildChargeForm, initialChargeTexts, type ChargeTexts } from '../lib/domain/charge';
+import { buildPaymentPlan, type PaymentRowText } from '../lib/domain/payments';
 import { useToast } from './Toast';
 import { CalendarActions } from './CalendarActions';
 import { ClientNotice } from './ClientNotice';
+import { PaymentMethodChips, RegisterPaymentPanel, centsToText } from './PaymentPanel';
 import { btnGhostSm, btnPrimary, btnPrimarySm, btnText, card, chip, field, fieldLabel, input } from './ui';
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
@@ -42,6 +44,9 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const [editingServices, setEditingServices] = useState(false);
   const [editIds, setEditIds] = useState<number[]>([]);
   const [savingServices, setSavingServices] = useState(false);
+  // Pagos tecleados al cobrar. null = no los tocó: se ofrece el saldo en efectivo.
+  const [payRows, setPayRows] = useState<PaymentRowText[] | null>(null);
+  const [registeringPayment, setRegisteringPayment] = useState(false);
 
   const isOpen = appointment.status === 'PENDING' || appointment.status === 'IN_PROGRESS';
   const form = buildChargeForm(cobroServices ?? [], texts, store.employees);
@@ -57,7 +62,17 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
     discounts: form.discounts,
   });
   const totals = breakdown ? chargeTotals(breakdown.lines) : null;
-  const canComplete = cobroServices !== null && form.ready && !saving && (breakdown?.errors.size ?? 0) === 0;
+  // Lo ya pagado (abonos) sale de los pagos, no de la columna legada `deposit`.
+  const alreadyPaid = store.paidOf(appointment.id);
+  const total = preview?.charged_price ?? 0;
+  const rows: PaymentRowText[] = payRows ?? [{ amount: centsToText(Math.max(0, total - alreadyPaid)), method: 'cash' }];
+  const paymentPlan = buildPaymentPlan(rows, total, alreadyPaid);
+  const canComplete =
+    cobroServices !== null && form.ready && !saving && (breakdown?.errors.size ?? 0) === 0 && !paymentPlan.invalid && !paymentPlan.overpaid;
+  const paymentState = appointment.status === 'COMPLETED' ? store.paymentStatusOf(appointment.id) : null;
+  const owes = paymentState !== null && paymentState.kind === 'CREDIT' ? paymentState.balance : 0;
+  const setRow = (index: number, patch: Partial<PaymentRowText>) =>
+    setPayRows(rows.map((r, i) => (i === index ? { ...r, ...patch } : r)));
 
   const editable = canEditServices(appointment.status);
   // Si la cita deja de ser editable con el panel abierto (se cobró, o un cambio
@@ -108,7 +123,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
         priceOverrides: form.priceOverrides,
         employeeIds: form.employeeIds,
         discounts: form.discounts,
-      });
+      }, paymentPlan.payments);
     } finally {
       // Pase lo que pase, el botón no se queda bloqueado en "Guardando…".
       setSaving(false);
@@ -118,6 +133,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
       return;
     }
     setCharging(false);
+    setPayRows(null);
     setTexts({ prices: {}, total: '' });
     notify('✓ Cita completada');
   }
@@ -141,8 +157,8 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium">{appointment.client}</div>
           <div className="truncate text-sm text-neutral-500">{serviceNames(appointment, store.services) || 'Servicio desconocido'}</div>
-          {appointment.deposit != null && appointment.deposit > 0 && appointment.status !== 'COMPLETED' && (
-            <div className="text-xs text-brand-700">Abonó {formatMoney(appointment.deposit)}</div>
+          {alreadyPaid > 0 && appointment.status !== 'COMPLETED' && (
+            <div className="text-xs text-brand-700">Abonó {formatMoney(alreadyPaid)}</div>
           )}
         </div>
         {/* Estado y ganancia en una columna aparte: el nombre se queda con el ancho sobrante. */}
@@ -156,8 +172,22 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
               <div className="text-xs text-neutral-500">Cobró {formatMoney(appointment.charged_price ?? 0)}</div>
             </div>
           )}
+          {owes > 0 && (
+            <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-800">Debe {formatMoney(owes)}</span>
+          )}
         </div>
       </div>
+
+      {owes > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className={btnPrimarySm} onClick={() => setRegisteringPayment((v) => !v)}>
+            {registeringPayment ? 'Cerrar' : 'Registrar pago'}
+          </button>
+        </div>
+      )}
+      {owes > 0 && registeringPayment && (
+        <RegisterPaymentPanel appointment={appointment} onDone={() => setRegisteringPayment(false)} />
+      )}
 
       {(isOpen || editable) && (
         <div className="flex flex-wrap gap-2">
@@ -400,18 +430,53 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
                 <strong className="text-green-700">{formatMoney(preview.profit)}</strong>
               </div>
 
-              {appointment.deposit != null && appointment.deposit > 0 && (
+              {alreadyPaid > 0 && (
                 <>
                   <div className="flex justify-between border-t border-neutral-200 pt-2">
                     <span className="text-neutral-600">Abono ya pagado</span>
-                    <span>−{formatMoney(appointment.deposit)}</span>
+                    <span>−{formatMoney(alreadyPaid)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-neutral-600">Resto por cobrar</span>
-                    <strong>{formatMoney(preview.charged_price - appointment.deposit)}</strong>
+                    <strong>{formatMoney(Math.max(0, total - alreadyPaid))}</strong>
                   </div>
                 </>
               )}
+
+              {/* ¿Cómo te pagó?: una o varias filas. Pagar de menos NO bloquea: el
+                  resto queda a crédito. Solo el sobrepago impide cobrar. */}
+              <div className={field + ' border-t border-neutral-200 pt-2'}>
+                <span className={fieldLabel}>¿Cómo te pagó?</span>
+                {rows.map((row, index) => (
+                  <div key={index} className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        className={input}
+                        type="text"
+                        inputMode="decimal"
+                        aria-label={`Monto del pago ${index + 1}`}
+                        value={row.amount}
+                        onChange={(e) => setRow(index, { amount: e.target.value })}
+                        placeholder="Cuánto pagó"
+                      />
+                      {rows.length > 1 && (
+                        <button type="button" className={btnText + ' shrink-0'} onClick={() => setPayRows(rows.filter((_, i) => i !== index))}>
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+                    <PaymentMethodChips value={row.method} onChange={(method) => setRow(index, { method })} label={`Vía del pago ${index + 1}`} />
+                  </div>
+                ))}
+                <button type="button" className={btnGhostSm + ' self-start'} onClick={() => setPayRows([...rows, { amount: '', method: 'cash' }])}>
+                  + Otro pago
+                </button>
+                {paymentPlan.invalid && <p className="text-sm text-red-600">Revisa los montos: escribe un número mayor que cero.</p>}
+                {paymentPlan.overpaid && <p className="text-sm text-red-600">Eso es más de lo que se cobra.</p>}
+                {!paymentPlan.overpaid && paymentPlan.credit > 0 && (
+                  <p className="text-sm font-medium text-orange-700">Queda a crédito: {formatMoney(paymentPlan.credit)}</p>
+                )}
+              </div>
             </>
           )}
 

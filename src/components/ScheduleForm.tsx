@@ -7,7 +7,9 @@ import { newId, useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, nowLocalDatetime, parseMoneyToCents } from '../lib/format';
 import { buildChargeForm } from '../lib/domain/charge';
 import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
+import type { PaymentMethod } from '../lib/domain/types';
 import { useToast } from './Toast';
+import { PaymentMethodChips } from './PaymentPanel';
 import { btnPrimary, card, chip, field, fieldLabel, input } from './ui';
 
 export function ScheduleForm() {
@@ -26,13 +28,16 @@ export function ScheduleForm() {
   const [chargeTexts, setChargeTexts] = useState<{ prices: Record<number, string>; total: string }>({ prices: {}, total: '' });
   const [quotedText, setQuotedText] = useState(''); // precio acordado (al agendar)
   const [depositText, setDepositText] = useState(''); // abono/adelanto (al agendar)
+  const [depositMethod, setDepositMethod] = useState<PaymentMethod>('cash'); // vía del abono
+  // Atención al paso: con qué vía pagó todo, o 'credit' si todavía no pagó (queda a crédito).
+  const [walkInPay, setWalkInPay] = useState<PaymentMethod | 'credit'>('cash');
 
   // Si la dueña cambia algo tras un fallo, ya es otra cita: id nuevo. Si no, un
   // reintento con datos editados chocaría con la versión vieja ya guardada y se
   // daría por buena sin serlo.
   useEffect(() => {
     setDraftId(null);
-  }, [client, selectedIds, datetime, walkIn, quotedText, depositText, chargeTexts]);
+  }, [client, selectedIds, datetime, walkIn, quotedText, depositText, depositMethod, walkInPay, chargeTexts]);
 
   const selection = summarizeSelection(store.services, selectedIds);
   const selectedServices = selection.service_ids.flatMap((id) => store.services.find((s) => s.id === id) ?? []);
@@ -62,6 +67,7 @@ export function ScheduleForm() {
           datetime: datetime || nowLocalDatetime(),
           priceOverrides: charge.priceOverrides,
           price: charge.overridePrice,
+          payment_method: walkInPay === 'credit' ? null : walkInPay,
         });
       } finally {
         setSaving(false);
@@ -91,6 +97,7 @@ export function ScheduleForm() {
           datetime,
           quoted_price: quotedCents,
           deposit: depositCents,
+          deposit_method: depositCents ? depositMethod : undefined,
         });
       } finally {
         setSaving(false);
@@ -108,6 +115,8 @@ export function ScheduleForm() {
     setChargeTexts({ prices: {}, total: '' });
     setQuotedText('');
     setDepositText('');
+    setDepositMethod('cash');
+    setWalkInPay('cash');
   }
 
   return (
@@ -208,6 +217,15 @@ export function ScheduleForm() {
               />
             </label>
           )}
+          <div className={field}>
+            <span className={fieldLabel}>¿Cómo te pagó?</span>
+            <PaymentMethodChips
+              value={walkInPay === 'credit' ? null : walkInPay}
+              onChange={setWalkInPay}
+              label="Vía de pago"
+              extra={{ label: 'Todavía no pagó (a crédito)', active: walkInPay === 'credit', onSelect: () => setWalkInPay('credit') }}
+            />
+          </div>
         </>
       )}
 
@@ -237,6 +255,12 @@ export function ScheduleForm() {
             placeholder="Lo que dejó pagado por adelantado"
           />
         </label>
+      )}
+      {!walkIn && depositCents !== undefined && depositCents > 0 && (
+        <div className={field}>
+          <span className={fieldLabel}>¿Cómo pagó el abono?</span>
+          <PaymentMethodChips value={depositMethod} onChange={setDepositMethod} label="Vía del abono" />
+        </div>
       )}
 
       <label className="flex min-h-11 items-center gap-2 text-sm text-neutral-700">
