@@ -9,6 +9,7 @@ import type { AppointmentStatus, Appointment } from '../lib/domain/types';
 import { appointmentServiceIds, serviceNames } from '../lib/domain/appointments';
 import { canEditServices, servicesChanged } from '../lib/domain/editServices';
 import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
+import { activeEmployees } from '../lib/domain/employees';
 import { appointmentServices, buildChargeForm, initialChargeTexts, type ChargeTexts } from '../lib/domain/charge';
 import { useToast } from './Toast';
 import { CalendarActions } from './CalendarActions';
@@ -42,7 +43,8 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const [savingServices, setSavingServices] = useState(false);
 
   const isOpen = appointment.status === 'PENDING' || appointment.status === 'IN_PROGRESS';
-  const form = buildChargeForm(cobroServices ?? [], texts);
+  const form = buildChargeForm(cobroServices ?? [], texts, store.employees);
+  const assignable = activeEmployees(store.employees);
   const preview = store.completionPreview(appointment.id, {
     overridePrice: form.overridePrice,
     priceOverrides: form.priceOverrides,
@@ -96,6 +98,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
       result = await store.complete(appointment.id, {
         overridePrice: form.overridePrice,
         priceOverrides: form.priceOverrides,
+        employeeIds: form.employeeIds,
       });
     } finally {
       // Pase lo que pase, el botón no se queda bloqueado en "Guardando…".
@@ -289,6 +292,31 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
               />
             </label>
           ))}
+
+          {/* Quién hizo cada servicio: opcional, y solo si hay empleadas activas. */}
+          {assignable.length > 0 &&
+            (cobroServices ?? []).map((service) => (
+              <label key={service.id} className={field}>
+                <span className={fieldLabel}>¿Quién hizo {service.name}?</span>
+                <select
+                  className={input + ' min-h-11'}
+                  value={texts.employees?.[service.id] ?? ''}
+                  onChange={(e) =>
+                    setTexts((t) => ({
+                      ...t,
+                      employees: { ...t.employees, [service.id]: e.target.value === '' ? null : Number(e.target.value) },
+                    }))
+                  }
+                >
+                  <option value="">Sin asignar</option>
+                  {assignable.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
 
           {/* Sin vista previa (servicio de precio variable sin precio todavía) el
               panel sigue: el campo de arriba es justo el que la desbloquea. */}

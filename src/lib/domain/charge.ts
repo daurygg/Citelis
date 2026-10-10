@@ -6,7 +6,8 @@
 // servicios les falta precio?", y se contesta uno por uno (D2 de
 // odd/tasks/multi-service-appointments.md).
 
-import type { Appointment, Service } from './types';
+import type { Appointment, Employee, Service } from './types';
+import { activeEmployees } from './employees';
 import {
   appointmentServiceIds,
   appointmentServiceLines,
@@ -22,6 +23,8 @@ export interface ChargeTexts {
   prices: Record<number, string>;
   /** Total cobrado, opcional (precio pactado / combo). */
   total: string;
+  /** Empleada elegida por servicio (id de servicio → id de empleada). Opcional. */
+  employees?: Record<number, number | null>;
 }
 
 export interface ChargeForm {
@@ -29,6 +32,8 @@ export interface ChargeForm {
   variableServices: Service[];
   /** Precio de cada servicio variable ya tecleado, en centavos. */
   priceOverrides: Map<number, number>;
+  /** Empleada elegida por servicio (opcional): solo las activas y de esta cita. */
+  employeeIds: Map<number, number>;
   /** Total que manda sobre la suma, si lo hay. */
   overridePrice: number | undefined;
   /** ¿Se puede completar? Todos los variables tienen precio. */
@@ -56,12 +61,22 @@ function positiveCents(text: string | undefined): number | null {
 export function buildChargeForm(
   services: readonly Service[],
   texts: ChargeTexts,
+  employees: readonly Employee[] = [],
 ): ChargeForm {
   const variableServices = services.filter((s) => s.variable_price);
   const priceOverrides = new Map<number, number>();
   for (const service of variableServices) {
     const cents = positiveCents(texts.prices[service.id]);
     if (cents !== null) priceOverrides.set(service.id, cents);
+  }
+
+  // La empleada es opcional: solo cuenta la que la dueña eligió, para un servicio
+  // de ESTA cita y que siga activa (el servidor rechaza a una dada de baja).
+  const assignable = new Set(activeEmployees(employees).map((e) => e.id));
+  const employeeIds = new Map<number, number>();
+  for (const service of services) {
+    const chosen = texts.employees?.[service.id];
+    if (chosen != null && assignable.has(chosen)) employeeIds.set(service.id, chosen);
   }
 
   const single = services.length === 1;
@@ -75,6 +90,7 @@ export function buildChargeForm(
   return {
     variableServices,
     priceOverrides,
+    employeeIds,
     overridePrice: singleVariable ?? totalCents,
     ready: variableServices.every((s) => priceOverrides.has(s.id)),
     showTotalField: !(single && variableServices.length === 1),
@@ -117,7 +133,11 @@ export function planCompletion(
     throw new Error(`Faltan servicios de la cita ${appointment.id} en el catálogo.`);
   }
   const completed = completeAppointment(appointment, services, options);
-  const lines = appointmentServiceLines(completed, services, options.priceOverrides);
+  const employeeIds = options.employeeIds;
+  const lines = appointmentServiceLines(completed, services, options.priceOverrides).map((line) => {
+    const employeeId = employeeIds?.get(line.service_id);
+    return employeeId === undefined ? line : { ...line, employee_id: employeeId };
+  });
   return { completed, lines };
 }
 

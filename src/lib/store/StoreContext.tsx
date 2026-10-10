@@ -8,6 +8,7 @@ import type {
   BookingPolicyRow,
   Business,
   BusinessHours,
+  Employee,
   FixedExpense,
   Service,
   ServiceSupply,
@@ -114,6 +115,11 @@ export interface TimeBlockInput {
 
 export interface Store {
   services: readonly Service[];
+  /** Todas las empleadas del negocio, activas o no (las de baja siguen en el historial). */
+  employees: readonly Employee[];
+  addEmployee: (name: string) => number;
+  renameEmployee: (employeeId: number, name: string) => void;
+  setEmployeeActive: (employeeId: number, active: boolean) => void;
   appointmentsForDay: (isoDate: string) => Appointment[];
   projectedProfitForDay: (isoDate: string) => number;
   dayReport: (isoDate: string) => WeekSummary;
@@ -187,6 +193,7 @@ interface LoadedData {
   services: Service[];
   supplies: Supply[];
   serviceSupplies: ServiceSupply[];
+  employees: Employee[];
   appointments: Appointment[];
   /** Líneas de `appointment_service` con su ganancia congelada (reportes por servicio). */
   serviceLines: ServiceProfitLine[];
@@ -230,12 +237,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // INVARIANTE 1: cada consulta filtra por business_id de forma explícita,
       // además de la RLS. Con varias membresías, la RLS deja ver las filas de
       // todos los negocios del usuario; sin este filtro se mezclarían.
-      const [biz, svc, sup, ss, apt, aptSvc, fx, bh, tb, bp] = await Promise.all([
+      const [biz, svc, sup, ss, emp, apt, aptSvc, fx, bh, tb, bp] = await Promise.all([
         // El nombre del negocio sale en el .ics y en el link de Google Calendar.
         supabase.from('business').select('*').eq('id', businessId),
         supabase.from('service').select('*').eq('business_id', businessId),
         supabase.from('supply').select('*').eq('business_id', businessId),
         supabase.from('service_supply').select('*').eq('business_id', businessId),
+        supabase.from('employee').select('*').eq('business_id', businessId).order('id', { ascending: true }),
         supabase.from('appointment').select('*').eq('business_id', businessId),
         // Los servicios de cada cita (varios por cita): alimentan `service_ids` y,
         // con `profit` (congelado al completar), el servicio más rentable.
@@ -253,6 +261,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         services: (svc.data ?? []) as Service[],
         supplies: (sup.data ?? []) as Supply[],
         serviceSupplies: (ss.data ?? []) as ServiceSupply[],
+        employees: (emp.data ?? []) as Employee[],
         // Si la consulta de líneas falla, cada cita cae a su `service_id`.
         appointments: foldServiceIds((apt.data ?? []) as Appointment[], (aptSvc.data ?? []) as AppointmentServiceRow[], businessId),
         serviceLines: ((aptSvc.data ?? []) as ServiceProfitLine[]).filter((l) => l.business_id === businessId),
@@ -292,6 +301,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   const [services, setServices] = useState<readonly Service[]>(data.services);
   const [supplies, setSupplies] = useState<readonly Supply[]>(data.supplies);
   const [serviceSupplies, setServiceSupplies] = useState<readonly ServiceSupply[]>(data.serviceSupplies);
+  const [employees, setEmployees] = useState<readonly Employee[]>(data.employees);
   const [appointments, setAppointments] = useState<readonly Appointment[]>(data.appointments);
   const [serviceLines, setServiceLines] = useState<readonly ServiceProfitLine[]>(data.serviceLines);
   const [fixedExpenses, setFixedExpenses] = useState<readonly FixedExpense[]>(data.fixedExpenses);
@@ -865,8 +875,34 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     return { ok: true, slug: newSlug };
   }
 
+  // Empleadas: mismo patrón que servicios e insumos (estado local + `persist`).
+  // No se borran: se dan de baja, porque su nombre sigue en lo ya cobrado.
+  function addEmployee(name: string): number {
+    const employee: Employee = { id: newId(), business_id: businessId, name, active: true };
+    setEmployees((prev) => [...prev, employee]);
+    persist(supabase.from('employee').insert(employee));
+    return employee.id;
+  }
+
+  function patchEmployee(employeeId: number, patch: Partial<Pick<Employee, 'name' | 'active'>>): void {
+    setEmployees((prev) => prev.map((e) => (e.id === employeeId ? { ...e, ...patch } : e)));
+    persist(supabase.from('employee').update(patch).eq('id', employeeId).eq('business_id', businessId));
+  }
+
+  function renameEmployee(employeeId: number, name: string): void {
+    patchEmployee(employeeId, { name });
+  }
+
+  function setEmployeeActive(employeeId: number, active: boolean): void {
+    patchEmployee(employeeId, { active });
+  }
+
   const store: Store = {
     services,
+    employees,
+    addEmployee,
+    renameEmployee,
+    setEmployeeActive,
     appointmentsForDay,
     projectedProfitForDay,
     dayReport,

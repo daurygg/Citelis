@@ -162,9 +162,13 @@ export interface AppointmentServiceLine {
   charged_price: number;
   actual_cost: number;
   profit: number;
+  /** Quién hizo este servicio, si la dueña lo eligió al cobrar. Ausente = sin asignar. */
+  employee_id?: number;
 }
 
 export interface CompleteOptions {
+  /** Empleada de cada servicio, por id de servicio (opcional, solo donde se eligió). */
+  employeeIds?: ReadonlyMap<number, number>;
   /** Precio total del cobro, si la dueña cobra algo distinto a la suma de lista. */
   overridePrice?: number;
   /** Precio que la dueña le pone a cada servicio de precio variable, por id. */
