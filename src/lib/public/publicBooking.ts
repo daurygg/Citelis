@@ -138,7 +138,8 @@ export async function fetchPublicBusy(slug: string, date: string): Promise<Publi
 
 export interface PublicRequestBookingInput {
   slug: string;
-  serviceId: number;
+  /** Uno o varios. La RPC recibe un arreglo desde T4. */
+  serviceIds: readonly number[];
   datetime: string; // ISO local 'YYYY-MM-DDTHH:MM'
   clientName: string;
   clientPhone: string;
@@ -156,7 +157,7 @@ export async function requestPublicBooking(
 ): Promise<PublicRequestBookingResult> {
   const { data, error } = await supabase.rpc('public_request_booking', {
     p_slug: input.slug,
-    p_service_id: input.serviceId,
+    p_service_ids: input.serviceIds,
     p_datetime: input.datetime,
     p_client_name: input.clientName,
     p_client_phone: input.clientPhone,

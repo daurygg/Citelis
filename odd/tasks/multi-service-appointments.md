@@ -149,10 +149,10 @@ mano, no en CI**.
   (D4), `completeAppointment` recibiendo N servicios, y el reparto congelado de
   D1. Aquí muere el booleano `isVariable`: pasa a ser "qué servicios de esta cita
   necesitan que les pongas precio".
-- [~] **T3 · Migración.** `appointment_service` con su RLS, backfill, y las
-  columnas del reparto congelado.
-- [ ] **T4 · RPC públicas.** `public_request_booking` y `public_busy` con sumas,
-  más su regresión SQL.
+- [x] **T3 · Migración.** `appointment_service` con su RLS, backfill, y las
+  columnas del reparto congelado. Verificada en CitelisDev el 2026-10-09.
+- [x] **T4 · RPC públicas.** `public_request_booking` y `public_busy` con sumas,
+  más su regresión SQL. Verificada en CitelisDev el 2026-10-09.
 - [ ] **T5 · Portal.** Selección múltiple, huecos para la suma, y el envío.
 - [ ] **T6 · Agenda de la dueña.** `ScheduleForm`, reprogramar, `AppointmentRow`.
 - [ ] **T7 · Calendario y aviso push.** Título con N nombres, fin en la suma.
@@ -247,3 +247,121 @@ La número 4 de la regresión: ninguna cita se queda sin línea, y ninguna cita
 COMPLETADA de un solo servicio tiene su línea con dinero distinto al de la cita.
 Si una sola cita histórica cambia de números, la migración es inaceptable
 (INVARIANTE 2).
+
+## T4 escrita, PENDIENTE de correr contra una base (2026-09-29)
+
+`supabase/migrations/20260929000002_public_rpcs_multi_service.sql` y
+`supabase/tests/public-rpcs-multi-service.sql`. Copias para pegar en
+`~/citelis-T4-migracion.sql` y `~/citelis-T4-regresion.sql`.
+
+**NO verificada**, por lo mismo que T3: sin acceso a base de datos.
+
+### Cómo se escribió, que aquí importa más que qué se escribió
+
+`public_request_booking` son 100 líneas de validaciones que se escribieron a mano
+replicando `availability.ts` "al detalle" DESPUÉS de fallos reales en producción
+(H2–H5). Reescribirla es la forma más rápida de que las dos copias se separen.
+
+Por eso no se reescribió: se partió del texto vigente y se aplicaron **cuatro
+cambios dirigidos** — la firma, la duración como suma, el choque leyendo
+`appointment_service`, y el insert de las líneas. Ninguna validación se tocó,
+reordenó ni relajó.
+
+**La regresión `self-booking-regression.sql` tiene que seguir pasando.** No es
+opcional: es la única red que avisa si esta migración tocó H1–H6 sin querer.
+
+### El fallo seguro, replicado
+
+`availability.ts` bloquea a infinito cuando no puede saber cuánto dura una cita
+(decisión A6). Lo mismo aquí, en los dos sitios: `public_busy` reporta un bloque
+de 24 h y el choque trata `d.total is null` como que choca. Sin eso, una cita sin
+líneas resolubles ocuparía cero minutos y dejaría pasar una doble reserva —
+exactamente el agujero que A6 cerró del lado del navegador.
+
+La aserción 7 de la regresión lo prueba borrando las líneas de una cita y
+comprobando que sigue bloqueando.
+
+### Lo que NO cambia
+
+`public_business` sigue filtrando `variable_price = false`. Los servicios de
+precio variable entran al portal en T5, junto con la pantalla que sabe decir "a
+convenir". Así T4 no cambia nada visible: el portal sigue mandando un solo
+servicio, ahora dentro de un arreglo.
+
+### Corrección de T4 tras correrla (2026-09-29)
+
+```
+ERROR: 42883: function make_interval(mins => bigint) does not exist
+```
+
+`sum()` devuelve `bigint` y `make_interval(mins =>)` solo acepta `integer`. El
+cast estaba puesto en `public_busy` pero NO en el lateral del choque dentro de
+`public_request_booking` — una inconsistencia que solo aparece ejecutando, no
+leyendo.
+
+Corregido en los tres `sum()` que alimentan cálculos de intervalo. Y anotado como
+recordatorio: escribir SQL sin poder correrlo tiene este coste, y la única
+defensa es que alguien lo corra antes de que llegue a producción.
+
+### La red de seguridad estaba rota, y no por T4 (2026-09-29)
+
+Al correr `self-booking-regression.sql` tras T4:
+
+```
+ERROR: 42883: function "public.create_business(text)" does not exist
+```
+
+Eso NO lo rompió T4. `create_business(text)` se eliminó el **22 de septiembre**,
+en la migración del color, y la tabla de permisos de H1 seguía preguntando por
+esa firma. `has_function_privilege` revienta si la función no existe, así que la
+suite entera moría en su primera aserción.
+
+Conclusión incómoda: **la suite llevaba una semana sin correrse y nadie se
+enteró**. Es la consecuencia exacta de que sea manual y no esté en CI, que ya
+estaba anotado como deuda en `self-booking.md` y hoy pasó factura.
+
+Actualizado: la firma de `create_business` a la vigente (tres argumentos), la de
+`public_request_booking` al arreglo, y las tres llamadas del test. Con un
+comentario en la tabla para que la próxima vez se vea el porqué.
+
+**Pendiente propuesto**: meter esta suite en CI contra una base efímera. Mientras
+sea manual, va a volver a pasar.
+
+## T3 y T4 verificadas en CitelisDev (2026-10-09)
+
+El usuario corrió las migraciones y las regresiones a mano el 2026-10-01. Hoy se
+confirmó con una consulta de solo lectura (`supabase db query --linked`):
+`appointment_service` existe con RLS activa, `public_busy` y
+`public_request_booking` llevan el cast `::integer` corregido, y solo hay una
+versión de `public_request_booking`.
+
+Como se corrieron a mano, no estaban en el historial. Se marcaron con
+`migration repair --status applied 20260929000001 20260929000002`, y
+`migration list` muestra las 13 con Local = Remote.
+
+La rama trae `develop` (#27, filtro `business_id`) sin conflictos. Typecheck
+limpio, 302/302 tests.
+
+## Entrega de T1–T4 (2026-10-09)
+
+Estrategia: PRs apilados contra `develop` (`stacked-to-main`). Cuatro cortes, uno
+por tarea, sobre los commits que ya existían:
+
+| PR | Rama | Commits | Líneas |
+|---|---|---|---|
+| 1 | `feat/multi-service-1-duration` | 3ef1d62, 0faa9f1, 257fe15 | ~701 |
+| 2 | `feat/multi-service-2-money` | e64c4fe | ~570 |
+| 3 | `feat/multi-service-3-table` | 06552bc | ~244 |
+| 4 | `feat/multi-service-4-rpcs` | af0a4f7, 40ec895, d6760f8 y este documento | ~490 |
+
+PR 1 y PR 2 pasan de 400 líneas: achicarlos más obligaba a separar el código de
+sus tests (`size:exception`). Cada corte, integrado sobre `develop`, pasa
+typecheck y tests (280, 302, 302, 302).
+
+Al mergear un PR, el siguiente se retargetea a `develop` ANTES de mergearlo. Si
+no, se mergea en la rama vieja y no llega a `develop` (ya pasó con #21).
+
+CitelisDev ya tiene aplicadas las migraciones de T3 y T4. Mientras PR 4 no esté
+en `develop`, el portal del preview de `develop` llama a `public_request_booking`
+con la firma vieja y la reserva falla. En producción hay que aplicar las dos
+migraciones en el mismo release que lleve el portal nuevo.

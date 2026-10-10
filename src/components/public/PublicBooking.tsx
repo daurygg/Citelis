@@ -251,7 +251,8 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
     setSubmitError(null);
     const result = await requestPublicBooking({
       slug: activeSlug,
-      serviceId: selectedService.service_id,
+      // Un solo servicio todavía: la selección múltiple llega en T5.
+      serviceIds: [selectedService.service_id],
       datetime: selectedSlot.start,
       clientName: name,
       clientPhone: phone,
