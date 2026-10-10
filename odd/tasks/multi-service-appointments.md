@@ -341,3 +341,27 @@ Como se corrieron a mano, no estaban en el historial. Se marcaron con
 
 La rama trae `develop` (#27, filtro `business_id`) sin conflictos. Typecheck
 limpio, 302/302 tests.
+
+## Entrega de T1–T4 (2026-10-09)
+
+Estrategia: PRs apilados contra `develop` (`stacked-to-main`). Cuatro cortes, uno
+por tarea, sobre los commits que ya existían:
+
+| PR | Rama | Commits | Líneas |
+|---|---|---|---|
+| 1 | `feat/multi-service-1-duration` | 3ef1d62, 0faa9f1, 257fe15 | ~701 |
+| 2 | `feat/multi-service-2-money` | e64c4fe | ~570 |
+| 3 | `feat/multi-service-3-table` | 06552bc | ~244 |
+| 4 | `feat/multi-service-4-rpcs` | af0a4f7, 40ec895, d6760f8 y este documento | ~490 |
+
+PR 1 y PR 2 pasan de 400 líneas: achicarlos más obligaba a separar el código de
+sus tests (`size:exception`). Cada corte, integrado sobre `develop`, pasa
+typecheck y tests (280, 302, 302, 302).
+
+Al mergear un PR, el siguiente se retargetea a `develop` ANTES de mergearlo. Si
+no, se mergea en la rama vieja y no llega a `develop` (ya pasó con #21).
+
+CitelisDev ya tiene aplicadas las migraciones de T3 y T4. Mientras PR 4 no esté
+en `develop`, el portal del preview de `develop` llama a `public_request_booking`
+con la firma vieja y la reserva falla. En producción hay que aplicar las dos
+migraciones en el mismo release que lleve el portal nuevo.
