@@ -2,7 +2,7 @@
 // y Cancelar. Al cobrar, muestra precio/costo/ganancia (ya calculados por el store).
 // Pide UN precio por cada servicio de precio variable antes de completar; lo que
 // se pide, y cuándo se puede cobrar, lo decide `buildChargeForm` (dominio puro).
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, statusLabel } from '../lib/format';
 import type { AppointmentStatus, Appointment } from '../lib/domain/types';
@@ -50,6 +50,12 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const canComplete = cobroServices !== null && form.ready && !saving;
 
   const editable = canEditServices(appointment.status);
+  // Si la cita deja de ser editable con el panel abierto (se cobró, o un cambio
+  // en vivo la canceló), el panel se cierra de verdad: sin esto quedaría oculto
+  // pero abierto, y reaparecería con una selección vieja.
+  useEffect(() => {
+    if (!editable) setEditingServices(false);
+  }, [editable]);
   const currentIds = appointmentServiceIds(appointment);
   const editSummary = summarizeSelection(store.services, editIds);
   const editCheck = editingServices ? store.checkServicesEdit(appointment.id, editIds) : null;
@@ -221,8 +227,6 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
         </div>
       )}
 
-      {/* Si la cita deja de ser editable con el panel abierto (se cobró, o un
-          cambio en vivo la canceló), el panel se cierra: su botón de cerrar ya no se ve. */}
       {editingServices && editable && (
         <div className="flex flex-col gap-3 rounded-xl bg-neutral-50 p-3">
           <fieldset className={field}>
