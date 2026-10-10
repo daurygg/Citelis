@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { weekSummary, sumFixedExpenses, netProfit, proratedFixedExpenses, expectedProfit, fixedExpensesForMonth } from './reports';
+import { weekSummary, sumFixedExpenses, netProfit, proratedFixedExpenses, expectedProfit, expectedProfitForServices, fixedExpensesForMonth } from './reports';
 import type { Appointment, FixedExpense, Service } from './types';
 
 function svc(partial: Partial<Service> = {}): Service {
@@ -199,5 +199,37 @@ describe('proratedFixedExpenses', () => {
 
   it('un día devuelve 1/30 del mes', () => {
     expect(proratedFixedExpenses(30000, 1)).toBe(1000);
+  });
+});
+
+describe('expectedProfitForServices', () => {
+  const a = svc({ id: 1, price: 5000, supply_cost: 1000 });
+  const b = svc({ id: 2, price: 4000, supply_cost: 500 });
+  const variable = svc({ id: 3, price: 0, supply_cost: 300, variable_price: true });
+  const open = (partial: Partial<Appointment>) => completed({ status: 'PENDING', charged_price: null, actual_cost: null, profit: null, ...partial });
+
+  it('un solo servicio da lo mismo que expectedProfit', () => {
+    const apt = open({ service_id: 1 });
+    expect(expectedProfitForServices(apt, [a])).toBe(expectedProfit(apt, a));
+  });
+
+  it('con varios, suma precio de lista menos la suma de costos', () => {
+    expect(expectedProfitForServices(open({ service_id: 1, service_ids: [1, 2] }), [a, b])).toBe(9000 - 1500);
+  });
+
+  it('el precio acordado manda sobre la suma', () => {
+    expect(expectedProfitForServices(open({ service_id: 1, service_ids: [1, 2], quoted_price: 8000 }), [a, b])).toBe(8000 - 1500);
+  });
+
+  it('con un servicio variable sin precio ni acuerdo es null (no se inventa)', () => {
+    expect(expectedProfitForServices(open({ service_id: 1, service_ids: [1, 3] }), [a, variable])).toBeNull();
+  });
+
+  it('con precio total acordado, el servicio variable queda cubierto', () => {
+    expect(expectedProfitForServices(open({ service_id: 1, service_ids: [1, 3], quoted_price: 9000 }), [a, variable])).toBe(9000 - 1300);
+  });
+
+  it('sin servicios devuelve null', () => {
+    expect(expectedProfitForServices(open({}), [])).toBeNull();
   });
 });

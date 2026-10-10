@@ -3,7 +3,7 @@
 // CERO dependencias de React. Todo en centavos enteros.
 
 import type { Appointment, FixedExpense, Service } from './types';
-import { effectiveCost, profit } from './costs';
+import { effectiveCost, priceForServices, profit } from './costs';
 
 export interface MostProfitableService {
   service_id: number;
@@ -122,6 +122,27 @@ export function expectedProfit(appointment: Appointment, service: Service): numb
   const price = appointment.quoted_price ?? service.price;
   if (price <= 0) return null;
   return profit(price, effectiveCost(service));
+}
+
+/**
+ * Ganancia esperada de una cita abierta con TODOS sus servicios (`services` son
+ * los de la cita). Precio: el acordado al agendar, o el del conjunto
+ * (`priceForServices`). Devuelve null si no hay servicios, si hay uno de precio
+ * variable sin precio y sin acuerdo, o si el precio total es 0 (desconocido):
+ * mejor no sumar nada que inventar dinero. Con un solo servicio da lo mismo que
+ * `expectedProfit`.
+ */
+export function expectedProfitForServices(
+  appointment: Appointment,
+  services: readonly Service[],
+): number | null {
+  if (services.length === 0) return null;
+  const quote = priceForServices(services);
+  if (quote.needsPrice.length > 0 && appointment.quoted_price === null) return null;
+  const price = appointment.quoted_price ?? quote.total;
+  if (price <= 0) return null;
+  const cost = services.reduce((sum, s) => sum + effectiveCost(s), 0);
+  return profit(price, cost);
 }
 
 /**

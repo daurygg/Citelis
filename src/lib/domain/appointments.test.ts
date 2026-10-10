@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
+  appointmentServiceIds,
   isValidTransition,
   transition,
   completeAppointment,
   holdsSchedule,
   appointmentServiceLines,
+  foldServiceIds,
+  serviceNames,
+  previewCompletion,
 } from './appointments';
 import type { Appointment, AppointmentStatus, Service } from './types';
 
@@ -345,5 +349,95 @@ describe('appointmentServiceLines', () => {
     const lineas = appointmentServiceLines(hecha, [gratis1, gratis2]);
     expect(lineas.reduce((a, l) => a + l.charged_price, 0)).toBe(0);
     expect(lineas.every((l) => Number.isInteger(l.profit))).toBe(true);
+  });
+});
+
+describe('foldServiceIds', () => {
+  const line = (appointment_id: number, service_id: number, business_id = 1) => ({
+    appointment_id,
+    service_id,
+    business_id,
+  });
+
+  it('vuelca las líneas en service_ids, con el servicio principal primero y el resto ascendente', () => {
+    const apts = [appointment({ id: 1, service_id: 5 })];
+    const [result] = foldServiceIds(apts, [line(1, 9), line(1, 5), line(1, 2)], 1);
+    expect(result.service_ids).toEqual([5, 2, 9]);
+  });
+
+  it('una cita sin líneas queda sin service_ids (cae a [service_id])', () => {
+    const [result] = foldServiceIds([appointment({ id: 1 })], [], 1);
+    expect(result.service_ids).toBeUndefined();
+    expect(appointmentServiceIds(result)).toEqual([1]);
+  });
+
+  it('no mezcla las líneas de una cita con otra', () => {
+    const apts = [appointment({ id: 1, service_id: 1 }), appointment({ id: 2, service_id: 3 })];
+    const [a, b] = foldServiceIds(apts, [line(1, 1), line(1, 4), line(2, 3)], 1);
+    expect(a.service_ids).toEqual([1, 4]);
+    expect(b.service_ids).toEqual([3]);
+  });
+
+  it('ignora líneas de otro negocio (INVARIANTE 1)', () => {
+    const [result] = foldServiceIds([appointment({ id: 1 })], [line(1, 1), line(1, 8, 99)], 1);
+    expect(result.service_ids).toEqual([1]);
+  });
+
+  it('no muta la lista original', () => {
+    const apts = [appointment({ id: 1 })];
+    foldServiceIds(apts, [line(1, 1), line(1, 2)], 1);
+    expect(apts[0].service_ids).toBeUndefined();
+  });
+});
+
+describe('serviceNames', () => {
+  const catalog = [service({ id: 1, name: 'Cejas' }), service({ id: 2, name: 'Ondas' })];
+
+  it('une los nombres de todos los servicios de la cita', () => {
+    expect(serviceNames(appointment({ service_id: 1, service_ids: [1, 2] }), catalog)).toBe('Cejas + Ondas');
+  });
+
+  it('una cita de un solo servicio muestra solo ese', () => {
+    expect(serviceNames(appointment({ service_id: 2 }), catalog)).toBe('Ondas');
+  });
+
+  it('un id que no está en el catálogo no revienta: se omite', () => {
+    expect(serviceNames(appointment({ service_id: 1, service_ids: [1, 99] }), catalog)).toBe('Cejas');
+  });
+
+  it('si ninguno está en el catálogo devuelve cadena vacía', () => {
+    expect(serviceNames(appointment({ service_id: 99 }), catalog)).toBe('');
+  });
+});
+
+describe('previewCompletion', () => {
+  const a = service({ id: 1, name: 'Cejas', price: 5000, supply_cost: 1000 });
+  const b = service({ id: 2, name: 'Ondas', price: 4000, supply_cost: 500 });
+  const variable = service({ id: 3, name: 'Peinado', price: 0, supply_cost: 300, variable_price: true });
+
+  it('cobra la suma del conjunto y suma los costos', () => {
+    const apt = appointment({ service_id: 1, service_ids: [1, 2] });
+    expect(previewCompletion(apt, [a, b])).toEqual({ charged_price: 9000, actual_cost: 1500, profit: 7500 });
+  });
+
+  it('el override y el precio acordado siguen mandando sobre la suma', () => {
+    const apt = appointment({ service_id: 1, service_ids: [1, 2], quoted_price: 8000 });
+    expect(previewCompletion(apt, [a, b])?.charged_price).toBe(8000);
+    expect(previewCompletion(apt, [a, b], 7000)?.charged_price).toBe(7000);
+  });
+
+  it('con un servicio variable sin precio ni override devuelve null, no inventa dinero', () => {
+    const apt = appointment({ service_id: 1, service_ids: [1, 3] });
+    expect(previewCompletion(apt, [a, variable])).toBeNull();
+  });
+
+  it('si el total viene dado (override), cubre al servicio variable', () => {
+    const apt = appointment({ service_id: 1, service_ids: [1, 3] });
+    expect(previewCompletion(apt, [a, variable], 9000)).toEqual({ charged_price: 9000, actual_cost: 1300, profit: 7700 });
+  });
+
+  it('si falta algún servicio del catálogo devuelve null', () => {
+    const apt = appointment({ service_id: 1, service_ids: [1, 2] });
+    expect(previewCompletion(apt, [a])).toBeNull();
   });
 });

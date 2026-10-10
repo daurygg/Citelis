@@ -153,8 +153,32 @@ mano, no en CI**.
   columnas del reparto congelado. Verificada en CitelisDev el 2026-10-09.
 - [x] **T4 · RPC públicas.** `public_request_booking` y `public_busy` con sumas,
   más su regresión SQL. Verificada en CitelisDev el 2026-10-09.
+- [x] **T6a · La agenda LEE los servicios de cada cita.** Cargar `appointment_service`
+  y volcarlo en `service_ids`, también en la sincronización en vivo. Nombres de
+  todos los servicios en `AppointmentRow`, `RequestsInbox` y `ClientNotice`.
+  Reprogramar comprueba choques con la duración de todos. Vista previa del cobro
+  y proyección del día con el precio del conjunto.
+
+  Hecho en `feat/multi-service-6a-read` (TDD): `foldServiceIds`, `serviceNames`,
+  `previewCompletion` (appointments.ts), `expectedProfitForServices` (reports.ts),
+  `applyServiceIds` (appointmentSync.ts). Live sync: `applyAppointmentChange`
+  conserva el `service_ids` en memoria si la fila del servidor no lo trae; tras
+  cada evento se piden las líneas de ESA cita (Realtime no emite
+  `appointment_service`); la puesta al día pide citas y líneas juntas y no
+  reemplaza nada si falla alguna. `scheduleConflict` ahora recibe un arreglo de
+  ids. `AppointmentRow` exige precio si CUALQUIER servicio es variable y ya no
+  oculta el panel de cobro cuando la vista previa es null.
+  RED: 30 tests fallando (appointments 14, reports 6, appointmentSync 6,
+  liveAppointments 4 nuevos). GREEN: 340 passed (340) en 21 archivos; typecheck
+  y build limpios. Sin ver en navegador. Commit: `f0a8d98`.
+- [ ] **T6b · Cobrar una cita de varios servicios.** Un precio por cada servicio
+  variable (muere `isVariable` en la UI). Congelar la cita y sus líneas
+  (`appointmentServiceLines`) en UNA transacción, con una RPC que solo persiste
+  lo que calculó el dominio y rechaza tocar una cita ya `COMPLETED`.
+- [ ] **T6c · La dueña agenda varios servicios.** `ScheduleForm` y la cita de
+  mostrador con selección múltiple; la cita nace con sus líneas.
 - [ ] **T5 · Portal.** Selección múltiple, huecos para la suma, y el envío.
-- [ ] **T6 · Agenda de la dueña.** `ScheduleForm`, reprogramar, `AppointmentRow`.
+  Incluye abrir `public_business` a los servicios de precio variable (D2).
 - [ ] **T7 · Calendario y aviso push.** Título con N nombres, fin en la suma.
 - [ ] **T8 · Reportes.** Leer el reparto congelado en vez de atribuir a uno.
 
@@ -365,3 +389,25 @@ CitelisDev ya tiene aplicadas las migraciones de T3 y T4. Mientras PR 4 no esté
 en `develop`, el portal del preview de `develop` llama a `public_request_booking`
 con la firma vieja y la reserva falla. En producción hay que aplicar las dos
 migraciones en el mismo release que lleve el portal nuevo.
+
+## Orden de T5–T8 corregido (2026-10-10)
+
+T6 va ANTES que T5. El mapa del lado de la dueña lo dejó claro: hoy nada en
+`src/` lee ni escribe `appointment_service`, así que `appointmentServiceIds`
+devuelve siempre `[service_id]`. Si el portal empezara a mandar tres servicios,
+la agenda mostraría uno, reprogramar comprobaría choques con la duración de uno,
+y cobrar congelaría el dinero de uno, para siempre (INVARIANTE 2). Por eso la
+dueña tiene que saber leer y cobrar varios servicios antes de que nadie pueda
+reservarlos.
+
+Además, `applyAppointmentChange` reemplaza la fila con la del servidor, que
+nunca trae `service_ids`: la sincronización en vivo borraría lo hidratado si no
+se ocupa de ello.
+
+Las líneas congeladas se escriben con una RPC porque `persist()` es "dispara y
+olvida": sin transacción, una cita podría quedar `COMPLETED` sin su reparto, y
+eso ya no se puede arreglar después sin reescribir historia.
+
+TDD: activo (precedente de T1/T2 en este documento), runner `npm run test:run`
+(vitest). No hay tests de componentes (vitest en entorno node, sin
+testing-library): toda lógica nueva va en funciones puras testeables.

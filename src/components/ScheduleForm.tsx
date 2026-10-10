@@ -43,7 +43,7 @@ export function ScheduleForm() {
       });
       notify('✓ Atención registrada y cobrada');
     } else {
-      const conflict = store.scheduleConflict(datetime, serviceId);
+      const conflict = store.scheduleConflict(datetime, [serviceId]);
       if (conflict) {
         notify(`Ese horario choca con ${conflict.client} (${formatTime(conflict.datetime)})`, 'error');
         return;
