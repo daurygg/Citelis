@@ -40,7 +40,15 @@ export function ReceiptDialog({ appointmentId, onClose }: { appointmentId: numbe
       aria-modal="true"
       aria-label="Recibo"
     >
-      {result === null && <p className="receipt-actions mt-20 text-center text-white">Preparando el recibo…</p>}
+      {result === null && (
+        // Con mala señal la carga puede tardar: siempre hay una salida (en el celular no hay Escape).
+        <div className="receipt-actions mx-auto mt-20 flex max-w-sm flex-col items-center gap-3 text-center">
+          <p className="text-white">Preparando el recibo…</p>
+          <button type="button" className={btnGhost} onClick={onClose}>
+            Cerrar
+          </button>
+        </div>
+      )}
       {result && !result.ok && (
         <div className="receipt-actions mx-auto mt-20 flex max-w-sm flex-col gap-3 rounded-2xl bg-white p-4 text-center">
           <p className="text-neutral-700">{result.message}</p>

@@ -66,13 +66,15 @@ returns table (number integer, issued_at timestamptz, public_token uuid)
 language plpgsql security definer
 set search_path = public, pg_temp as $$
 declare
-  v_status text;
-  v_next   integer;
+  v_status  text;
+  v_charged bigint;
+  v_lines   bigint;
+  v_next    integer;
 begin
   if auth.uid() is null then raise exception 'No autenticado'; end if;
   if not is_member(p_business_id) then raise exception 'Ese negocio no es tuyo.'; end if;
 
-  select a.status into v_status
+  select a.status, a.charged_price into v_status, v_charged
     from appointment a
    where a.id = p_appointment_id and a.business_id = p_business_id
      for update;  -- dos emisiones de la MISMA cita hacen cola: la segunda ve el recibo de la primera
@@ -87,6 +89,15 @@ begin
       from receipt r
      where r.appointment_id = p_appointment_id and r.business_id = p_business_id;
   if found then return; end if;
+
+  -- Las líneas tienen que sumar lo cobrado ANTES de gastar un número: si no, el
+  -- recibo no se puede armar y el número quedaría perdido (hueco en la serie).
+  select sum(s.charged_price) into v_lines
+    from appointment_service s
+   where s.appointment_id = p_appointment_id and s.business_id = p_business_id;
+  if v_lines is distinct from v_charged then
+    raise exception 'Las líneas de esta cita no suman lo cobrado; no se puede emitir el recibo.';
+  end if;
 
   -- Siguiente número del negocio. El upsert toma el bloqueo de la fila del contador
   -- y lo mantiene hasta el commit: las emisiones concurrentes hacen cola aquí.

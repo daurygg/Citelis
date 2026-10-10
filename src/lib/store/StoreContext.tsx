@@ -203,15 +203,15 @@ export interface Store {
   removeBusinessLogo: () => Promise<SaveResult>;
   /** URL pública del logo, o null si no hay. */
   businessLogoUrl: string | null;
-  // Dirección pública del negocio (T3, odd/tasks/editable-public-slug.md).
-  // A diferencia de todo lo demás de este store, esto NO es optimista: ver el
-  // comentario junto a su implementación.
   /**
    * Emite (idempotente) el recibo de una cita COMPLETED y arma su `ReceiptData`.
    * Lee del servidor la cita, sus líneas y sus pagos al abrirlo: las líneas con
    * descuento y empleada no viven en memoria y así el recibo nunca va desfasado.
    */
   loadReceipt: (appointmentId: number) => Promise<ReceiptResult>;
+  // Dirección pública del negocio (T3, odd/tasks/editable-public-slug.md).
+  // A diferencia de todo lo demás de este store, esto NO es optimista: ver el
+  // comentario junto a su implementación.
   updatePublicSlug: (slug: string) => Promise<{ ok: true; slug: string } | { ok: false; message: string }>;
 }
 
@@ -1011,15 +1011,6 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     persist(supabase.from('business').update({ theme_color: hex }).eq('id', businessId));
   }
 
-  // Cambia la dirección pública del negocio, vía `set_public_slug` (T3,
-  // odd/tasks/editable-public-slug.md). ROMPE A PROPÓSITO el patrón
-  // fire-and-forget de `persist()` que usa el resto de este store: ahí el
-  // servidor no tiene manera de rechazar la escritura, pero acá sí — otro
-  // negocio puede ya tener esa dirección, o el formato puede ser inválido — y
-  // la dueña necesita ver el motivo. Actualizar el estado local de forma
-  // optimista y revertirlo si el servidor dice que no le mostraría, por un
-  // instante, una dirección que nunca llegó a ser suya. Por eso se espera la
-  // respuesta y el estado local solo cambia si `set_public_slug` la acepta.
   async function loadReceipt(appointmentId: number): Promise<ReceiptResult> {
     const fail = (message: string): ReceiptResult => ({ ok: false, message });
     if (!business) return fail('No se encontró tu negocio.');
@@ -1062,6 +1053,15 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     }
   }
 
+  // Cambia la dirección pública del negocio, vía `set_public_slug` (T3,
+  // odd/tasks/editable-public-slug.md). ROMPE A PROPÓSITO el patrón
+  // fire-and-forget de `persist()` que usa el resto de este store: ahí el
+  // servidor no tiene manera de rechazar la escritura, pero acá sí — otro
+  // negocio puede ya tener esa dirección, o el formato puede ser inválido — y
+  // la dueña necesita ver el motivo. Actualizar el estado local de forma
+  // optimista y revertirlo si el servidor dice que no le mostraría, por un
+  // instante, una dirección que nunca llegó a ser suya. Por eso se espera la
+  // respuesta y el estado local solo cambia si `set_public_slug` la acepta.
   async function updatePublicSlug(
     slug: string,
   ): Promise<{ ok: true; slug: string } | { ok: false; message: string }> {
