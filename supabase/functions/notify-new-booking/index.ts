@@ -72,7 +72,7 @@ Deno.serve((req) => {
     async loadBooking(id) {
       const { data, error } = await db()
         .from('appointment')
-        .select('id, business_id, client, datetime, status, service:service_id (name)')
+        .select('id, business_id, client, datetime, status, service_id, service:service_id (name)')
         .eq('id', id)
         .maybeSingle();
       if (error) throw error;
@@ -81,7 +81,7 @@ Deno.serve((req) => {
       // cita (INVARIANTE 1: el service key se salta la RLS, el filtro lo pone el código).
       const { data: lines, error: linesError } = await db()
         .from('appointment_service')
-        .select('service:service_id (name)')
+        .select('service_id, service:service_id (name)')
         .eq('appointment_id', id)
         .eq('business_id', data.business_id);
       // Sin líneas legibles el aviso sale igual, con el servicio principal.
