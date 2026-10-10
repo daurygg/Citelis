@@ -10,6 +10,7 @@ import { CalendarActions } from '../CalendarActions';
 import { type BookingOutcome } from '../../lib/domain/whatsapp';
 import { ClientNotice } from '../ClientNotice';
 import type { Appointment } from '../../lib/domain/types';
+import { serviceNames } from '../../lib/domain/appointments';
 import { btnGhost, btnPrimary, card } from '../ui';
 
 /** La solicitud que se acaba de responder, y qué se decidió sobre ella. */
@@ -63,7 +64,6 @@ export function RequestsInbox() {
       {requests.length > 0 && (
         <ul className="flex flex-col gap-3">
           {requests.map((request) => {
-            const service = store.services.find((s) => s.id === request.service_id);
             return (
               <li key={request.id} className="flex flex-col gap-2 rounded-xl border border-violet-200 bg-violet-50 p-3">
                 <div className="flex items-center justify-between gap-3">
@@ -71,7 +71,7 @@ export function RequestsInbox() {
                   <span className="text-sm text-neutral-600">{request.client_phone ?? 'Sin teléfono'}</span>
                 </div>
                 <div className="text-sm text-neutral-700">
-                  {service?.name ?? 'Servicio desconocido'} · {formatDateShort(request.datetime)} ·{' '}
+                  {serviceNames(request, store.services) || 'Servicio desconocido'} · {formatDateShort(request.datetime)} ·{' '}
                   {formatTime(request.datetime)}
                 </div>
                 {request.quoted_price != null && (

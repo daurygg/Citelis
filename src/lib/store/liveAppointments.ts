@@ -13,7 +13,11 @@
 // dobles. Un `useEffect` de `StoreReady` la arranca y la para.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Appointment } from '../domain/types';
-import { applyAppointmentChange, type AppointmentChange } from './appointmentSync';
+import { foldServiceIds, serviceIdsFromRows, type AppointmentServiceRow } from '../domain/appointments';
+import { applyAppointmentChange, applyServiceIds, type AppointmentChange } from './appointmentSync';
+
+/** Columnas de `appointment_service` que hacen falta para armar `service_ids`. */
+const SERVICE_ROW_COLUMNS = 'appointment_id, service_id, business_id';
 
 export type LiveClient = Pick<SupabaseClient, 'channel' | 'removeChannel' | 'from'>;
 
@@ -25,12 +29,17 @@ export interface LiveAppointmentsOptions {
   onChange: (change: AppointmentChange) => void;
   /** La lista completa y fresca del servidor, tras ponerse al día. */
   onResync: (appointments: Appointment[]) => void;
+  /**
+   * Los servicios de una cita, ya traídos de `appointment_service`. Realtime no
+   * emite esa tabla, así que tras cada evento de `appointment` se piden aparte.
+   */
+  onServiceIds?: (appointmentId: number, serviceIds: number[]) => void;
   onError?: (message: string, detail?: unknown) => void;
 }
 
 /** Arranca la escucha y devuelve la función que la para. */
 export function startLiveAppointments(options: LiveAppointmentsOptions): () => void {
-  const { client, doc, businessId, onChange, onResync } = options;
+  const { client, doc, businessId, onChange, onResync, onServiceIds } = options;
   const onError = options.onError ?? ((message, detail) => console.warn(message, detail));
   let stopped = false;
   // Solo cuenta la última puesta al día: si dos se cruzan (volver a la app y
@@ -42,28 +51,62 @@ export function startLiveAppointments(options: LiveAppointmentsOptions): () => v
   // encima de la foto. Las escrituras propias vuelven como eco por este mismo
   // canal, así que también quedan cubiertas.
   let sinceFetch: AppointmentChange[] | null = null;
+  // Lo mismo para los servicios de cada cita: si llegan mientras la foto está en
+  // vuelo, la foto (pedida antes) no los trae y habría que reaplicarlos.
+  let idsSinceFetch: Map<number, number[]> | null = null;
 
   async function resync(): Promise<void> {
     const ticket = ++latestResync;
     sinceFetch = [];
-    const { data, error } = await client
-      .from('appointment')
-      .select('*')
-      .eq('business_id', businessId); // INVARIANTE 1: explícito, además de la RLS
+    idsSinceFetch = new Map();
+    // INVARIANTE 1: ambos filtros por negocio son explícitos, además de la RLS.
+    const [{ data, error }, lines] = await Promise.all([
+      client.from('appointment').select('*').eq('business_id', businessId),
+      client.from('appointment_service').select(SERVICE_ROW_COLUMNS).eq('business_id', businessId),
+    ]);
     if (stopped || ticket !== latestResync) return;
     const arrived = sinceFetch ?? [];
+    const arrivedIds = idsSinceFetch ?? new Map<number, number[]>();
     sinceFetch = null;
-    if (error || !data) {
+    idsSinceFetch = null;
+    if (error || !data || lines.error || !lines.data) {
       // Se conserva lo que había: una lista vacía por un corte de red sería
-      // peor que una lista con un rato de atraso.
-      onError('No se pudieron poner al día las citas', error);
+      // peor que una lista con un rato de atraso. Y sin las líneas tampoco se
+      // reemplaza: la foto de citas sola borraría los `service_ids` hidratados.
+      onError('No se pudieron poner al día las citas', error ?? lines.error);
       return;
     }
-    const fresh = arrived.reduce<readonly Appointment[]>(
+    const withServices = foldServiceIds(data as Appointment[], lines.data as AppointmentServiceRow[], businessId);
+    const withEvents = arrived.reduce<readonly Appointment[]>(
       (list, change) => applyAppointmentChange(list, change, businessId),
-      data as Appointment[],
+      withServices,
+    );
+    const fresh = [...arrivedIds].reduce<readonly Appointment[]>(
+      (list, [id, ids]) => applyServiceIds(list, id, ids, businessId),
+      withEvents,
     );
     onResync([...fresh]);
+  }
+
+  // Trae los servicios de UNA cita (el evento solo trae la fila de `appointment`).
+  async function loadServiceIds(appointment: Appointment): Promise<void> {
+    const { data, error } = await client
+      .from('appointment_service')
+      .select(SERVICE_ROW_COLUMNS)
+      .eq('business_id', businessId)
+      .eq('appointment_id', appointment.id);
+    if (stopped) return;
+    if (error || !data) {
+      onError('No se pudieron traer los servicios de la cita', error);
+      return;
+    }
+    const rows = (data as AppointmentServiceRow[]).filter((r) => r.business_id === businessId);
+    // Sin líneas (cita anterior a esta fase) no hay nada que avisar: la cita
+    // cae a su `service_id`.
+    if (rows.length === 0) return;
+    const ids = serviceIdsFromRows(appointment.service_id, rows);
+    idsSinceFetch?.set(appointment.id, ids);
+    onServiceIds?.(appointment.id, ids);
   }
 
   const filter = `business_id=eq.${businessId}`;
@@ -72,6 +115,7 @@ export function startLiveAppointments(options: LiveAppointmentsOptions): () => v
     const change: AppointmentChange = { eventType, new: payload.new as Appointment };
     sinceFetch?.push(change);
     onChange(change);
+    void loadServiceIds(change.new);
   };
 
   // Sin DELETE: en Realtime los DELETE no pasan por la RLS, y en la app las

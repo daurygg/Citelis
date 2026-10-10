@@ -14,12 +14,19 @@ import type {
   Supply,
   TimeBlock,
 } from '../domain/types';
-import { completeAppointment as completeAppointmentDomain, transition } from '../domain/appointments';
-import { applyAppointmentChange } from './appointmentSync';
+import {
+  appointmentServiceIds,
+  completeAppointment as completeAppointmentDomain,
+  foldServiceIds,
+  previewCompletion,
+  transition,
+  type AppointmentServiceRow,
+} from '../domain/appointments';
+import { applyAppointmentChange, applyServiceIds } from './appointmentSync';
 import { startLiveAppointments } from './liveAppointments';
 import { findScheduleConflict } from '../domain/scheduling';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
-import { expectedProfit, fixedExpensesForMonth, weekSummary, type WeekSummary } from '../domain/reports';
+import { expectedProfitForServices, fixedExpensesForMonth, weekSummary, type WeekSummary } from '../domain/reports';
 import { dayRange, shiftMonthISODate } from '../format';
 import { supabase } from '../supabase/client';
 import { useAuth } from '../auth/AuthContext';
@@ -92,7 +99,7 @@ export interface Store {
   projectedProfitForDay: (isoDate: string) => number;
   dayReport: (isoDate: string) => WeekSummary;
   completionPreview: (appointmentId: number, overridePrice?: number) => CompletionPreview | null;
-  scheduleConflict: (datetime: string, serviceId: number, excludeId?: number) => Appointment | null;
+  scheduleConflict: (datetime: string, serviceIds: readonly number[], excludeId?: number) => Appointment | null;
   schedule: (input: ScheduleInput) => void;
   reschedule: (appointmentId: number, datetime: string) => void;
   complete: (appointmentId: number, overridePrice?: number) => void;
@@ -200,13 +207,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // INVARIANTE 1: cada consulta filtra por business_id de forma explícita,
       // además de la RLS. Con varias membresías, la RLS deja ver las filas de
       // todos los negocios del usuario; sin este filtro se mezclarían.
-      const [biz, svc, sup, ss, apt, fx, bh, tb, bp] = await Promise.all([
+      const [biz, svc, sup, ss, apt, aptSvc, fx, bh, tb, bp] = await Promise.all([
         // El nombre del negocio sale en el .ics y en el link de Google Calendar.
         supabase.from('business').select('*').eq('id', businessId),
         supabase.from('service').select('*').eq('business_id', businessId),
         supabase.from('supply').select('*').eq('business_id', businessId),
         supabase.from('service_supply').select('*').eq('business_id', businessId),
         supabase.from('appointment').select('*').eq('business_id', businessId),
+        // Los servicios de cada cita (varios por cita): alimentan `service_ids`.
+        supabase.from('appointment_service').select('appointment_id, service_id, business_id').eq('business_id', businessId),
         supabase.from('fixed_expense').select('*').eq('business_id', businessId),
         supabase.from('business_hours').select('*').eq('business_id', businessId),
         supabase.from('time_block').select('*').eq('business_id', businessId),
@@ -220,7 +229,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         services: (svc.data ?? []) as Service[],
         supplies: (sup.data ?? []) as Supply[],
         serviceSupplies: (ss.data ?? []) as ServiceSupply[],
-        appointments: (apt.data ?? []) as Appointment[],
+        // Si la consulta de líneas falla, cada cita cae a su `service_id`.
+        appointments: foldServiceIds((apt.data ?? []) as Appointment[], (aptSvc.data ?? []) as AppointmentServiceRow[], businessId),
         fixedExpenses: (fx.data ?? []) as FixedExpense[],
         businessHours: (bh.data ?? []) as BusinessHours[],
         timeBlocks: (tb.data ?? []) as TimeBlock[],
@@ -273,6 +283,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
         doc: document,
         businessId,
         onChange: (change) => setAppointments((prev) => applyAppointmentChange(prev, change, businessId)),
+        onServiceIds: (id, ids) => setAppointments((prev) => applyServiceIds(prev, id, ids, businessId)),
         onResync: (fresh) => setAppointments(fresh),
       }),
     [businessId],
@@ -293,10 +304,11 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     return appointmentsForDay(isoDate)
       .filter((a) => a.status === 'PENDING' || a.status === 'IN_PROGRESS')
       .reduce((sum: number, a) => {
-        const service = services.find((s) => s.id === a.service_id);
-        if (!service) return sum;
+        const set = appointmentServiceIds(a).flatMap((id) => services.find((s) => s.id === id) ?? []);
+        // Si falta algún servicio del catálogo, la cita no suma (no se estima a medias).
+        if (set.length !== appointmentServiceIds(a).length) return sum;
         // Usa el precio acordado si lo hay; ignora precios desconocidos (null).
-        const expected = expectedProfit(a, service);
+        const expected = expectedProfitForServices(a, set);
         return expected === null ? sum : sum + expected;
       }, 0);
   }
@@ -309,11 +321,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   function completionPreview(appointmentId: number, overridePrice?: number): CompletionPreview | null {
     const appointment = appointments.find((a) => a.id === appointmentId);
     if (!appointment) return null;
-    const service = services.find((s) => s.id === appointment.service_id);
-    if (!service) return null;
-    const charged_price = overridePrice ?? appointment.quoted_price ?? service.price;
-    const actual_cost = effectiveCost(service);
-    return { charged_price, actual_cost, profit: profit(charged_price, actual_cost) };
+    return previewCompletion(appointment, services, overridePrice);
   }
 
   function suppliesForService(serviceId: number): Supply[] {
@@ -355,11 +363,10 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
 
   // ── Escrituras (estado local + persistencia) ──────────────────────────────
   // Devuelve una cita que choca con el horario propuesto, o null si está libre.
-  function scheduleConflict(datetime: string, serviceId: number, excludeId?: number): Appointment | null {
+  function scheduleConflict(datetime: string, serviceIds: readonly number[], excludeId?: number): Appointment | null {
     const scoped = appointments.filter((a) => a.business_id === businessId);
-    // Hoy la agenda de la dueña solo permite elegir un servicio a la vez
-    // (T6 traerá selección múltiple): se pasa como arreglo de uno solo.
-    return findScheduleConflict({ datetime, service_ids: [serviceId], id: excludeId }, scoped, services);
+    // La duración de la candidata es la SUMA de todos sus servicios.
+    return findScheduleConflict({ datetime, service_ids: [...serviceIds], id: excludeId }, scoped, services);
   }
 
   // Reprograma (cambia fecha/hora) una cita abierta. No congela dinero (INVARIANTE 2).

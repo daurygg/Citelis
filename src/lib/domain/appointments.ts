@@ -16,6 +16,7 @@
 import type { Appointment, AppointmentStatus, Service } from './types';
 import { allocateProportionally, effectiveCost, priceForServices, profit } from './costs';
 
+
 /** Transiciones permitidas, indexadas por estado de origen. */
 const VALID_TRANSITIONS: Readonly<Record<AppointmentStatus, readonly AppointmentStatus[]>> = {
   PENDING: ['IN_PROGRESS', 'CANCELED', 'COMPLETED', 'NO_SHOW'],
@@ -60,6 +61,96 @@ export function transition(appointment: Appointment, to: AppointmentStatus): App
  */
 export function appointmentServiceIds(appointment: Appointment): number[] {
   return appointment.service_ids ?? [appointment.service_id];
+}
+
+/** Una fila de `appointment_service`: un servicio de una cita. */
+export interface AppointmentServiceRow {
+  appointment_id: number;
+  service_id: number;
+  business_id: number;
+}
+
+/**
+ * Servicios de UNA cita a partir de sus filas de `appointment_service`: el
+ * servicio principal (`service_id`) primero y el resto en orden ascendente, para
+ * que el orden sea estable entre cargas (la tabla no guarda orden).
+ */
+export function serviceIdsFromRows(primary: number, rows: readonly AppointmentServiceRow[]): number[] {
+  const rest = rows
+    .map((r) => r.service_id)
+    .filter((id) => id !== primary)
+    .sort((a, b) => a - b);
+  return rows.some((r) => r.service_id === primary) ? [primary, ...rest] : rest;
+}
+
+/**
+ * Vuelca las filas de `appointment_service` en `service_ids` de cada cita.
+ * Una cita sin filas queda SIN `service_ids`, para que `appointmentServiceIds`
+ * caiga a `[service_id]` (citas anteriores, o que aún no tienen sus líneas).
+ * Ignora filas de otro negocio (INVARIANTE 1). No muta la lista original.
+ */
+export function foldServiceIds(
+  appointments: readonly Appointment[],
+  rows: readonly AppointmentServiceRow[],
+  businessId: number,
+): Appointment[] {
+  const byAppointment = new Map<number, AppointmentServiceRow[]>();
+  for (const row of rows) {
+    if (row.business_id !== businessId) continue;
+    const list = byAppointment.get(row.appointment_id);
+    if (list) list.push(row);
+    else byAppointment.set(row.appointment_id, [row]);
+  }
+  return appointments.map((a) => {
+    const own = byAppointment.get(a.id);
+    if (!own || own.length === 0) return a;
+    return { ...a, service_ids: serviceIdsFromRows(a.service_id, own) };
+  });
+}
+
+/**
+ * Nombres de los servicios de la cita, unidos con " + " ("Cejas + Ondas").
+ * Un id que no está en el catálogo se omite en vez de reventar; si no se conoce
+ * ninguno devuelve '' y quien llama decide el texto de respaldo.
+ */
+export function serviceNames(appointment: Appointment, services: readonly Service[]): string {
+  return appointmentServiceIds(appointment)
+    .map((id) => services.find((s) => s.id === id)?.name)
+    .filter((name): name is string => name !== undefined)
+    .join(' + ');
+}
+
+/** Vista previa del cobro: lo que se congelaría si se completara ahora. */
+export interface CompletionPreviewValues {
+  charged_price: number;
+  actual_cost: number;
+  profit: number;
+}
+
+/**
+ * Vista previa de completar una cita con TODOS sus servicios. No congela nada.
+ * Misma regla de precio que `completeAppointment`: override > acordado > precio
+ * del conjunto. Devuelve null si algún servicio de la cita no está en el
+ * catálogo, o si hay uno de precio variable sin precio y sin total dado:
+ * inventar el número sería cobrar de menos en silencio.
+ */
+export function previewCompletion(
+  appointment: Appointment,
+  services: readonly Service[],
+  overridePrice?: number,
+): CompletionPreviewValues | null {
+  const ids = appointmentServiceIds(appointment);
+  const found = ids.map((id) => services.find((s) => s.id === id));
+  if (found.some((s) => s === undefined)) return null;
+  const set = found as Service[];
+
+  const quote = priceForServices(set);
+  const totalGiven = overridePrice ?? appointment.quoted_price ?? null;
+  if (quote.needsPrice.length > 0 && totalGiven === null) return null;
+
+  const charged_price = totalGiven ?? quote.total;
+  const actual_cost = set.reduce((sum, s) => sum + effectiveCost(s), 0);
+  return { charged_price, actual_cost, profit: profit(charged_price, actual_cost) };
 }
 
 /** Una línea del dinero congelado: lo que le tocó a UN servicio de la cita. */

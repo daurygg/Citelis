@@ -25,13 +25,21 @@ type Handler = (payload: { eventType: string; new: Appointment }) => void;
  * Con `deferred`, cada consulta queda pendiente hasta `resolveFetch(i, data)`,
  * para probar respuestas que llegan tarde o fuera de orden.
  */
+interface LineRow {
+  appointment_id: number;
+  service_id: number;
+  business_id: number;
+}
+
 function fakeClient(
   fetched: { data: Appointment[] | null; error: unknown } = { data: [], error: null },
-  { deferred = false } = {},
+  { deferred = false, lines = [], linesError = null }: { deferred?: boolean; lines?: LineRow[]; linesError?: unknown } = {},
 ) {
   const handlers: { filter: Record<string, string>; handler: Handler }[] = [];
   let statusCallback: ((status: string) => void) | null = null;
+  // Solo las consultas a `appointment`; las de `appointment_service` van aparte.
   const eqCalls: [string, unknown][] = [];
+  const lineEqCalls: [string, unknown][][] = [];
   const topics: string[] = [];
   const pending: ((value: { data: Appointment[] | null; error: unknown }) => void)[] = [];
   const channel = {
@@ -50,17 +58,36 @@ function fakeClient(
       return channel;
     }),
     removeChannel: vi.fn(async () => 'ok'),
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
+    from: vi.fn((table: string) => {
+      const filters: [string, unknown][] = [];
+      // La consulta de citas se "envía" al llamar a eq (como el cliente real),
+      // para que `resolveFetch` pueda responderla sin esperar a un await.
+      let appointmentQuery: Promise<unknown> | null = null;
+      const builder = {
+        select: vi.fn(() => builder),
         eq: vi.fn((column: string, value: unknown) => {
-          eqCalls.push([column, value]);
-          return new Promise((resolve) => {
-            if (deferred) pending.push(resolve);
-            else resolve(fetched);
-          });
+          filters.push([column, value]);
+          if (table === 'appointment' && appointmentQuery === null) {
+            eqCalls.push([column, value]);
+            appointmentQuery = new Promise((resolve) => {
+              if (deferred) pending.push(resolve);
+              else resolve(fetched);
+            });
+          }
+          return builder;
         }),
-      })),
-    })),
+        then(resolve: (value: unknown) => void) {
+          if (table === 'appointment_service') {
+            lineEqCalls.push(filters);
+            if (linesError) return resolve({ data: null, error: linesError });
+            const rows = lines.filter((l) => filters.every(([c, v]) => (l as unknown as Record<string, unknown>)[c] === v));
+            return resolve({ data: rows, error: null });
+          }
+          void appointmentQuery?.then(resolve);
+        },
+      };
+      return builder;
+    }),
   };
   return {
     client: client as unknown as LiveClient,
@@ -68,6 +95,7 @@ function fakeClient(
     channel,
     handlers,
     eqCalls,
+    lineEqCalls,
     topics,
     emitStatus: (status: string) => statusCallback?.(status),
     emit: (eventType: 'INSERT' | 'UPDATE', appointment: Appointment) =>
@@ -261,5 +289,80 @@ describe('startLiveAppointments: carreras', () => {
     stop();
     startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync: vi.fn() });
     expect(new Set(fake.topics).size).toBe(2);
+  });
+});
+
+describe('startLiveAppointments: servicios de cada cita', () => {
+  const line = (appointment_id: number, service_id: number, business_id = BUSINESS): LineRow => ({
+    appointment_id,
+    service_id,
+    business_id,
+  });
+
+  it('al ponerse al día vuelca appointment_service en service_ids, filtrando por SU negocio', async () => {
+    const fake = fakeClient({ data: [row(1), row(2)], error: null }, { lines: [line(1, 10), line(1, 11), line(2, 10)] });
+    const onResync = vi.fn();
+    startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync });
+    fake.emitStatus('SUBSCRIBED');
+    await flush();
+    expect(fake.lineEqCalls).toEqual([[['business_id', BUSINESS]]]);
+    expect(onResync).toHaveBeenCalledWith([
+      { ...row(1), service_ids: [10, 11] },
+      { ...row(2), service_ids: [10] },
+    ]);
+  });
+
+  it('si falla la consulta de líneas no se pisa la lista: se conserva lo que había', async () => {
+    const fake = fakeClient({ data: [row(1)], error: null }, { linesError: { message: 'sin red' } });
+    const onResync = vi.fn();
+    const onError = vi.fn();
+    startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync, onError });
+    fake.emitStatus('SUBSCRIBED');
+    await flush();
+    expect(onResync).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalled();
+  });
+
+  it('un evento entrega la cita al instante y luego trae SUS líneas (filtradas por negocio y cita)', async () => {
+    const fake = fakeClient(undefined, { lines: [line(9, 10), line(9, 12), line(8, 10)] });
+    const onChange = vi.fn();
+    const onServiceIds = vi.fn();
+    startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange, onResync: vi.fn(), onServiceIds });
+    fake.emit('INSERT', row(9));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    await flush();
+    expect(fake.lineEqCalls).toEqual([[['business_id', BUSINESS], ['appointment_id', 9]]]);
+    expect(onServiceIds).toHaveBeenCalledWith(9, [10, 12]);
+  });
+
+  it('una cita sin líneas no avisa service_ids (cae a [service_id])', async () => {
+    const fake = fakeClient();
+    const onServiceIds = vi.fn();
+    startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync: vi.fn(), onServiceIds });
+    fake.emit('UPDATE', row(9, 'PENDING'));
+    await flush();
+    expect(onServiceIds).not.toHaveBeenCalled();
+  });
+
+  it('las líneas que llegan después de parar no tocan el estado', async () => {
+    const fake = fakeClient(undefined, { lines: [line(9, 10)] });
+    const onServiceIds = vi.fn();
+    const stop = startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync: vi.fn(), onServiceIds });
+    fake.emit('INSERT', row(9));
+    stop();
+    await flush();
+    expect(onServiceIds).not.toHaveBeenCalled();
+  });
+
+  it('los servicios que llegan MIENTRAS se pone al día se reaplican sobre la foto', async () => {
+    const fake = fakeClient(undefined, { deferred: true, lines: [line(9, 10), line(9, 12)] });
+    const onResync = vi.fn();
+    startLiveAppointments({ client: fake.client, doc: fakeDocument().doc, businessId: BUSINESS, onChange: vi.fn(), onResync, onServiceIds: vi.fn() });
+    fake.emitStatus('SUBSCRIBED');
+    fake.emit('INSERT', row(9)); // su consulta de líneas se resuelve ya
+    await flush();
+    fake.resolveFetch(0, [row(9)]); // la foto de citas la trae sin líneas (se pidió antes)
+    await flush();
+    expect(onResync).toHaveBeenCalledWith([{ ...row(9), service_ids: [10, 12] }]);
   });
 });

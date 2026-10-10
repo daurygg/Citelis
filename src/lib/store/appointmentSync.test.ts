@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Appointment } from '../domain/types';
-import { applyAppointmentChange } from './appointmentSync';
+import { applyAppointmentChange, applyServiceIds } from './appointmentSync';
 
 const BUSINESS = 7;
 
@@ -75,5 +75,52 @@ describe('applyAppointmentChange', () => {
       applyAppointmentChange(list, { eventType: 'INSERT', new: appointment({ id: 2 }) }, BUSINESS),
     ).not.toThrow();
     expect(list).toHaveLength(1);
+  });
+});
+
+describe('applyAppointmentChange: service_ids sobrevive al eco del servidor', () => {
+  it('la fila del servidor no trae service_ids: se conservan los que ya había', () => {
+    const list = [appointment({ id: 1, service_ids: [10, 11] })];
+    const echo = appointment({ id: 1, status: 'IN_PROGRESS' });
+    const [result] = applyAppointmentChange(list, { eventType: 'UPDATE', new: echo }, BUSINESS);
+    expect(result.status).toBe('IN_PROGRESS');
+    expect(result.service_ids).toEqual([10, 11]);
+  });
+
+  it('si la fila del servidor sí trae service_ids, esos ganan', () => {
+    const list = [appointment({ id: 1, service_ids: [10] })];
+    const incoming = appointment({ id: 1, service_ids: [10, 12] });
+    const [result] = applyAppointmentChange(list, { eventType: 'UPDATE', new: incoming }, BUSINESS);
+    expect(result.service_ids).toEqual([10, 12]);
+  });
+
+  it('un eco idéntico (salvo la referencia del arreglo) devuelve la MISMA lista', () => {
+    const list = [appointment({ id: 1, service_ids: [10, 11] })];
+    const echo = appointment({ id: 1 });
+    expect(applyAppointmentChange(list, { eventType: 'UPDATE', new: echo }, BUSINESS)).toBe(list);
+  });
+});
+
+describe('applyServiceIds', () => {
+  it('pone los servicios en la cita indicada sin tocar lo demás', () => {
+    const list = [appointment({ id: 1 }), appointment({ id: 2, status: 'REQUESTED' })];
+    const result = applyServiceIds(list, 2, [10, 11], BUSINESS);
+    expect(result[1]).toEqual({ ...list[1], service_ids: [10, 11] });
+    expect(result[0]).toBe(list[0]);
+  });
+
+  it('si ya tiene esos mismos servicios devuelve la MISMA lista', () => {
+    const list = [appointment({ id: 1, service_ids: [10, 11] })];
+    expect(applyServiceIds(list, 1, [10, 11], BUSINESS)).toBe(list);
+  });
+
+  it('una cita que no está en la lista no se inventa', () => {
+    const list = [appointment({ id: 1 })];
+    expect(applyServiceIds(list, 99, [10], BUSINESS)).toBe(list);
+  });
+
+  it('no toca citas de otro negocio (INVARIANTE 1)', () => {
+    const list = [appointment({ id: 1, business_id: 99 })];
+    expect(applyServiceIds(list, 1, [10, 11], BUSINESS)).toBe(list);
   });
 });

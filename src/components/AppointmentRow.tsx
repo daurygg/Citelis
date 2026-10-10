@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, parseMoneyToCents, statusLabel } from '../lib/format';
 import type { AppointmentStatus, Appointment } from '../lib/domain/types';
+import { appointmentServiceIds, serviceNames } from '../lib/domain/appointments';
 import { useToast } from './Toast';
 import { CalendarActions } from './CalendarActions';
 import { ClientNotice } from './ClientNotice';
@@ -24,8 +25,10 @@ const STATUS_BADGE: Record<AppointmentStatus, string> = {
 export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const store = useStore();
   const { notify } = useToast();
-  const service = store.services.find((s) => s.id === appointment.service_id);
-  const isVariable = service?.variable_price ?? false;
+  // Basta que UN servicio de la cita sea de precio variable para exigir precio.
+  const isVariable = appointmentServiceIds(appointment).some(
+    (id) => store.services.find((s) => s.id === id)?.variable_price ?? false,
+  );
 
   const [charging, setCharging] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
@@ -53,7 +56,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
 
   function handleReschedule() {
     if (newDatetime === '') return;
-    const conflict = store.scheduleConflict(newDatetime, appointment.service_id, appointment.id);
+    const conflict = store.scheduleConflict(newDatetime, appointmentServiceIds(appointment), appointment.id);
     if (conflict) {
       notify(`Ese horario choca con ${conflict.client} (${formatTime(conflict.datetime)})`, 'error');
       return;
@@ -69,7 +72,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
         <span className="w-20 shrink-0 font-semibold tabular-nums">{formatTime(appointment.datetime)}</span>
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium">{appointment.client}</div>
-          <div className="truncate text-sm text-neutral-500">{service?.name ?? 'Servicio desconocido'}</div>
+          <div className="truncate text-sm text-neutral-500">{serviceNames(appointment, store.services) || 'Servicio desconocido'}</div>
           {appointment.deposit != null && appointment.deposit > 0 && appointment.status !== 'COMPLETED' && (
             <div className="text-xs text-brand-700">Abonó {formatMoney(appointment.deposit)}</div>
           )}
@@ -152,7 +155,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
         </div>
       )}
 
-      {charging && preview && (
+      {charging && (
         <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
           {isVariable && (
             <label className={field}>
@@ -168,29 +171,35 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             </label>
           )}
 
-          <div className="flex justify-between">
-            <span className="text-neutral-600">Precio</span>
-            <strong>{formatMoney(preview.charged_price)}</strong>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-neutral-600">Costo</span>
-            <span>{formatMoney(preview.actual_cost)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-neutral-600">Ganancia</span>
-            <strong className="text-green-700">{formatMoney(preview.profit)}</strong>
-          </div>
-
-          {appointment.deposit != null && appointment.deposit > 0 && (
+          {/* Sin vista previa (servicio de precio variable sin precio todavía) el
+              panel sigue: el campo de arriba es justo el que la desbloquea. */}
+          {preview && (
             <>
-              <div className="flex justify-between border-t border-neutral-200 pt-2">
-                <span className="text-neutral-600">Abono ya pagado</span>
-                <span>−{formatMoney(appointment.deposit)}</span>
+              <div className="flex justify-between">
+                <span className="text-neutral-600">Precio</span>
+                <strong>{formatMoney(preview.charged_price)}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-neutral-600">Resto por cobrar</span>
-                <strong>{formatMoney(preview.charged_price - appointment.deposit)}</strong>
+                <span className="text-neutral-600">Costo</span>
+                <span>{formatMoney(preview.actual_cost)}</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-600">Ganancia</span>
+                <strong className="text-green-700">{formatMoney(preview.profit)}</strong>
+              </div>
+
+              {appointment.deposit != null && appointment.deposit > 0 && (
+                <>
+                  <div className="flex justify-between border-t border-neutral-200 pt-2">
+                    <span className="text-neutral-600">Abono ya pagado</span>
+                    <span>−{formatMoney(appointment.deposit)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Resto por cobrar</span>
+                    <strong>{formatMoney(preview.charged_price - appointment.deposit)}</strong>
+                  </div>
+                </>
+              )}
             </>
           )}
 
