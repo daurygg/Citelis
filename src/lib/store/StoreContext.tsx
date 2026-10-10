@@ -25,6 +25,7 @@ import {
 import { completeRpcArgs, planCompletion } from '../domain/charge';
 import { scheduleRpcArgs } from '../domain/selection';
 import { applyAppointmentChange, applyServiceIds, keepKnownServiceIds } from './appointmentSync';
+import { isAlreadySaved, type WriteError } from './writeResult';
 import { startLiveAppointments } from './liveAppointments';
 import { findScheduleConflict } from '../domain/scheduling';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
@@ -36,6 +37,8 @@ import { Onboarding } from '../../components/Onboarding';
 
 // ── Tipos de la fachada (idénticos a las fases en memoria) ──────────────────
 export interface ScheduleInput {
+  /** Id fijo entre reintentos (ver `newId`): un reintento no duplica la cita. */
+  id?: number;
   /** Servicios de la cita. El primero es el principal (`service_id`). */
   service_ids: number[];
   client: string;
@@ -44,6 +47,8 @@ export interface ScheduleInput {
   deposit?: number; // abono/adelanto pagado al reservar, opcional
 }
 export interface WalkInInput {
+  /** Id fijo entre reintentos (ver `newId`): un reintento no duplica la cita. */
+  id?: number;
   /** Servicios de la atención. El primero es el principal (`service_id`). */
   service_ids: number[];
   client: string;
@@ -161,7 +166,7 @@ export interface Store {
 const StoreContext = createContext<Store | null>(null);
 
 // Id numérico único generado en el cliente (conserva la fachada síncrona).
-function newId(): number {
+export function newId(): number {
   return Date.now() * 1000 + Math.floor(Math.random() * 1000);
 }
 
@@ -392,13 +397,15 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   // fire-and-forget: con dos escrituras sueltas la cita podría quedar sin sus
   // líneas. El estado local solo cambia cuando el servidor confirma, y si falla
   // el formulario conserva lo escrito para reintentar.
-  async function insertScheduled(appointment: Appointment): Promise<{ message: string } | null> {
+  // Si la respuesta se perdió tras el commit, el reintento (mismo id) choca con
+  // la clave primaria: eso confirma que ya estaba guardada (isAlreadySaved).
+  async function insertScheduled(appointment: Appointment): Promise<WriteError | null> {
     try {
       const { error } = await supabase.rpc(
         'schedule_appointment',
         scheduleRpcArgs(businessId, { ...appointment, service_ids: appointmentServiceIds(appointment) }),
       );
-      return error;
+      return isAlreadySaved(error) ? null : error;
     } catch (e) {
       return { message: e instanceof Error ? e.message : 'No se pudo conectar con el servidor.' };
     }
@@ -407,7 +414,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   async function schedule(input: ScheduleInput): Promise<ActionResult> {
     if (input.service_ids.length === 0) return { ok: false, message: 'Elige al menos un servicio.' };
     const appointment: Appointment = {
-      id: newId(),
+      id: input.id ?? newId(),
       business_id: businessId,
       service_id: input.service_ids[0],
       service_ids: input.service_ids,
@@ -494,7 +501,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       return { ok: false, message: 'No encontramos ese servicio.' };
     }
     const pending: Appointment = {
-      id: newId(),
+      id: input.id ?? newId(),
       business_id: businessId,
       service_id: input.service_ids[0],
       service_ids: input.service_ids,

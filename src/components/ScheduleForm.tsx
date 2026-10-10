@@ -3,7 +3,7 @@
 // - Walk-in ("ya la atendí"): crea la cita YA completada, congelando el dinero.
 // Inputs CONTROLADOS: cada campo tiene su estado y su onChange.
 import { useState, type FormEvent } from 'react';
-import { useStore } from '../lib/store/StoreContext';
+import { newId, useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, nowLocalDatetime, parseMoneyToCents } from '../lib/format';
 import { buildChargeForm } from '../lib/domain/charge';
 import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
@@ -16,6 +16,10 @@ export function ScheduleForm() {
   const [client, setClient] = useState('');
   const [selectedIds, setSelectedIds] = useState<number[]>(store.services[0] ? [store.services[0].id] : []);
   const [saving, setSaving] = useState(false);
+  // Id de la cita en curso, fijo entre reintentos: si un intento llegó a
+  // guardarse pero la respuesta se perdió, reintentar no la duplica (la clave
+  // primaria lo frena y el store lo da por guardado). Se renueva al limpiar.
+  const [draftId, setDraftId] = useState<number | null>(null);
   const [datetime, setDatetime] = useState('');
   const [walkIn, setWalkIn] = useState(false);
   // Cobro al paso: un precio por cada servicio variable + total opcional (igual que cobrar una cita).
@@ -38,11 +42,14 @@ export function ScheduleForm() {
     event.preventDefault();
     // `saving`: un doble clic o doble Enter no registra (ni cobra) dos veces.
     if (!canSubmit || saving) return;
+    const id = draftId ?? newId();
+    setDraftId(id);
     if (walkIn) {
       setSaving(true);
       let result;
       try {
         result = await store.registerWalkIn({
+          id,
           service_ids: selection.service_ids,
           client: client.trim(),
           datetime: datetime || nowLocalDatetime(),
@@ -71,6 +78,7 @@ export function ScheduleForm() {
       let result;
       try {
         result = await store.schedule({
+          id,
           client: client.trim(),
           service_ids: selection.service_ids,
           datetime,
@@ -87,6 +95,7 @@ export function ScheduleForm() {
       }
       notify('✓ Cita agendada');
     }
+    setDraftId(null);
     setClient('');
     setDatetime('');
     setChargeTexts({ prices: {}, total: '' });
@@ -138,6 +147,16 @@ export function ScheduleForm() {
                 ? `${formatMoney(selection.estimate.total)} + a convenir`
                 : 'a convenir'
               : formatMoney(selection.estimate.total)}
+          </p>
+        )}
+        {selectedServices.some((service) => service.duration_min <= 0) && (
+          // Sin esto el botón quedaría apagado sin explicar por qué.
+          <p className="text-sm text-red-600">
+            {selectedServices
+              .filter((service) => service.duration_min <= 0)
+              .map((service) => service.name)
+              .join(', ')}{' '}
+            no tiene duración. Ponle cuánto dura en Servicios para poder agendarlo.
           </p>
         )}
       </fieldset>
