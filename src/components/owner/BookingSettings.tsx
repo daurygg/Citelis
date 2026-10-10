@@ -3,6 +3,7 @@
 // Toda la lógica de negocio vive en el store; aquí solo se arma la UI
 // (INVARIANTE 5). Cero cálculos de dinero: esta pantalla no maneja precios.
 import { useState, type FormEvent } from 'react';
+import { formatClock, formatDateShort, formatTime } from '../../lib/format';
 import { useStore } from '../../lib/store/StoreContext';
 import { useToast } from '../Toast';
 import { btnGhost, card, field, fieldLabel, input } from '../ui';
@@ -97,7 +98,7 @@ export function BookingSettings() {
               .map((hours) => (
                 <li key={hours.id} className="flex items-center justify-between py-2">
                   <span>
-                    {WEEKDAY_LABELS[hours.weekday]}: {hours.opens_at} – {hours.closes_at}
+                    {WEEKDAY_LABELS[hours.weekday]}: {formatClock(hours.opens_at)} – {formatClock(hours.closes_at)}
                   </span>
                   <button
                     type="button"
@@ -152,7 +153,8 @@ export function BookingSettings() {
                 <li key={block.id} className="flex items-center justify-between py-2">
                   <div>
                     <div>
-                      {block.starts_at.replace('T', ' ')} → {block.ends_at.replace('T', ' ')}
+                      {formatDateShort(block.starts_at)} {formatTime(block.starts_at)} →{' '}
+                      {formatDateShort(block.ends_at)} {formatTime(block.ends_at)}
                     </div>
                     {block.reason !== '' && <div className="text-sm text-neutral-500">{block.reason}</div>}
                   </div>
