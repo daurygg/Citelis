@@ -207,8 +207,15 @@ mano, no en CI**.
   fallando. GREEN: 376 passed (+10) en 23 archivos; typecheck y build limpios.
   Migración + `supabase/tests/schedule-appointment.sql` PENDIENTES de aplicar/correr
   en dev. Sin ver en navegador.
-- [ ] **T5 · Portal.** Selección múltiple, huecos para la suma, y el envío.
+- [x] **T5 · Portal.** Selección múltiple, huecos para la suma, y el envío.
   Incluye abrir `public_business` a los servicios de precio variable (D2).
+  Hecho: migración `20261010000003` (`public_business` devuelve variables con
+  `variable_price` y `price` NULL si es variable, nunca costos; `public_request_booking`
+  SÍ cambió: solo se quitó `variable_price = false` de su validación, resto idéntico).
+  Helpers puros `src/lib/public/publicSelection.ts` ("A convenir" / "Desde X").
+  RED: suite sin módulo; GREEN: 388 passed (+9). Portal con chips multi-selección,
+  huecos para la suma y envío en orden. Suite `supabase/tests/public-business-variable.sql`
+  PENDIENTE de correr en dev (más las dos regresiones). Sin ver en navegador.
 - [ ] **T7 · Calendario y aviso push.** Título con N nombres, fin en la suma.
 - [ ] **T8 · Reportes.** Leer el reparto congelado en vez de atribuir a uno.
 

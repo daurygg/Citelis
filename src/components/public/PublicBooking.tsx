@@ -6,7 +6,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Appointment, BookingPolicy, BusinessHours, Service, Slot } from '../../lib/domain/types';
 import { generateSlots } from '../../lib/domain/availability';
-import { formatMoney, formatTime, shiftISODate, todayISODate } from '../../lib/format';
+import { toggleServiceId } from '../../lib/domain/selection';
+import { formatTime, shiftISODate, todayISODate } from '../../lib/format';
+import { estimateLabel, servicePriceLabel, summarizePublicSelection } from '../../lib/public/publicSelection';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { useBusinessTheme } from '../../lib/useBusinessTheme';
 import { readRememberedClient, rememberClient } from '../../lib/rememberedClient';
@@ -118,11 +120,12 @@ function toDomainService(s: PublicBusinessService, businessId: number): Service 
     id: s.service_id,
     business_id: businessId,
     name: s.service_name,
-    price: s.price,
+    price: s.price ?? 0,
     supply_cost: 0,
     cost_override: null,
     duration_min: s.duration_min,
-    variable_price: false,
+    // El precio no entra al cálculo de huecos; el portal nunca lo recibe si es variable.
+    variable_price: s.variable_price,
   };
 }
 
@@ -139,7 +142,8 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
   const [businessLoad, setBusinessLoad] = useState<BusinessLoad>({ status: 'loading' });
   const [hoursLoad, setHoursLoad] = useState<HoursLoad>({ status: 'loading' });
   const [step, setStep] = useState<Step>('service');
-  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
+  // En el orden en que la clienta los fue eligiendo: el primero es el principal.
+  const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(todayISODate());
   const [busyLoad, setBusyLoad] = useState<BusyLoad>({ status: 'loading' });
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
@@ -206,7 +210,19 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
   }, [step, selectedDate, refreshBusy]);
 
   const business = businessLoad.status === 'ready' ? businessLoad.business : null;
-  const selectedService = business?.services.find((s) => s.service_id === selectedServiceId) ?? null;
+  const selection = useMemo(
+    () => summarizePublicSelection(business?.services ?? [], selectedServiceIds),
+    [business, selectedServiceIds],
+  );
+  // Los servicios elegidos, en orden de elección (los ids ausentes del catálogo ya se descartaron).
+  const selectedServices = useMemo(
+    () =>
+      selection.service_ids
+        .map((id) => business?.services.find((s) => s.service_id === id))
+        .filter((s): s is PublicBusinessService => s !== undefined),
+    [business, selection],
+  );
+  const selectedNames = selectedServices.map((s) => s.service_name).join(', ');
 
   // Solo se fija el título cuando ya se conoce el negocio (paso 'ready'): si el
   // slug no existe o todavía está cargando, se deja el <title> estático de
@@ -215,15 +231,14 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
   useBusinessTheme(business?.theme_color);
 
   const slots = useMemo<Slot[]>(() => {
-    if (!business || !selectedService) return [];
+    if (!business || !selection.ready) return [];
     if (hoursLoad.status !== 'ready' || busyLoad.status !== 'ready') return [];
     const { appointments, services } = busyToOccupancy(busyLoad.busy, business.business_id);
     const policy: BookingPolicy = { business_id: business.business_id, ...business.policy };
     return generateSlots({
       date: selectedDate,
-      // Hoy el portal solo deja elegir un servicio a la vez (T5/T6 traerán
-      // selección múltiple): la candidata es un arreglo de uno solo.
-      candidateServices: [toDomainService(selectedService, business.business_id)],
+      // La visita dura la SUMA de lo elegido: `generateSlots` ya la calcula.
+      candidateServices: selectedServices.map((s) => toDomainService(s, business.business_id)),
       hours: toBusinessHours(hoursLoad.hours, business.business_id),
       blocks: [],
       appointments,
@@ -231,7 +246,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
       policy,
       now: new Date(),
     });
-  }, [business, selectedService, hoursLoad, busyLoad, selectedDate]);
+  }, [business, selection, selectedServices, hoursLoad, busyLoad, selectedDate]);
 
   const dayChips = useMemo(() => {
     const count = business ? Math.min(DAY_CHIP_CAP, Math.max(1, business.policy.max_horizon_days)) : 7;
@@ -240,7 +255,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
   }, [business]);
 
   async function handleSubmit() {
-    if (!business || !selectedService || !selectedSlot) return;
+    if (!business || !selection.ready || !selectedSlot) return;
     const name = clientName.trim();
     const phone = clientPhone.trim();
     if (name === '' || phone === '') {
@@ -251,8 +266,8 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
     setSubmitError(null);
     const result = await requestPublicBooking({
       slug: activeSlug,
-      // Un solo servicio todavía: la selección múltiple llega en T5.
-      serviceIds: [selectedService.service_id],
+      // En orden de elección: el primero es el servicio principal de la cita.
+      serviceIds: selection.service_ids,
       datetime: selectedSlot.start,
       clientName: name,
       clientPhone: phone,
@@ -303,7 +318,8 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
 
         {step === 'service' && (
           <div className={card + ' flex flex-col gap-2'}>
-            <h2 className="text-lg font-semibold">Elige tu servicio</h2>
+            <h2 className="text-lg font-semibold">Elige tus servicios</h2>
+            <p className="text-xs text-neutral-500">Puedes elegir más de uno.</p>
             {readyBusiness.services.length === 0 && (
               <p className="text-sm text-neutral-500">
                 Este negocio no tiene servicios disponibles para reservar en línea todavía.
@@ -313,25 +329,35 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
               <button
                 key={s.service_id}
                 type="button"
+                aria-pressed={selection.service_ids.includes(s.service_id)}
                 className={
                   'flex items-center justify-between rounded-xl border px-3 py-3 text-left transition ' +
-                  (selectedServiceId === s.service_id
+                  (selection.service_ids.includes(s.service_id)
                     ? 'border-brand-500 bg-brand-50'
                     : 'border-neutral-200 hover:bg-neutral-50')
                 }
-                onClick={() => setSelectedServiceId(s.service_id)}
+                onClick={() => {
+                  setSelectedServiceIds((prev) => toggleServiceId(prev, s.service_id));
+                  // Cambió la duración: el horario que tenía elegido ya no vale.
+                  setSelectedSlot(null);
+                }}
               >
                 <span>
                   <span className="block font-medium">{s.service_name}</span>
                   <span className="block text-xs text-neutral-500">{s.duration_min} min</span>
                 </span>
-                <span className="font-semibold text-brand-700">{formatMoney(s.price)}</span>
+                <span className="font-semibold text-brand-700">{servicePriceLabel(s)}</span>
               </button>
             ))}
+            {selection.ready && (
+              <p className="mt-1 text-sm text-neutral-600">
+                Total: {selection.duration_min} min · {estimateLabel(selection)}
+              </p>
+            )}
             <button
               type="button"
               className={btnPrimary + ' mt-2'}
-              disabled={selectedServiceId === null}
+              disabled={!selection.ready}
               onClick={() => setStep('datetime')}
             >
               Continuar
@@ -339,7 +365,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
           </div>
         )}
 
-        {step === 'datetime' && selectedService && (
+        {step === 'datetime' && selection.ready && (
           <div className={card + ' flex flex-col gap-3'}>
             <h2 className="text-lg font-semibold">Elige día y hora</h2>
 
@@ -410,11 +436,14 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
           </div>
         )}
 
-        {step === 'details' && selectedService && selectedSlot && (
+        {step === 'details' && selection.ready && selectedSlot && (
           <div className={card + ' flex flex-col gap-3'}>
             <h2 className="text-lg font-semibold">Tus datos</h2>
             <p className="text-sm text-neutral-500">
-              {selectedService.service_name} · {dayChipLabel(selectedDate)} · {formatTime(selectedSlot.start)}
+              {selectedNames} · {dayChipLabel(selectedDate)} · {formatTime(selectedSlot.start)}
+            </p>
+            <p className="text-sm text-neutral-500">
+              {selection.duration_min} min · {estimateLabel(selection)}
             </p>
 
             <label className={field}>
@@ -456,11 +485,11 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
           </div>
         )}
 
-        {step === 'success' && selectedService && selectedSlot && (
+        {step === 'success' && selection.ready && selectedSlot && (
           <div className={card + ' flex flex-col gap-2 text-center'}>
             <h2 className="text-lg font-semibold text-brand-700">Solicitud enviada — te confirmamos pronto</h2>
             <p className="text-sm text-neutral-600">
-              Pediste <strong>{selectedService.service_name}</strong> el {dayChipLabel(selectedDate)} a las{' '}
+              Pediste <strong>{selectedNames}</strong> el {dayChipLabel(selectedDate)} a las{' '}
               {formatTime(selectedSlot.start)}.
             </p>
             <p className="text-sm text-neutral-500">

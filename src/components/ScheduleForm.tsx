@@ -2,7 +2,7 @@
 // - Agendar: nace PENDING sin dinero (INVARIANTE 2); el precio se cobra después.
 // - Walk-in ("ya la atendí"): crea la cita YA completada, congelando el dinero.
 // Inputs CONTROLADOS: cada campo tiene su estado y su onChange.
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { newId, useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, nowLocalDatetime, parseMoneyToCents } from '../lib/format';
 import { buildChargeForm } from '../lib/domain/charge';
@@ -26,6 +26,13 @@ export function ScheduleForm() {
   const [chargeTexts, setChargeTexts] = useState<{ prices: Record<number, string>; total: string }>({ prices: {}, total: '' });
   const [quotedText, setQuotedText] = useState(''); // precio acordado (al agendar)
   const [depositText, setDepositText] = useState(''); // abono/adelanto (al agendar)
+
+  // Si la dueña cambia algo tras un fallo, ya es otra cita: id nuevo. Si no, un
+  // reintento con datos editados chocaría con la versión vieja ya guardada y se
+  // daría por buena sin serlo.
+  useEffect(() => {
+    setDraftId(null);
+  }, [client, selectedIds, datetime, walkIn, quotedText, depositText, chargeTexts]);
 
   const selection = summarizeSelection(store.services, selectedIds);
   const selectedServices = selection.service_ids.flatMap((id) => store.services.find((s) => s.id === id) ?? []);
