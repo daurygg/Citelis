@@ -28,8 +28,16 @@ export function ReceiptSettings() {
   async function run(action: () => Promise<{ ok: true } | { ok: false; message: string }>, done: string) {
     setBusy(true);
     setError(null);
-    const result = await action();
-    setBusy(false);
+    let result: { ok: true } | { ok: false; message: string };
+    try {
+      result = await action();
+    } catch (e) {
+      // Un fallo de red puede llegar como excepción: sin esto los botones
+      // quedaban deshabilitados para siempre.
+      result = { ok: false, message: e instanceof Error ? e.message : 'No se pudo conectar con el servidor.' };
+    } finally {
+      setBusy(false);
+    }
     if (result.ok) notify(done);
     else setError(result.message);
   }

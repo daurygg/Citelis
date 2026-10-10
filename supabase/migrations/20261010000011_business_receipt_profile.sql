@@ -141,12 +141,9 @@ begin
      where id = 'business-logos';
   end if;
 
-  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects'
-                  and policyname = 'business_logos_read') then
-    create policy business_logos_read on storage.objects
-      for select to anon, authenticated
-      using (bucket_id = 'business-logos');
-  end if;
+  -- Sin policy de lectura A PROPÓSITO: el bucket es público, así que cada logo se
+  -- sirve por su URL (el recibo digital de P6) sin ninguna policy. Una policy
+  -- SELECT para anon permitiría además LISTAR los logos de todos los negocios.
   if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects'
                   and policyname = 'business_logos_insert') then
     create policy business_logos_insert on storage.objects
@@ -164,6 +161,14 @@ begin
                   and policyname = 'business_logos_delete') then
     create policy business_logos_delete on storage.objects
       for delete to authenticated
+      using (bucket_id = 'business-logos' and is_member(logo_folder_business_id(name)));
+  end if;
+  -- Leer por tabla SOLO las miembros y SOLO su carpeta: la API de Storage lo exige
+  -- para borrar o reemplazar el logo. El público lo ve por URL, sin listar nada.
+  if not exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects'
+                  and policyname = 'business_logos_member_select') then
+    create policy business_logos_member_select on storage.objects
+      for select to authenticated
       using (bucket_id = 'business-logos' and is_member(logo_folder_business_id(name)));
   end if;
 end $$;

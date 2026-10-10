@@ -12,8 +12,10 @@
 --   5 · set_my_display_name solo cambia la fila propia; vacío lo borra; > 60 se rechaza.
 --   6 · business_member_names devuelve los nombres del propio negocio y rechaza el ajeno.
 --   7 · complete_appointment guarda charged_by = quien cobró.
---   8 · Storage: las policies existen; una miembro sube bajo `<su negocio>/` y NO bajo
---       la carpeta de otro negocio ni con un nombre sin carpeta numérica; cualquiera lee.
+--   8 · Storage: las policies de escritura existen y no hay una de lectura (listaría
+--       el bucket); una miembro sube bajo `<su negocio>/` y NO bajo la carpeta de otro
+--       negocio ni sin carpeta numérica. Los inserts se revierten (Storage prohíbe
+--       borrar con SQL).
 --       Si el stack no trae `storage`, esa parte se omite con un aviso (no falla).
 --
 -- Usuarias propias: ...0009ba, ...0009bb y ...0009bc. Datos 9997xx. Se borran al final.
@@ -168,75 +170,81 @@ begin
     end if;
     select count(*) into v_cnt from pg_policies
      where schemaname = 'storage' and tablename = 'objects'
-       and policyname in ('business_logos_read', 'business_logos_insert',
-                          'business_logos_update', 'business_logos_delete');
+       and policyname in ('business_logos_insert', 'business_logos_update', 'business_logos_delete',
+                          'business_logos_member_select');
     if v_cnt <> 4 then raise exception 'FALLÓ 8: faltan policies de business-logos (% de 4)', v_cnt; end if;
     if exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects'
-                and policyname in ('business_logos_insert', 'business_logos_update', 'business_logos_delete')
+                and policyname in ('business_logos_insert', 'business_logos_update', 'business_logos_delete',
+                                   'business_logos_member_select')
                 and coalesce(qual, '') || coalesce(with_check, '') not like '%is_member%') then
       raise exception 'FALLÓ 8: una policy de escritura del bucket no exige membresía';
     end if;
+    -- Sin policy de lectura: el bucket público sirve cada archivo por su URL, y una
+    -- policy SELECT para anon permitiría LISTAR los logos de todos los negocios.
     if exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects'
-                and policyname = 'business_logos_read' and 'authenticated' <> all (roles)) then
-      raise exception 'FALLÓ 8: la lectura del bucket no incluye a authenticated';
+                and policyname = 'business_logos_read') then
+      raise exception 'FALLÓ 8: existe una policy de lectura que permite listar el bucket';
+    end if;
+    if exists (select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects'
+                and policyname like 'business_logos%' and 'anon' = any (roles)) then
+      raise exception 'FALLÓ 8: anon tiene una policy sobre el bucket de logos';
     end if;
 
-    -- Comportamiento real, como miembro del negocio propio.
-    perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
-    execute 'set local role authenticated';
+    -- Comportamiento real. Todo dentro de un sub-bloque que se REVIERTE al final:
+    -- Storage prohíbe borrar de sus tablas con SQL, así que nada de lo que se sube
+    -- aquí puede quedar escrito.
     begin
-      insert into storage.objects (bucket_id, name, owner)
-      values ('business-logos', v_biz || '/logo-test.png', v_uid);
-      v_msg := 'ok';
-    exception
-      when insufficient_privilege then v_msg := 'denegado';
-      when others then v_msg := 'otro:' || sqlerrm;
+      perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
+      execute 'set local role authenticated';
+      begin
+        insert into storage.objects (bucket_id, name, owner)
+        values ('business-logos', v_biz || '/logo-test.png', v_uid);
+        v_msg := 'ok';
+      exception
+        when insufficient_privilege then v_msg := 'denegado';
+        when others then v_msg := 'otro:' || sqlerrm;
+      end;
+      if v_msg = 'denegado' then
+        raise exception 'FALLÓ 8: la miembro no pudo subir bajo la carpeta de su negocio';
+      elsif v_msg like 'otro:%' then
+        raise notice 'AVISO 8: no se pudo simular el insert en storage.objects (%); solo se verificaron las definiciones.', v_msg;
+      else
+        -- Subir en la carpeta de otro negocio, o sin carpeta numérica: rechazado.
+        begin
+          insert into storage.objects (bucket_id, name, owner)
+          values ('business-logos', v_otro || '/logo-test.png', v_uid); v_msg := 'ok';
+        exception when insufficient_privilege then v_msg := 'denegado'; end;
+        if v_msg is distinct from 'denegado' then
+          raise exception 'FALLÓ 8: viola INVARIANTE 1, subió un logo en la carpeta de otro negocio';
+        end if;
+        begin
+          insert into storage.objects (bucket_id, name, owner)
+          values ('business-logos', 'abc/logo-test.png', v_uid); v_msg := 'ok';
+        exception when insufficient_privilege then v_msg := 'denegado'; end;
+        if v_msg is distinct from 'denegado' then
+          raise exception 'FALLÓ 8: subió un logo bajo una carpeta no numérica';
+        end if;
+        begin
+          insert into storage.objects (bucket_id, name, owner)
+          values ('business-logos', 'suelto.png', v_uid); v_msg := 'ok';
+        exception when insufficient_privilege then v_msg := 'denegado'; end;
+        if v_msg is distinct from 'denegado' then
+          raise exception 'FALLÓ 8: subió un logo sin carpeta de negocio';
+        end if;
+        -- Una no miembro (la dueña del otro negocio) no puede subir en el nuestro.
+        perform set_config('request.jwt.claims', json_build_object('sub', v_uid2)::text, true);
+        begin
+          insert into storage.objects (bucket_id, name, owner)
+          values ('business-logos', v_biz || '/logo-intruso.png', v_uid2); v_msg := 'ok';
+        exception when insufficient_privilege then v_msg := 'denegado'; end;
+        if v_msg is distinct from 'denegado' then
+          raise exception 'FALLÓ 8: una no miembro subió un logo al negocio ajeno';
+        end if;
+      end if;
+      raise exception 'REVERTIR_8';
+    exception when others then
+      if sqlerrm <> 'REVERTIR_8' then raise; end if;
     end;
-    if v_msg = 'denegado' then
-      raise exception 'FALLÓ 8: la miembro no pudo subir bajo la carpeta de su negocio';
-    elsif v_msg like 'otro:%' then
-      raise notice 'AVISO 8: no se pudo simular el insert en storage.objects (%); solo se verificaron las definiciones.', v_msg;
-    else
-      -- Subir en la carpeta de otro negocio, o sin carpeta numérica: rechazado.
-      begin
-        insert into storage.objects (bucket_id, name, owner)
-        values ('business-logos', v_otro || '/logo-test.png', v_uid); v_msg := 'ok';
-      exception when insufficient_privilege then v_msg := 'denegado'; end;
-      if v_msg is distinct from 'denegado' then
-        raise exception 'FALLÓ 8: viola INVARIANTE 1, subió un logo en la carpeta de otro negocio';
-      end if;
-      begin
-        insert into storage.objects (bucket_id, name, owner)
-        values ('business-logos', 'abc/logo-test.png', v_uid); v_msg := 'ok';
-      exception when insufficient_privilege then v_msg := 'denegado'; end;
-      if v_msg is distinct from 'denegado' then
-        raise exception 'FALLÓ 8: subió un logo bajo una carpeta no numérica';
-      end if;
-      begin
-        insert into storage.objects (bucket_id, name, owner)
-        values ('business-logos', 'suelto.png', v_uid); v_msg := 'ok';
-      exception when insufficient_privilege then v_msg := 'denegado'; end;
-      if v_msg is distinct from 'denegado' then
-        raise exception 'FALLÓ 8: subió un logo sin carpeta de negocio';
-      end if;
-      -- Una no miembro (la dueña del otro negocio) no puede subir en el nuestro.
-      perform set_config('request.jwt.claims', json_build_object('sub', v_uid2)::text, true);
-      begin
-        insert into storage.objects (bucket_id, name, owner)
-        values ('business-logos', v_biz || '/logo-intruso.png', v_uid2); v_msg := 'ok';
-      exception when insufficient_privilege then v_msg := 'denegado'; end;
-      if v_msg is distinct from 'denegado' then
-        raise exception 'FALLÓ 8: una no miembro subió un logo al negocio ajeno';
-      end if;
-      -- Lectura pública: anon ve el objeto.
-      execute 'reset role';
-      execute 'set local role anon';
-      select count(*) into v_cnt from storage.objects
-       where bucket_id = 'business-logos' and name = v_biz || '/logo-test.png';
-      if v_cnt <> 1 then raise exception 'FALLÓ 8: anon no puede leer un logo del bucket público'; end if;
-    end if;
-    execute 'reset role';
-    delete from storage.objects where bucket_id = 'business-logos' and name like v_biz || '/%';
   end if;
 
   -- Limpieza (siempre como propietario).
