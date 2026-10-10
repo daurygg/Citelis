@@ -99,7 +99,7 @@ export function buildPaymentPlan(rows: readonly PaymentRowText[], total: number,
   return { payments, paid, credit: overpaid ? 0 : Math.max(0, total - alreadyPaid - paid), overpaid, invalid };
 }
 
-/** Ingresos de un periodo repartidos por vía. `unknown` = abonos históricos sin vía. */
+/** Ingresos de un periodo repartidos por vía. `unknown` = pagos históricos sin vía. */
 export interface IncomeByMethod {
   by_method: Record<PaymentMethod | 'unknown', number>;
   /** Σ pagos de las citas cobradas del periodo. */

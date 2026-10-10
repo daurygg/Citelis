@@ -297,19 +297,45 @@ begin
   end if;
   execute 'reset role';
 
-  -- 11 · Reintento con el mismo id de pago: no paga dos veces.
-  perform add_appointment_payment(v_biz, v_aptE, 300, 'cash', 'deposit', 999841);
-  begin
-    perform add_appointment_payment(v_biz, v_aptE, 300, 'cash', 'deposit', 999841);
-    v_msg := null;
-  exception when unique_violation then v_msg := 'duplicado'; end;
-  select count(*) into v_n from appointment_payment where id = 999841;
-  if v_msg is distinct from 'duplicado' or v_n <> 1 then
-    raise exception 'FALLÓ 11: el reintento con el mismo id pagó dos veces (%)', v_n;
+  -- 11 · Reintento con el mismo client_ref: no inserta nada y vuelve en silencio.
+  perform add_appointment_payment(v_biz, v_aptE, 300, 'cash', 'deposit', '00000000-0000-4000-8000-000000000841');
+  perform add_appointment_payment(v_biz, v_aptE, 300, 'cash', 'deposit', '00000000-0000-4000-8000-000000000841');
+  select count(*) into v_n from appointment_payment
+   where appointment_id = v_aptE and client_ref = '00000000-0000-4000-8000-000000000841';
+  if v_n <> 1 then
+    raise exception 'FALLÓ 11: el reintento con el mismo client_ref pagó dos veces (%)', v_n;
   end if;
+  -- 11b · El mismo client_ref en OTRA cita es independiente.
+  perform add_appointment_payment(v_biz, v_aptC, 300, 'cash', 'deposit', '00000000-0000-4000-8000-000000000841');
+  select count(*) into v_n from appointment_payment
+   where client_ref = '00000000-0000-4000-8000-000000000841';
+  if v_n <> 2 then
+    raise exception 'FALLÓ 11b: el client_ref debía ser independiente por cita (%)', v_n;
+  end if;
+  -- 11c · La firma vieja con id elegido ya no existe; la columna id es siempre generada.
+  if to_regprocedure('public.add_appointment_payment(bigint,bigint,bigint,text,text,bigint)') is not null then
+    raise exception 'FALLÓ 11c: sigue existiendo la firma con p_payment_id';
+  end if;
+  begin
+    insert into appointment_payment (id, business_id, appointment_id, amount, method, kind)
+    values (999841, v_biz, v_aptE, 1, 'cash', 'deposit'); v_msg := null;
+  exception when others then v_msg := sqlerrm; end;
+  if v_msg is null then
+    raise exception 'FALLÓ 11c: se pudo elegir el id de un pago';
+  end if;
+  -- 11d · Sin vía solo si es histórica (legacy).
+  begin
+    insert into appointment_payment (business_id, appointment_id, amount, method, kind)
+    values (v_biz, v_aptE, 1, null, 'charge'); v_msg := null;
+  exception when check_violation then v_msg := 'check'; end;
+  if v_msg is distinct from 'check' then
+    raise exception 'FALLÓ 11d: un pago nuevo sin vía fue aceptado';
+  end if;
+  insert into appointment_payment (business_id, appointment_id, amount, method, kind, legacy)
+  values (v_biz, v_aptE, 1, null, 'charge', true);
 
   -- 12 · anon no ejecuta.
-  if has_function_privilege('anon', 'public.add_appointment_payment(bigint,bigint,bigint,text,text,bigint)', 'execute')
+  if has_function_privilege('anon', 'public.add_appointment_payment(bigint,bigint,bigint,text,text,uuid)', 'execute')
      or has_function_privilege('anon', 'public.complete_appointment(bigint,bigint,bigint,bigint,bigint,jsonb,jsonb)', 'execute')
      or has_function_privilege('anon', 'public.schedule_appointment(bigint,bigint,text,text,bigint,bigint,bigint[],text)', 'execute') then
     raise exception 'FALLÓ 12: anon puede ejecutar una RPC de pagos';

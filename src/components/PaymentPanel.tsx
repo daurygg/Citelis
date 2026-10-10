@@ -1,7 +1,7 @@
 // Piezas de pago compartidas: las vías como chips y el panel para registrar un pago
 // de lo que una clienta debe. Los cálculos viven en el dominio (payments.ts).
 import { useRef, useState } from 'react';
-import { newId, useStore } from '../lib/store/StoreContext';
+import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, parseMoneyToCents } from '../lib/format';
 import type { Appointment, PaymentMethod } from '../lib/domain/types';
 import { PAYMENT_METHODS, appointmentBalance, checkPaymentAmount, paymentMethodLabel } from '../lib/domain/payments';
@@ -71,7 +71,7 @@ export function RegisterPaymentPanel({ appointment, onDone }: { appointment: App
   const [saving, setSaving] = useState(false);
   // Id del pago fijo entre reintentos: si un intento llegó a registrarse pero la
   // respuesta se perdió, reintentar no cobra dos veces.
-  const paymentId = useRef<number | null>(null);
+  const paymentId = useRef<string | null>(null);
 
   const text = amountText ?? centsToText(balance);
   const cents = parseMoneyToCents(text);
@@ -79,7 +79,7 @@ export function RegisterPaymentPanel({ appointment, onDone }: { appointment: App
 
   async function handleSave() {
     if (!check.ok || cents === null || saving) return;
-    paymentId.current ??= newId();
+    paymentId.current ??= crypto.randomUUID();
     setSaving(true);
     let result;
     try {

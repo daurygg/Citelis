@@ -32,7 +32,7 @@ import { creditsByClient, incomeByMethod, paymentStatus, type ClientCredit, type
 import { scheduleRpcArgs } from '../domain/selection';
 import { checkServicesEdit, updateServicesRpcArgs, type ServicesEditCheck } from '../domain/editServices';
 import { applyAppointmentChange, applyServiceIds, keepKnownServiceIds } from './appointmentSync';
-import { isAlreadySaved, isPaymentAlreadySaved, type WriteError } from './writeResult';
+import { isAlreadySaved, type WriteError } from './writeResult';
 import { startLiveAppointments } from './liveAppointments';
 import { findScheduleConflict } from '../domain/scheduling';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
@@ -150,7 +150,7 @@ export interface Store {
   serviceCredits: () => ClientCredit[];
   incomeByMethod: (from: string, to: string) => IncomeByMethod;
   /** Registra un abono (cita abierta) o un pago de crédito (cita cobrada). Espera al servidor. */
-  addPayment: (appointmentId: number, amount: number, method: PaymentMethod, kind: Extract<PaymentKind, 'deposit' | 'credit_payment'>, paymentId?: number) => Promise<ActionResult>;
+  addPayment: (appointmentId: number, amount: number, method: PaymentMethod, kind: Extract<PaymentKind, 'deposit' | 'credit_payment'>, clientRef?: string) => Promise<ActionResult>;
   cancel: (appointmentId: number) => void;
   markNoShow: (appointmentId: number) => void;
   registerWalkIn: (input: WalkInInput) => Promise<ActionResult>;
@@ -668,14 +668,14 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   // Registra un pago suelto: un abono (cita abierta) o un pago de crédito (cita
   // ya cobrada). Como `complete`, ESPERA al servidor, que valida estado y sobrepago;
   // el estado local solo cambia cuando confirma. NO toca el dinero congelado de la
-  // cita (INVARIANTE 2): solo añade un pago. El id del pago lo fija quien llama
-  // para que un reintento tras un corte de red no pague dos veces.
+  // cita (INVARIANTE 2): solo añade un pago. La referencia del intento la fija quien llama
+  // (el servidor la deduplica por cita) para que un reintento tras un corte de red no pague dos veces.
   async function addPayment(
     appointmentId: number,
     amount: number,
     method: PaymentMethod,
     kind: Extract<PaymentKind, 'deposit' | 'credit_payment'>,
-    paymentId: number = newId(),
+    clientRef: string = crypto.randomUUID(),
   ): Promise<ActionResult> {
     let error: WriteError | null;
     try {
@@ -685,13 +685,13 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
         p_amount: amount,
         p_method: method,
         p_kind: kind,
-        p_payment_id: paymentId,
+        p_client_ref: clientRef,
       }));
     } catch (e) {
       error = { message: e instanceof Error ? e.message : 'No se pudo conectar con el servidor.' };
     }
-    if (error && !isPaymentAlreadySaved(error)) return { ok: false, message: error.message };
-    await syncPayments(appointmentId, [newPayment(appointmentId, amount, method, kind, paymentId)]);
+    if (error) return { ok: false, message: error.message };
+    await syncPayments(appointmentId, [newPayment(appointmentId, amount, method, kind)]);
     return { ok: true };
   }
 
