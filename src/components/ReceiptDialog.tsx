@@ -6,17 +6,22 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../lib/store/StoreContext';
 import type { ReceiptResult } from '../lib/domain/receipt';
+import { receiptUrl } from '../lib/domain/publicReceipt';
+import { QrCode } from './QrCode';
 import { ReceiptSheet } from './ReceiptSheet';
 import { btnGhost, btnPrimary } from './ui';
 
 export function ReceiptDialog({ appointmentId, onClose }: { appointmentId: number; onClose: () => void }) {
   const store = useStore();
   const [result, setResult] = useState<ReceiptResult | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     store.loadReceipt(appointmentId).then((r) => {
-      if (active) setResult(r);
+      if (!active) return;
+      setToken(r.token);
+      setResult(r.result);
     });
     return () => {
       active = false;
@@ -59,7 +64,11 @@ export function ReceiptDialog({ appointmentId, onClose }: { appointmentId: numbe
       )}
       {result && result.ok && (
         <div className="mx-auto flex max-w-[22rem] flex-col gap-4">
-          <ReceiptSheet data={result.data} />
+          {/* Sin token no hay QR: nunca se imprime uno falso. */}
+          <ReceiptSheet
+            data={result.data}
+            qr={token ? <QrCode value={receiptUrl(window.location.origin, token)} label="Código QR de tu recibo digital" /> : undefined}
+          />
           <div className="receipt-actions flex gap-2">
             <button type="button" className={btnPrimary + ' flex-1'} onClick={() => window.print()}>
               Imprimir
