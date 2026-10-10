@@ -181,10 +181,14 @@ begin
   insert into appointment_service (appointment_id, service_id, business_id)
   select p_appointment_id, s, p_business_id from unnest(p_service_ids) as s;
 
-  -- El abono es un pago: nace con la cita o no nace ninguno.
+  -- El abono es un pago: nace con la cita o no nace ninguno. Sin vía (la firma
+  -- vieja de 7 argumentos, que usa el frontend anterior) queda como "sin vía
+  -- registrada" (legacy), igual que los abonos históricos: rechazarlo haría
+  -- fallar el alta de la cita durante el despliegue.
   if p_deposit is not null and p_deposit > 0 then
-    insert into appointment_payment (business_id, appointment_id, amount, method, kind)
-    values (p_business_id, p_appointment_id, p_deposit, p_deposit_method, 'deposit');
+    insert into appointment_payment (business_id, appointment_id, amount, method, kind, legacy)
+    values (p_business_id, p_appointment_id, p_deposit, p_deposit_method, 'deposit',
+            p_deposit_method is null);
   end if;
 end $$;
 

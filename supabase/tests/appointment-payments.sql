@@ -75,8 +75,8 @@ begin
 
   -- 1 · Respaldo: la misma sentencia de la migración. Idempotente.
   for i in 1..2 loop
-    insert into appointment_payment (business_id, appointment_id, amount, method, kind)
-    select a.business_id, a.id, a.deposit, null, 'deposit'
+    insert into appointment_payment (business_id, appointment_id, amount, method, kind, legacy)
+    select a.business_id, a.id, a.deposit, null, 'deposit', true
       from appointment a
      where a.deposit > 0
        and not exists (select 1 from appointment_payment p where p.appointment_id = a.id and p.kind = 'deposit');
