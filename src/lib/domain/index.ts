@@ -4,3 +4,4 @@ export * from './costs';
 export * from './appointments';
 export * from './reports';
 export * from './charge';
+export * from './selection';

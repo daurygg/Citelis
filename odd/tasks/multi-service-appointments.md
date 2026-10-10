@@ -191,8 +191,22 @@ mano, no en CI**.
   GREEN: 366 passed (366) en 22 archivos (+26); typecheck y build limpios.
   Regresión SQL `supabase/tests/complete-appointment.sql` escrita, PENDIENTE de
   correr contra la base de desarrollo. Sin ver en navegador.
-- [ ] **T6c · La dueña agenda varios servicios.** `ScheduleForm` y la cita de
+- [x] **T6c · La dueña agenda varios servicios.** `ScheduleForm` y la cita de
   mostrador con selección múltiple; la cita nace con sus líneas.
+
+  Hecho en `feat/multi-service-6c-schedule` (TDD). Dominio puro
+  `src/lib/domain/selection.ts` (`toggleServiceId`, `summarizeSelection`,
+  `scheduleRpcArgs`). `ScheduleForm`: chips de servicios, duración sumada y
+  precio estimado ("a convenir" si hay variables); el cobro al paso reutiliza
+  `buildChargeForm`. RPC `schedule_appointment` (migración `20261010000002`):
+  miembro, servicios del negocio, sin repetir ni vacíos, duración > 0, siempre
+  PENDING, cita + líneas en una transacción. `store.schedule` es `async`, solo
+  cambia el estado local si el servidor confirma; `registerWalkIn` inserta por la
+  misma RPC y conserva `leftPending`. Id: sigue siendo `newId()` del cliente.
+  RED: suite `selection.test.ts` sin cargar; luego 2 tests de `scheduleRpcArgs`
+  fallando. GREEN: 376 passed (+10) en 23 archivos; typecheck y build limpios.
+  Migración + `supabase/tests/schedule-appointment.sql` PENDIENTES de aplicar/correr
+  en dev. Sin ver en navegador.
 - [ ] **T5 · Portal.** Selección múltiple, huecos para la suma, y el envío.
   Incluye abrir `public_business` a los servicios de precio variable (D2).
 - [ ] **T7 · Calendario y aviso push.** Título con N nombres, fin en la suma.
