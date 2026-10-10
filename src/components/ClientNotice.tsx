@@ -14,7 +14,7 @@ import { formatDateShort, formatTime } from '../lib/format';
 import type { Appointment } from '../lib/domain/types';
 import { serviceNames } from '../lib/domain/appointments';
 import { useStore } from '../lib/store/StoreContext';
-import { btnPrimary } from './ui';
+import { btnPrimarySm } from './ui';
 
 export function ClientNotice({
   appointment,
@@ -60,7 +60,7 @@ export function ClientNotice({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={btnPrimary + ' px-3 py-1.5 text-center text-sm'}
+      className={btnPrimarySm + ' flex items-center justify-center text-center'}
     >
       Avisar a {appointment.client} por WhatsApp
     </a>

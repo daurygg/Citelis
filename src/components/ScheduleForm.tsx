@@ -8,7 +8,7 @@ import { formatMoney, formatTime, nowLocalDatetime, parseMoneyToCents } from '..
 import { buildChargeForm } from '../lib/domain/charge';
 import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
 import { useToast } from './Toast';
-import { btnPrimary, card, field, fieldLabel, input } from './ui';
+import { btnPrimary, card, chip, field, fieldLabel, input } from './ui';
 
 export function ScheduleForm() {
   const store = useStore();
@@ -137,7 +137,7 @@ export function ScheduleForm() {
                 aria-pressed={on}
                 onClick={() => setSelectedIds((ids) => toggleServiceId(ids, service.id))}
                 className={
-                  'rounded-full border px-3 py-2 text-sm ' +
+                  chip + ' ' +
                   (on ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white text-neutral-700')
                 }
               >
@@ -239,8 +239,8 @@ export function ScheduleForm() {
         </label>
       )}
 
-      <label className="flex items-center gap-2 text-sm text-neutral-700">
-        <input type="checkbox" checked={walkIn} onChange={(e) => setWalkIn(e.target.checked)} />
+      <label className="flex min-h-11 items-center gap-2 text-sm text-neutral-700">
+        <input className="size-5" type="checkbox" checked={walkIn} onChange={(e) => setWalkIn(e.target.checked)} />
         Ya la atendí (cobrar ahora)
       </label>
 
