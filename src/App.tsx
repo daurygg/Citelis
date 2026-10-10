@@ -15,6 +15,7 @@ import { ProductsScreen } from './components/ProductsScreen';
 import { SellForm } from './components/SellForm';
 import { ClothingReport } from './components/ClothingReport';
 import { CreditsScreen } from './components/CreditsScreen';
+import { ServiceCreditsScreen } from './components/ServiceCreditsScreen';
 import { Login } from './components/Login';
 import { PublicBooking } from './components/public/PublicBooking';
 import { BookingSettings } from './components/owner/BookingSettings';
@@ -33,6 +34,7 @@ const SERVICE_TABS: { id: ServiceView; label: string }[] = [
   { id: 'agenda', label: 'Agenda' },
   { id: 'reservas', label: 'Reservas' },
   { id: 'services', label: 'Servicios' },
+  { id: 'credits', label: 'Créditos' },
   { id: 'report', label: 'Reporte' },
 ];
 const CLOTHING_TABS: { id: ClothingView; label: string }[] = [
@@ -232,6 +234,7 @@ function AppShell() {
               </div>
             )}
             {serviceView === 'services' && <ServicesScreen />}
+            {serviceView === 'credits' && <ServiceCreditsScreen />}
             {serviceView === 'report' && <PeriodReport />}
           </>
         ) : (
