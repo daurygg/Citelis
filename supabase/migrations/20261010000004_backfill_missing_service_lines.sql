@@ -16,8 +16,8 @@
 --   historia (INVARIANTE 2). Las citas que ya tienen líneas no se tocan.
 --
 -- CÓMO SE USA
---   Corre una vez al aplicar esta migración. En el release se vuelve a llamar
---   DESPUÉS de que el frontend nuevo esté desplegado:
+--   Corre una vez al aplicar esta migración. Desde ahí el trigger del final evita
+--   que aparezcan citas nuevas sin líneas. La función queda por si hace falta:
 --     select backfill_missing_service_lines();
 --   Solo la ejecuta `postgres`: no se concede a anon ni a authenticated.
 
@@ -41,3 +41,33 @@ revoke execute on function backfill_missing_service_lines() from public;
 revoke execute on function backfill_missing_service_lines() from anon, authenticated;
 
 select backfill_missing_service_lines();
+
+-- GARANTÍA PERMANENTE: ninguna cita termina su transacción sin líneas.
+--   Trigger de restricción DIFERIDO: corre en el COMMIT, no en el insert. Si
+--   quien creó la cita escribió sus líneas en la misma transacción (lo que hace
+--   `schedule_appointment`), al llegar el commit ya las tiene y no hace nada. Si
+--   no (la agenda vieja, que solo escribe en `appointment`), le pone la línea de
+--   su `service_id`. Así una cita nunca bloquea el portal por falta de líneas,
+--   sin depender de que alguien re-corra el relleno a mano.
+create or replace function ensure_primary_service_line()
+returns trigger language plpgsql security definer
+set search_path = public, pg_temp as $$
+begin
+  if not exists (select 1 from appointment_service where appointment_id = new.id) then
+    insert into appointment_service (appointment_id, service_id, business_id,
+                                     charged_price, actual_cost, profit)
+    values (new.id, new.service_id, new.business_id,
+            new.charged_price, new.actual_cost, new.profit)
+    on conflict (appointment_id, service_id) do nothing;
+  end if;
+  return null;
+end $$;
+
+revoke execute on function ensure_primary_service_line() from public;
+revoke execute on function ensure_primary_service_line() from anon, authenticated;
+
+drop trigger if exists appointment_ensure_service_line on appointment;
+create constraint trigger appointment_ensure_service_line
+  after insert on appointment
+  deferrable initially deferred
+  for each row execute function ensure_primary_service_line();
