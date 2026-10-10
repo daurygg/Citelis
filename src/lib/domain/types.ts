@@ -23,6 +23,17 @@ export interface Business {
   // Color de marca en hex (decisión T5, odd/tasks/business-theming.md). Opcional
   // porque los negocios creados antes de este slice todavía no traen la columna.
   theme_color?: string;
+  // Datos del encabezado del recibo (P4). Nulos hasta que la dueña los llena.
+  address?: string | null;
+  phone?: string | null;
+  // Ruta del logo dentro del bucket `business-logos` (`<business_id>/logo-….png`).
+  logo_path?: string | null;
+}
+
+// Nombre visible de una miembro del negocio (quien cobra, en el recibo).
+export interface MemberName {
+  user_id: string;
+  display_name: string | null;
 }
 
 // Empleada del negocio (INVARIANTE 1). No es usuaria de la app. Se da de baja

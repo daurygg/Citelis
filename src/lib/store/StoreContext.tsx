@@ -11,6 +11,7 @@ import type {
   BusinessHours,
   Employee,
   FixedExpense,
+  MemberName,
   PaymentKind,
   PaymentMethod,
   Service,
@@ -41,6 +42,7 @@ import { completedWithoutLines, mergeServiceLines } from './serviceLines';
 import { dayRange, shiftMonthISODate } from '../format';
 import { supabase } from '../supabase/client';
 import { useAuth } from '../auth/AuthContext';
+import { LOGO_BUCKET, buildLogoPath, validateAddress, validateDisplayName, validateLogoFile, validatePhone } from '../domain/receiptProfile';
 import { Onboarding } from '../../components/Onboarding';
 
 // ── Tipos de la fachada (idénticos a las fases en memoria) ──────────────────
@@ -188,11 +190,25 @@ export interface Store {
   // Color de marca del negocio (T5, odd/tasks/business-theming.md): se puede
   // cambiar después de crearlo, no solo al crearlo.
   updateBusinessTheme: (hex: string) => void;
+  // Datos del recibo (P4). A diferencia del color, esperan al servidor: un rechazo
+  // (RLS, longitud) tiene que verlo la dueña, no perderse en silencio.
+  /** Quién soy (auth.uid) y los nombres visibles de las miembros del negocio. */
+  currentUserId: string | null;
+  memberNames: readonly MemberName[];
+  updateReceiptProfile: (input: { address: string; phone: string }) => Promise<SaveResult>;
+  setMyDisplayName: (name: string) => Promise<SaveResult>;
+  /** Sube el logo (valida tipo y peso), guarda su ruta y borra el anterior. */
+  uploadBusinessLogo: (file: File) => Promise<SaveResult>;
+  removeBusinessLogo: () => Promise<SaveResult>;
+  /** URL pública del logo, o null si no hay. */
+  businessLogoUrl: string | null;
   // Dirección pública del negocio (T3, odd/tasks/editable-public-slug.md).
   // A diferencia de todo lo demás de este store, esto NO es optimista: ver el
   // comentario junto a su implementación.
   updatePublicSlug: (slug: string) => Promise<{ ok: true; slug: string } | { ok: false; message: string }>;
 }
+
+export type SaveResult = { ok: true } | { ok: false; message: string };
 
 const StoreContext = createContext<Store | null>(null);
 
@@ -223,6 +239,8 @@ interface LoadedData {
   businessHours: BusinessHours[];
   timeBlocks: TimeBlock[];
   bookingPolicy: BookingPolicyRow | null;
+  memberNames: MemberName[];
+  currentUserId: string | null;
 }
 
 // Carga inicial: resuelve el negocio del usuario y trae sus datos. Solo cuando
@@ -259,7 +277,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // INVARIANTE 1: cada consulta filtra por business_id de forma explícita,
       // además de la RLS. Con varias membresías, la RLS deja ver las filas de
       // todos los negocios del usuario; sin este filtro se mezclarían.
-      const [biz, svc, sup, ss, emp, apt, aptSvc, fx, bh, tb, bp, pay] = await Promise.all([
+      const [biz, svc, sup, ss, emp, apt, aptSvc, fx, bh, tb, bp, pay, names, sess] = await Promise.all([
         // El nombre del negocio sale en el .ics y en el link de Google Calendar.
         supabase.from('business').select('*').eq('id', businessId),
         supabase.from('service').select('*').eq('business_id', businessId),
@@ -277,6 +295,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('booking_policy').select('*').eq('business_id', businessId),
         // Pagos de las citas (abonos, cobros, pagos de crédito). Si falla, se cargan sin pagos.
         supabase.from('appointment_payment').select('*').eq('business_id', businessId),
+        // Nombres visibles de quienes cobran (RPC acotada a mi negocio). Si falla, sin nombres.
+        supabase.rpc('business_member_names', { p_business_id: businessId }),
+        supabase.auth.getSession(),
       ]);
       if (!active) return;
       setData({
@@ -294,6 +315,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         businessHours: (bh.data ?? []) as BusinessHours[],
         timeBlocks: (tb.data ?? []) as TimeBlock[],
         bookingPolicy: ((bp.data ?? [])[0] ?? null) as BookingPolicyRow | null,
+        memberNames: (names.data ?? []) as MemberName[],
+        currentUserId: sess.data.session?.user.id ?? null,
       });
     })();
     return () => {
@@ -323,6 +346,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 function StoreReady({ data, children }: { data: LoadedData; children: ReactNode }) {
   const businessId = data.businessId;
   const [business, setBusiness] = useState<Business | null>(data.business);
+  const [memberNames, setMemberNames] = useState<readonly MemberName[]>(data.memberNames);
   const [services, setServices] = useState<readonly Service[]>(data.services);
   const [supplies, setSupplies] = useState<readonly Supply[]>(data.supplies);
   const [serviceSupplies, setServiceSupplies] = useState<readonly ServiceSupply[]>(data.serviceSupplies);
@@ -1004,6 +1028,86 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     return { ok: true, slug: newSlug };
   }
 
+  // ── Datos del recibo (P4) ─────────────────────────────────────────────────
+  // Dirección y teléfono: se valida en el dominio, se espera al servidor y el
+  // estado local cambia solo si lo acepta (mismo criterio que `updatePublicSlug`).
+  async function updateReceiptProfile(input: { address: string; phone: string }): Promise<SaveResult> {
+    const address = validateAddress(input.address);
+    if (!address.ok) return { ok: false, message: address.message };
+    const phone = validatePhone(input.phone);
+    if (!phone.ok) return { ok: false, message: phone.message };
+    const { data: rows, error } = await supabase
+      .from('business')
+      .update({ address: address.value, phone: phone.value })
+      .eq('id', businessId)
+      .select('id');
+    if (error) return { ok: false, message: error.message };
+    // RLS descarta en silencio con 0 filas: eso también es un fallo.
+    if (!rows || rows.length === 0) return { ok: false, message: 'No se pudo guardar. Intenta de nuevo.' };
+    setBusiness((prev) => (prev ? { ...prev, address: address.value, phone: phone.value } : prev));
+    return { ok: true };
+  }
+
+  async function setMyDisplayName(name: string): Promise<SaveResult> {
+    const check = validateDisplayName(name);
+    if (!check.ok) return { ok: false, message: check.message };
+    const { data: saved, error } = await supabase.rpc('set_my_display_name', {
+      p_business_id: businessId,
+      p_name: check.value,
+    });
+    if (error) return { ok: false, message: error.message };
+    const value = (saved as string | null) ?? null;
+    setMemberNames((prev) => {
+      const mine = data.currentUserId;
+      if (!mine) return prev;
+      const rest = prev.filter((m) => m.user_id !== mine);
+      return [...rest, { user_id: mine, display_name: value }];
+    });
+    return { ok: true };
+  }
+
+  async function saveLogoPath(path: string | null): Promise<SaveResult> {
+    const { data: rows, error } = await supabase
+      .from('business')
+      .update({ logo_path: path })
+      .eq('id', businessId)
+      .select('id');
+    if (error) return { ok: false, message: error.message };
+    if (!rows || rows.length === 0) return { ok: false, message: 'No se pudo guardar el logo. Intenta de nuevo.' };
+    setBusiness((prev) => (prev ? { ...prev, logo_path: path } : prev));
+    return { ok: true };
+  }
+
+  // Sube a una ruta NUEVA (`upsert: false`, nunca pisa) y luego apunta `logo_path`
+  // a ella; el archivo anterior se borra al final, y si no se puede borrar solo
+  // queda un huérfano inofensivo (el logo nuevo ya está guardado).
+  async function uploadBusinessLogo(file: File): Promise<SaveResult> {
+    const check = validateLogoFile(file);
+    if (!check.ok) return { ok: false, message: check.message };
+    const previous = business?.logo_path ?? null;
+    const path = buildLogoPath(businessId, Date.now(), check.ext);
+    const up = await supabase.storage.from(LOGO_BUCKET).upload(path, file, { upsert: false, contentType: file.type });
+    if (up.error) return { ok: false, message: 'No se pudo subir la imagen: ' + up.error.message };
+    const saved = await saveLogoPath(path);
+    if (!saved.ok) {
+      await supabase.storage.from(LOGO_BUCKET).remove([path]);
+      return saved;
+    }
+    if (previous) await supabase.storage.from(LOGO_BUCKET).remove([previous]);
+    return { ok: true };
+  }
+
+  async function removeBusinessLogo(): Promise<SaveResult> {
+    const previous = business?.logo_path ?? null;
+    const saved = await saveLogoPath(null);
+    if (!saved.ok) return saved;
+    if (previous) await supabase.storage.from(LOGO_BUCKET).remove([previous]);
+    return { ok: true };
+  }
+
+  const logoPath = business?.logo_path ?? null;
+  const businessLogoUrl = logoPath ? supabase.storage.from(LOGO_BUCKET).getPublicUrl(logoPath).data.publicUrl : null;
+
   // Empleadas: mismo patrón que servicios e insumos (estado local + `persist`).
   // No se borran: se dan de baja, porque su nombre sigue en lo ya cobrado.
   function addEmployee(name: string): number {
@@ -1028,6 +1132,13 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
 
   const store: Store = {
     services,
+    currentUserId: data.currentUserId,
+    memberNames,
+    updateReceiptProfile,
+    setMyDisplayName,
+    uploadBusinessLogo,
+    removeBusinessLogo,
+    businessLogoUrl,
     employees,
     addEmployee,
     renameEmployee,
