@@ -131,8 +131,17 @@ el logo del negocio y un QR a un recibo digital.
   `charged_by`, o el nombre del negocio si falta; (5) moneda con `formatMoney` ("$", como el
   resto de la app); (6) el recibo se niega a armarse si Σ neto ≠ `charged_price`;
   (7) hueco del QR: `ReceiptSheet` acepta `qr` y no imprime nada sin él (P6).
-- [ ] **P6 · Recibo digital.** Token no adivinable, RPC pública que no expone
+- [x] **P6 · Recibo digital.** Token no adivinable, RPC pública que no expone
   costos ni ganancias, ruta `/recibo/:token` y QR en el recibo impreso.
+  Evidencia: migración `20261010000013_public_receipt.sql` (`public_receipt(uuid)`, anon +
+  authenticated, token desconocido → null) + suite `supabase/tests/public-receipt.sql`
+  (usuarias ...09da/...09db, datos 9994xx; NO ejecutada en local, la corre `sql-regression`).
+  `receipt.ts` factorizado en `assembleReceipt`: dueña y página pública usan el mismo
+  armador (`publicReceipt.ts`, con test de igualdad contra `buildReceiptData`); RED observado
+  (módulo inexistente). Página `PublicReceipt` + ruta en `App.tsx`; QR con
+  `qrcode-generator@2.0.4` (SVG, 30 mm) solo si hay token. `public/sw.js` no tiene handler
+  `fetch`, no cachea nada: la ruta no se afecta. `typecheck`, 559 tests y `build` verdes.
+  Pendiente de ver en real: escanear el QR impreso y abrir el enlace en un celular.
 
 ## Entrega
 
