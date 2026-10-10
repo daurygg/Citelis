@@ -331,7 +331,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
                 type="button"
                 aria-pressed={selection.service_ids.includes(s.service_id)}
                 className={
-                  'flex items-center justify-between rounded-xl border px-3 py-3 text-left transition ' +
+                  'flex min-h-11 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition ' +
                   (selection.service_ids.includes(s.service_id)
                     ? 'border-brand-500 bg-brand-50'
                     : 'border-neutral-200 hover:bg-neutral-50')
@@ -342,11 +342,11 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
                   setSelectedSlot(null);
                 }}
               >
-                <span>
+                <span className="min-w-0">
                   <span className="block font-medium">{s.service_name}</span>
                   <span className="block text-xs text-neutral-500">{s.duration_min} min</span>
                 </span>
-                <span className="font-semibold text-brand-700">{servicePriceLabel(s)}</span>
+                <span className="shrink-0 text-right font-semibold text-brand-700">{servicePriceLabel(s)}</span>
               </button>
             ))}
             {selection.ready && (
@@ -369,13 +369,13 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
           <div className={card + ' flex flex-col gap-3'}>
             <h2 className="text-lg font-semibold">Elige día y hora</h2>
 
-            <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="flex snap-x gap-2 overflow-x-auto pb-1">
               {dayChips.map((date) => (
                 <button
                   key={date}
                   type="button"
                   className={
-                    'shrink-0 rounded-lg border px-3 py-2 text-sm ' +
+                    'min-h-11 shrink-0 snap-start rounded-lg border px-3 text-sm ' +
                     (date === selectedDate
                       ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700'
                       : 'border-neutral-200 text-neutral-600')
@@ -407,7 +407,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
                     key={slot.start}
                     type="button"
                     className={
-                      'rounded-lg border px-2 py-2 text-sm ' +
+                      'min-h-11 rounded-lg border px-2 py-3 text-sm ' +
                       (selectedSlot?.start === slot.start
                         ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700'
                         : 'border-neutral-200 text-neutral-700')
