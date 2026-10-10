@@ -5,6 +5,7 @@
 // Solo formatea una cita que YA existe. No calcula dinero ni toca estados: el
 // archivo es presentación pura sobre lo que el dominio ya decidió (INVARIANTE 5).
 import { appointmentUID, buildICS, googleCalendarUrl, revisionSequence } from '../lib/domain/calendar';
+import { resolveAppointmentServices } from '../lib/domain/scheduling';
 import type { Appointment } from '../lib/domain/types';
 import { useStore } from '../lib/store/StoreContext';
 import { btnGhost } from './ui';
@@ -22,16 +23,17 @@ function safeFileName(client: string, datetime: string): string {
 
 export function CalendarActions({ appointment }: { appointment: Appointment }) {
   const store = useStore();
-  const service = store.services.find((s) => s.id === appointment.service_id);
+  const { services, anyMissing } = resolveAppointmentServices(appointment, store.services);
 
-  // Sin servicio no hay nada honesto que poner en el evento.
-  if (!service) return null;
+  // Fallo seguro (igual que la disponibilidad): si CUALQUIER servicio salió del
+  // catálogo, la duración sumada sería falsa y el evento taparía tiempo que no es
+  // real. Preferimos no ofrecer el evento a ofrecer uno con la hora de fin equivocada.
+  if (services.length === 0 || anyMissing) return null;
 
   function handleDownload() {
-    if (!service) return;
     const ics = buildICS({
       appointment,
-      service,
+      services,
       uid: appointmentUID(appointment),
       sequence: revisionSequence(new Date()),
       now: new Date(),
@@ -45,8 +47,7 @@ export function CalendarActions({ appointment }: { appointment: Appointment }) {
   }
 
   function handleOpenGoogleCalendar() {
-    if (!service) return;
-    const url = googleCalendarUrl({ appointment, service });
+    const url = googleCalendarUrl({ appointment, services });
     window.open(url, '_blank', 'noopener');
   }
 

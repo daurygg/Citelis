@@ -39,15 +39,31 @@ export interface AppointmentRow {
   service: ServiceJoin;
 }
 
-/** El join de Supabase llega como objeto, arreglo o null según la relación. */
-export function toBookingForNotice(row: AppointmentRow): BookingForNotice {
-  const service = Array.isArray(row.service) ? row.service[0] : row.service;
+/** Una línea de `appointment_service` con el nombre de su servicio. */
+export interface ServiceLineRow {
+  service: ServiceJoin;
+}
+
+function joinedName(join: ServiceJoin): string | null {
+  const service = Array.isArray(join) ? join[0] : join;
+  return service?.name ?? null;
+}
+
+/**
+ * El join de Supabase llega como objeto, arreglo o null según la relación. Los
+ * servicios salen de las líneas de `appointment_service` (todas las de la cita);
+ * si no hay ninguna legible —solicitudes anteriores a las líneas, o una lectura
+ * que no trajo nombres— se cae al servicio principal de la cita.
+ */
+export function toBookingForNotice(row: AppointmentRow, lines: ServiceLineRow[] = []): BookingForNotice {
+  const fromLines = lines.map((l) => joinedName(l.service)).filter((n): n is string => n !== null);
+  const primary = joinedName(row.service);
   return {
     id: row.id,
     business_id: row.business_id,
     client: row.client,
     datetime: row.datetime,
     status: row.status,
-    service_name: service?.name ?? null,
+    service_names: fromLines.length > 0 ? fromLines : primary ? [primary] : [],
   };
 }

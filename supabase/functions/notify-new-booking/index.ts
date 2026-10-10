@@ -76,7 +76,17 @@ Deno.serve((req) => {
         .eq('id', id)
         .maybeSingle();
       if (error) throw error;
-      return data ? toBookingForNotice(data) : null;
+      if (!data) return null;
+      // Todos los servicios de la solicitud. Filtra por el negocio de la propia
+      // cita (INVARIANTE 1: el service key se salta la RLS, el filtro lo pone el código).
+      const { data: lines, error: linesError } = await db()
+        .from('appointment_service')
+        .select('service:service_id (name)')
+        .eq('appointment_id', id)
+        .eq('business_id', data.business_id);
+      // Sin líneas legibles el aviso sale igual, con el servicio principal.
+      if (linesError) console.error('no se pudieron leer los servicios', String(linesError));
+      return toBookingForNotice(data, lines ?? []);
     },
 
     async loadSubscriptions(businessId) {

@@ -98,7 +98,11 @@ function foldLine(line: string): string {
 
 export interface CalendarEventInput {
   appointment: Appointment;
-  service: Service;
+  /**
+   * TODOS los servicios de la cita, en su orden. El llamador garantiza que están
+   * completos: con un servicio faltante la suma sería una hora de fin falsa.
+   */
+  services: readonly Service[];
   /** Identificador estable de la cita (mismo valor en cada regeneración). */
   uid: string;
   /** Aumenta con cada cambio de la cita: así iOS/Google Calendar ACTUALIZAN en vez de duplicar. */
@@ -121,17 +125,15 @@ function eventDescription(appointment: Appointment): string {
 /**
  * Construye un VCALENDAR de RFC 5545 con un único VEVENT, listo para que la DUEÑA
  * lo agregue a su propio Apple Calendar (iPhone) o Google Calendar (Android) desde
- * un archivo `.ics`. Solo lee la cita que le entregan; nunca calcula ni congela dinero.
+ * un archivo `.ics`. Solo lee la cita y sus servicios que le entregan; nunca calcula ni congela dinero.
  */
 export function buildICS(input: CalendarEventInput): string {
-  const { appointment, service, uid, sequence, now } = input;
+  const { appointment, services, uid, sequence, now } = input;
 
   const dtStart = toFloatingICSDateTime(appointment.datetime);
-  const dtEnd = toFloatingICSDateTime(
-    addMinutesToNaiveDateTime(appointment.datetime, service.duration_min),
-  );
+  const dtEnd = eventEnd(appointment, services);
   const dtStamp = toUtcICSDateTime(now);
-  const summary = escapeICSText(`${appointment.client} — ${service.name}`);
+  const summary = escapeICSText(eventTitle(appointment, services));
   const description = escapeICSText(eventDescription(appointment));
 
   const lines = [
@@ -182,7 +184,18 @@ export function revisionSequence(now: Date): number {
 
 export interface GoogleCalendarUrlInput {
   appointment: Appointment;
-  service: Service;
+  services: readonly Service[];
+}
+
+/** Título del evento: la clienta y los nombres de todos los servicios, unidos con " + ". */
+function eventTitle(appointment: Appointment, services: readonly Service[]): string {
+  return `${appointment.client} — ${services.map((s) => s.name).join(' + ')}`;
+}
+
+/** Fin del evento: el inicio más la duración SUMADA de todos los servicios. */
+function eventEnd(appointment: Appointment, services: readonly Service[]): string {
+  const totalMin = services.reduce((sum, s) => sum + s.duration_min, 0);
+  return toFloatingICSDateTime(addMinutesToNaiveDateTime(appointment.datetime, totalMin));
 }
 
 /**
@@ -191,16 +204,14 @@ export interface GoogleCalendarUrlInput {
  * sincronización (decisión D3).
  */
 export function googleCalendarUrl(input: GoogleCalendarUrlInput): string {
-  const { appointment, service } = input;
+  const { appointment, services } = input;
 
   const start = toFloatingICSDateTime(appointment.datetime);
-  const end = toFloatingICSDateTime(
-    addMinutesToNaiveDateTime(appointment.datetime, service.duration_min),
-  );
+  const end = eventEnd(appointment, services);
 
   const params = new URLSearchParams({
     action: 'TEMPLATE',
-    text: `${appointment.client} — ${service.name}`,
+    text: eventTitle(appointment, services),
     dates: `${start}/${end}`,
     details: eventDescription(appointment),
   });
