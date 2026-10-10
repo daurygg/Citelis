@@ -45,8 +45,10 @@ Ruta: un solo escritor, delegado directo.
   `checkServicesEdit`, `updateServicesRpcArgs`.
   RED: suite `editServices.test.ts` sin cargar (módulo inexistente), 409 pasando en
   las otras 26. GREEN: 442 passed (+33) en 27 archivos; typecheck limpio.
-- [ ] **E2 · Migración + regresión SQL** `20261010000007_update_appointment_services.sql`
+- [x] **E2 · Migración + regresión SQL** `20261010000007_update_appointment_services.sql`
   y `supabase/tests/update-appointment-services.sql`.
+  Escrita; NO ejecutada localmente (sin Docker ni psql): la corre el job
+  `sql-regression` de CI. Usuarias de la suite: `...09f3` y `...09f4`.
 - [ ] **E3 · Store** `updateAppointmentServices(id, serviceIds): Promise<ActionResult>`.
 - [ ] **E4 · UI** "Editar servicios" en `AppointmentRow`.
 
