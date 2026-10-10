@@ -98,6 +98,11 @@ por el formateador:
 
 Arreglarlo son dos sitios. Tarea pequeña y sin relación con lo demás.
 
+**Hecho (2026-10-10)** en `fix/booking-settings-12h`: `formatClock` en
+`src/lib/format.ts` formatea 'HH:MM' a 12h (`formatTime` la reutiliza), y los dos
+sitios pasan por ella. Ahora el horario se ve como `10:00 AM – 6:00 PM` y los
+bloqueos como `30/09/2026 2:00 PM`.
+
 **Límite honesto**: los selectores (`type="time"` y `type="datetime-local"`, seis
 en total) los pinta el navegador según el idioma del sistema operativo. Si su
 teléfono está en 24 horas, esos siguen en 24 horas y no hay forma razonable de
