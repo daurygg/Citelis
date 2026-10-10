@@ -307,7 +307,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
   const readyBusinessName = businessDisplayName(readyBusiness.business_name);
 
   return (
-    <div className="min-h-screen bg-neutral-50 px-4 py-6 text-neutral-900">
+    <div className="min-h-dvh bg-neutral-50 px-4 py-6 text-neutral-900">
       <div className="mx-auto flex max-w-md flex-col gap-4">
         <header className="text-center">
           <h1 className="text-xl font-bold text-brand-700">{readyBusinessName}</h1>
@@ -510,7 +510,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
 
 function CenteredMessage({ children }: { children: ReactNode }) {
   return (
-    <div className="grid min-h-screen place-items-center bg-neutral-50 px-6 text-center text-neutral-600">
+    <div className="grid min-h-dvh place-items-center bg-neutral-50 px-6 text-center text-neutral-600">
       <div>{children}</div>
     </div>
   );

@@ -269,7 +269,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   if (error) {
     return (
-      <div className="grid min-h-screen place-items-center bg-neutral-50 px-6 text-center">
+      <div className="grid min-h-dvh place-items-center bg-neutral-50 px-6 text-center">
         <div>
           <p className="mb-4 text-neutral-700">{error}</p>
           <button type="button" className="text-sm text-brand-700 hover:underline" onClick={() => signOut()}>
@@ -281,7 +281,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
   if (noBusiness) return <Onboarding />;
   if (!data) {
-    return <div className="grid min-h-screen place-items-center bg-neutral-50 text-neutral-500">Cargando tus datos…</div>;
+    return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando tus datos…</div>;
   }
   return <StoreReady data={data}>{children}</StoreReady>;
 }
