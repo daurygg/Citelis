@@ -1,11 +1,13 @@
 // Una fila de la agenda. Si la cita está abierta ofrece acciones: Cobrar, No llegó
 // y Cancelar. Al cobrar, muestra precio/costo/ganancia (ya calculados por el store).
-// Para servicios de precio variable, PIDE el precio (obligatorio) antes de completar.
+// Pide UN precio por cada servicio de precio variable antes de completar; lo que
+// se pide, y cuándo se puede cobrar, lo decide `buildChargeForm` (dominio puro).
 import { useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
-import { formatMoney, formatTime, parseMoneyToCents, statusLabel } from '../lib/format';
+import { formatMoney, formatTime, statusLabel } from '../lib/format';
 import type { AppointmentStatus, Appointment } from '../lib/domain/types';
 import { appointmentServiceIds, serviceNames } from '../lib/domain/appointments';
+import { appointmentServices, buildChargeForm, initialChargeTexts, type ChargeTexts } from '../lib/domain/charge';
 import { useToast } from './Toast';
 import { CalendarActions } from './CalendarActions';
 import { ClientNotice } from './ClientNotice';
@@ -25,32 +27,37 @@ const STATUS_BADGE: Record<AppointmentStatus, string> = {
 export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const store = useStore();
   const { notify } = useToast();
-  // Basta que UN servicio de la cita sea de precio variable para exigir precio.
-  const isVariable = appointmentServiceIds(appointment).some(
-    (id) => store.services.find((s) => s.id === id)?.variable_price ?? false,
-  );
-
   const [charging, setCharging] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
   const [sharingCalendar, setSharingCalendar] = useState(false);
   const [newDatetime, setNewDatetime] = useState(appointment.datetime.slice(0, 16));
-  // Prefija el precio del cobro con el acordado al agendar (si lo hay).
-  const [priceText, setPriceText] = useState(
-    appointment.quoted_price != null ? String(appointment.quoted_price / 100) : '',
-  );
+  const cobroServices = appointmentServices(appointment, store.services);
+  // Se precarga el precio acordado al agendar (si lo hay) donde corresponde.
+  const [texts, setTexts] = useState<ChargeTexts>(() => initialChargeTexts(appointment, cobroServices ?? []));
+  const [saving, setSaving] = useState(false);
 
   const isOpen = appointment.status === 'PENDING' || appointment.status === 'IN_PROGRESS';
-  const parsed = parseMoneyToCents(priceText);
-  const priceCents = priceText.trim() === '' ? undefined : (parsed ?? undefined);
-  // Para precio variable el precio es obligatorio; para precio fijo es opcional.
-  const priceReady = !isVariable || (parsed !== null && parsed > 0);
-  const preview = store.completionPreview(appointment.id, priceCents);
+  const form = buildChargeForm(cobroServices ?? [], texts);
+  const preview = store.completionPreview(appointment.id, {
+    overridePrice: form.overridePrice,
+    priceOverrides: form.priceOverrides,
+  });
+  const canComplete = cobroServices !== null && form.ready && !saving;
 
-  function handleComplete() {
-    if (!priceReady) return;
-    store.complete(appointment.id, priceCents);
+  async function handleComplete() {
+    if (!canComplete) return;
+    setSaving(true);
+    const result = await store.complete(appointment.id, {
+      overridePrice: form.overridePrice,
+      priceOverrides: form.priceOverrides,
+    });
+    setSaving(false);
+    if (!result.ok) {
+      notify(result.message, 'error');
+      return;
+    }
     setCharging(false);
-    setPriceText('');
+    setTexts({ prices: {}, total: '' });
     notify('✓ Cita completada');
   }
 
@@ -157,19 +164,20 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
 
       {charging && (
         <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
-          {isVariable && (
-            <label className={field}>
-              <span className={fieldLabel}>¿Cuánto cobraste? (obligatorio)</span>
+          {/* Un precio por cada servicio de precio variable, con su nombre. */}
+          {form.variableServices.map((service) => (
+            <label key={service.id} className={field}>
+              <span className={fieldLabel}>¿Cuánto cobraste por {service.name}? (obligatorio)</span>
               <input
                 className={input}
                 type="text"
                 inputMode="decimal"
-                value={priceText}
-                onChange={(e) => setPriceText(e.target.value)}
-                placeholder="Precio de esta cita"
+                value={texts.prices[service.id] ?? ''}
+                onChange={(e) => setTexts((t) => ({ ...t, prices: { ...t.prices, [service.id]: e.target.value } }))}
+                placeholder={`Precio de ${service.name}`}
               />
             </label>
-          )}
+          ))}
 
           {/* Sin vista previa (servicio de precio variable sin precio todavía) el
               panel sigue: el campo de arriba es justo el que la desbloquea. */}
@@ -203,22 +211,26 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             </>
           )}
 
-          {!isVariable && (
+          {form.showTotalField && (
             <label className={field + ' mt-1'}>
-              <span className={fieldLabel}>¿Cobraste otro precio? (opcional)</span>
+              <span className={fieldLabel}>
+                {cobroServices !== null && cobroServices.length > 1
+                  ? '¿Pactaste un precio por todo? (opcional)'
+                  : '¿Cobraste otro precio? (opcional)'}
+              </span>
               <input
                 className={input}
                 type="text"
                 inputMode="decimal"
-                value={priceText}
-                onChange={(e) => setPriceText(e.target.value)}
+                value={texts.total}
+                onChange={(e) => setTexts((t) => ({ ...t, total: e.target.value }))}
                 placeholder="Dejar vacío para usar el precio normal"
               />
             </label>
           )}
 
-          <button type="button" className={btnPrimary} onClick={handleComplete} disabled={!priceReady}>
-            Completar cita
+          <button type="button" className={btnPrimary} onClick={handleComplete} disabled={!canComplete}>
+            {saving ? 'Guardando…' : 'Completar cita'}
           </button>
         </div>
       )}

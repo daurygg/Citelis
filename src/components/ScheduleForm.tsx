@@ -31,16 +31,21 @@ export function ScheduleForm() {
   const priceOk = !isVariable || (parsedPrice !== null && parsedPrice > 0);
   const canSubmit = walkIn ? baseValid && priceOk : baseValid && datetime !== '';
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canSubmit) return;
     if (walkIn) {
-      store.registerWalkIn({
+      const result = await store.registerWalkIn({
         service_id: serviceId,
         client: client.trim(),
         datetime: datetime || nowLocalDatetime(),
         price: priceCents,
       });
+      // Si el servidor no la aceptó, el formulario NO se limpia: no se pierde lo escrito.
+      if (!result.ok) {
+        notify(result.message, 'error');
+        return;
+      }
       notify('✓ Atención registrada y cobrada');
     } else {
       const conflict = store.scheduleConflict(datetime, [serviceId]);

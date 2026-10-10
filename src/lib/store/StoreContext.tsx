@@ -16,12 +16,13 @@ import type {
 } from '../domain/types';
 import {
   appointmentServiceIds,
-  completeAppointment as completeAppointmentDomain,
   foldServiceIds,
   previewCompletion,
   transition,
   type AppointmentServiceRow,
+  type CompleteOptions,
 } from '../domain/appointments';
+import { completeRpcArgs, planCompletion } from '../domain/charge';
 import { applyAppointmentChange, applyServiceIds, keepKnownServiceIds } from './appointmentSync';
 import { startLiveAppointments } from './liveAppointments';
 import { findScheduleConflict } from '../domain/scheduling';
@@ -46,6 +47,9 @@ export interface WalkInInput {
   datetime: string;
   price?: number;
 }
+// Resultado de una escritura que SÍ espera al servidor (cobrar). `message` va en
+// el idioma de la dueña porque la UI lo muestra tal cual.
+export type ActionResult = { ok: true } | { ok: false; message: string };
 export interface CompletionPreview {
   charged_price: number;
   actual_cost: number;
@@ -98,14 +102,14 @@ export interface Store {
   appointmentsForDay: (isoDate: string) => Appointment[];
   projectedProfitForDay: (isoDate: string) => number;
   dayReport: (isoDate: string) => WeekSummary;
-  completionPreview: (appointmentId: number, overridePrice?: number) => CompletionPreview | null;
+  completionPreview: (appointmentId: number, options?: CompleteOptions) => CompletionPreview | null;
   scheduleConflict: (datetime: string, serviceIds: readonly number[], excludeId?: number) => Appointment | null;
   schedule: (input: ScheduleInput) => void;
   reschedule: (appointmentId: number, datetime: string) => void;
-  complete: (appointmentId: number, overridePrice?: number) => void;
+  complete: (appointmentId: number, options?: CompleteOptions) => Promise<ActionResult>;
   cancel: (appointmentId: number) => void;
   markNoShow: (appointmentId: number) => void;
-  registerWalkIn: (input: WalkInInput) => void;
+  registerWalkIn: (input: WalkInInput) => Promise<ActionResult>;
   suppliesForService: (serviceId: number) => Supply[];
   allSupplies: () => Supply[];
   serviceEconomics: (serviceId: number) => ServiceEconomics | null;
@@ -318,10 +322,10 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     return weekSummary(appointments, businessId, from, to);
   }
 
-  function completionPreview(appointmentId: number, overridePrice?: number): CompletionPreview | null {
+  function completionPreview(appointmentId: number, options: CompleteOptions = {}): CompletionPreview | null {
     const appointment = appointments.find((a) => a.id === appointmentId);
     if (!appointment) return null;
-    return previewCompletion(appointment, services, overridePrice);
+    return previewCompletion(appointment, services, options.overridePrice, options.priceOverrides);
   }
 
   function suppliesForService(serviceId: number): Supply[] {
@@ -393,20 +397,33 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     persist(supabase.from('appointment').insert(appointment));
   }
 
-  function complete(appointmentId: number, overridePrice?: number): void {
+  // Pone en el estado local una cita ya persistida. Si el evento en vivo de
+  // Realtime se adelantó y ya la trajo, la reemplaza en vez de duplicarla.
+  function putAppointment(next: Appointment): void {
+    setAppointments((prev) => (prev.some((a) => a.id === next.id) ? prev.map((a) => (a.id === next.id ? next : a)) : [...prev, next]));
+  }
+
+  // Cobra la cita: congela su dinero Y el de cada servicio en UNA transacción
+  // (`complete_appointment`, T6b). ROMPE A PROPÓSITO el patrón fire-and-forget de
+  // `persist()`: si la cita quedara COMPLETED sin su reparto no habría forma de
+  // arreglarlo después sin reescribir historia (INVARIANTE 2). El estado local
+  // solo cambia cuando el servidor confirma; si falla, la cita sigue abierta y
+  // la dueña puede reintentar. El cálculo es del dominio; el servidor solo
+  // persiste lo que llega y comprueba que cuadre.
+  async function complete(appointmentId: number, options: CompleteOptions = {}): Promise<ActionResult> {
     const current = appointments.find((a) => a.id === appointmentId);
-    if (!current) return;
-    const service = services.find((s) => s.id === current.service_id);
-    if (!service) throw new Error(`Servicio ${current.service_id} no encontrado.`);
-    // Un solo servicio por ahora: las pantallas que escriben varios llegan en T5/T6.
-    const done = completeAppointmentDomain(current, [service], { overridePrice });
-    setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? done : a)));
-    persist(
-      supabase
-        .from('appointment')
-        .update({ status: done.status, charged_price: done.charged_price, actual_cost: done.actual_cost, profit: done.profit })
-        .eq('id', appointmentId).eq('business_id', businessId),
-    );
+    if (!current) return { ok: false, message: 'No encontramos esa cita.' };
+    let plan;
+    try {
+      plan = planCompletion(current, services, options);
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : 'No se pudo calcular el cobro.' };
+    }
+    const { error } = await supabase.rpc('complete_appointment', completeRpcArgs(businessId, plan));
+    if (error) return { ok: false, message: error.message };
+    const { status, charged_price, actual_cost, profit } = plan.completed;
+    setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, status, charged_price, actual_cost, profit } : a)));
+    return { ok: true };
   }
 
   function cancel(appointmentId: number): void {
@@ -425,9 +442,16 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     persist(supabase.from('appointment').update({ status: next.status }).eq('id', appointmentId).eq('business_id', businessId));
   }
 
-  function registerWalkIn(input: WalkInInput): void {
+  // La atención de mostrador nace ya cobrada, pero pasa por el MISMO camino
+  // atómico que cobrar una cita: se inserta PENDING y se completa con la RPC, que
+  // escribe también su línea de servicio. Un solo servicio por ahora (la
+  // selección múltiple llega en T6c), pero la forma persistida ya lleva líneas.
+  // Se calcula ANTES de escribir, para no dejar una cita huérfana por un error
+  // de cálculo. Si la RPC falla después de insertar, la cita queda PENDING (y
+  // visible en la agenda) para que la dueña la cobre otra vez.
+  async function registerWalkIn(input: WalkInInput): Promise<ActionResult> {
     const service = services.find((s) => s.id === input.service_id);
-    if (!service) throw new Error(`Servicio ${input.service_id} no encontrado.`);
+    if (!service) return { ok: false, message: 'No encontramos ese servicio.' };
     const pending: Appointment = {
       id: newId(),
       business_id: businessId,
@@ -441,9 +465,19 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       actual_cost: null,
       profit: null,
     };
-    const done = completeAppointmentDomain(pending, [service], { overridePrice: input.price });
-    setAppointments((prev) => [...prev, done]);
-    persist(supabase.from('appointment').insert(done));
+    let plan;
+    try {
+      plan = planCompletion(pending, services, { overridePrice: input.price });
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : 'No se pudo calcular el cobro.' };
+    }
+    const inserted = await supabase.from('appointment').insert(pending);
+    if (inserted.error) return { ok: false, message: inserted.error.message };
+    putAppointment(pending);
+    const { error } = await supabase.rpc('complete_appointment', completeRpcArgs(businessId, plan));
+    if (error) return { ok: false, message: error.message };
+    putAppointment({ ...pending, ...plan.completed });
+    return { ok: true };
   }
 
   // Recalcula el cache supply_cost de los servicios afectados y lo persiste.
