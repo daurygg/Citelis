@@ -30,7 +30,7 @@ declare
   v_fecha   text;
 begin
   -- Usuarias propias de la prueba (ver cabecera); limpieza previa por si una corrida murió a medias.
-  v_uid := '00000000-0000-0000-0000-0000000009g1';
+  v_uid := '00000000-0000-0000-0000-0000000009c3';
   delete from business where created_by in (v_uid);
   delete from auth.users where id in (v_uid);
   insert into auth.users (id, aud, role, email, created_at, updated_at) values

@@ -91,5 +91,6 @@ begin
 end $$;
 
 -- ── Limpieza ───────────────────────────────────────────────────────────────
+reset role;
 delete from business_member where business_id = 999998;
 delete from business where id in (999997, 999998);

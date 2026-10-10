@@ -51,8 +51,8 @@ begin
   end if;
 
   -- Usuarias propias de la prueba (ver cabecera); limpieza previa por si una corrida murió a medias.
-  v_uid := '00000000-0000-0000-0000-0000000009i1';
-  v_uid2 := '00000000-0000-0000-0000-0000000009i2';
+  v_uid := '00000000-0000-0000-0000-0000000009e3';
+  v_uid2 := '00000000-0000-0000-0000-0000000009e4';
   delete from business where created_by in (v_uid, v_uid2);
   delete from auth.users where id in (v_uid, v_uid2);
   insert into auth.users (id, aud, role, email, created_at, updated_at) values

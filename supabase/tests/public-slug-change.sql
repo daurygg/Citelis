@@ -113,6 +113,7 @@ begin
   end if;
 end $$;
 
+reset role;
 delete from auth.users where id in ('00000000-0000-0000-0000-0000000009f1', '00000000-0000-0000-0000-0000000009f2');
 
 select 'VERDE: las 6 aserciones pasaron' as resultado;
