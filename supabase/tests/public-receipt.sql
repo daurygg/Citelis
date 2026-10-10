@@ -68,10 +68,11 @@ begin
   -- en efectivo, uno histórico sin vía (null); falta 1500 de crédito.
   update appointment set client_phone = '809-777-1234' where id = v_apt1;
   update appointment_service set employee_id = v_emp, list_price = 5000, discount = 0 where appointment_id = v_apt1;
-  insert into appointment_payment (business_id, appointment_id, amount, method, kind) values
-    (v_biz, v_apt1, 2000, 'cash', 'charge'),
-    (v_biz, v_apt1, 1000, 'cash', 'charge'),
-    (v_biz, v_apt1, 500,  null,   'deposit');
+  -- El abono sin vía es histórico: solo las filas legacy pueden no tener vía (P3).
+  insert into appointment_payment (business_id, appointment_id, amount, method, kind, legacy) values
+    (v_biz, v_apt1, 2000, 'cash', 'charge',  false),
+    (v_biz, v_apt1, 1000, 'cash', 'charge',  false),
+    (v_biz, v_apt1, 500,  null,   'deposit', true);
 
   perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
   execute 'set local role authenticated';

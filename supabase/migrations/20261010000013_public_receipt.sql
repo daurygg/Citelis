@@ -37,14 +37,16 @@ set search_path = public, pg_temp as $$
     ),
     'lines', coalesce((
       select jsonb_agg(jsonb_build_object(
-               'service_name',  sv.name,
+               -- Igual que el recibo de la dueña: un servicio que ya no está en el
+               -- catálogo sigue saliendo (como "Servicio"); si no, los totales no cuadran.
+               'service_name',  coalesce(sv.name, 'Servicio'),
                'employee_name', e.name,
                'list_price',    s.list_price,
                'discount',      s.discount,
                'charged_price', s.charged_price
              ) order by s.service_id)
         from appointment_service s
-        join service sv on sv.id = s.service_id and sv.business_id = s.business_id
+        left join service sv on sv.id = s.service_id and sv.business_id = s.business_id
         left join employee e on e.id = s.employee_id and e.business_id = s.business_id
        where s.appointment_id = a.id and s.business_id = a.business_id
     ), '[]'::jsonb),
