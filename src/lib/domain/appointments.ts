@@ -140,6 +140,7 @@ export function previewCompletion(
   services: readonly Service[],
   overridePrice?: number,
   priceOverrides?: ReadonlyMap<number, number>,
+  discounts?: ReadonlyMap<number, LineDiscount>,
 ): CompletionPreviewValues | null {
   const ids = appointmentServiceIds(appointment);
   const found = ids.map((id) => services.find((s) => s.id === id));
@@ -152,7 +153,14 @@ export function previewCompletion(
   const totalGiven = overridePrice ?? appointment.quoted_price ?? null;
   if (quote.needsPrice.length > 0 && totalGiven === null) return null;
 
-  const charged_price = totalGiven ?? quote.total;
+  // Con descuentos, el cobrado es el NETO. Un descuento demasiado grande se recorta
+  // aquí (la pantalla lo avisa con `previewLines`); sin descuentos, el bruto de siempre.
+  const gross = totalGiven ?? quote.total;
+  const discountTotal =
+    discounts === undefined || discounts.size === 0
+      ? 0
+      : resolveDiscounts(gross, set, priceOverrides, discounts).lines.reduce((sum, l) => sum + l.discount, 0);
+  const charged_price = gross - discountTotal;
   const actual_cost = set.reduce((sum, s) => sum + effectiveCost(s), 0);
   return { charged_price, actual_cost, profit: profit(charged_price, actual_cost) };
 }

@@ -10,6 +10,7 @@ import { appointmentServiceIds, serviceNames } from '../lib/domain/appointments'
 import { canEditServices, servicesChanged } from '../lib/domain/editServices';
 import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
 import { activeEmployees } from '../lib/domain/employees';
+import { chargeTotals, type DiscountMode } from '../lib/domain/discounts';
 import { appointmentServices, buildChargeForm, initialChargeTexts, type ChargeTexts } from '../lib/domain/charge';
 import { useToast } from './Toast';
 import { CalendarActions } from './CalendarActions';
@@ -48,8 +49,15 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const preview = store.completionPreview(appointment.id, {
     overridePrice: form.overridePrice,
     priceOverrides: form.priceOverrides,
+    discounts: form.discounts,
   });
-  const canComplete = cobroServices !== null && form.ready && !saving;
+  const breakdown = store.completionBreakdown(appointment.id, {
+    overridePrice: form.overridePrice,
+    priceOverrides: form.priceOverrides,
+    discounts: form.discounts,
+  });
+  const totals = breakdown ? chargeTotals(breakdown.lines) : null;
+  const canComplete = cobroServices !== null && form.ready && !saving && (breakdown?.errors.size ?? 0) === 0;
 
   const editable = canEditServices(appointment.status);
   // Si la cita deja de ser editable con el panel abierto (se cobró, o un cambio
@@ -99,6 +107,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
         overridePrice: form.overridePrice,
         priceOverrides: form.priceOverrides,
         employeeIds: form.employeeIds,
+        discounts: form.discounts,
       });
     } finally {
       // Pase lo que pase, el botón no se queda bloqueado en "Guardando…".
@@ -318,12 +327,68 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
               </label>
             ))}
 
+          {/* Descuento opcional por servicio: en RD$ o en %. El error sale del dominio. */}
+          {(cobroServices ?? []).map((service) => {
+            const text = texts.discounts?.[service.id] ?? { mode: 'amount' as DiscountMode, value: '' };
+            const error = form.invalidDiscounts.has(service.id)
+              ? 'Escribe un número válido (el % va de 0 a 100, sin decimales).'
+              : (breakdown?.errors.get(service.id) ?? null);
+            const setDiscount = (next: { mode: DiscountMode; value: string }) =>
+              setTexts((t) => ({ ...t, discounts: { ...t.discounts, [service.id]: next } }));
+            return (
+              <div key={service.id} className={field}>
+                <span className={fieldLabel}>Descuento en {service.name} (opcional)</span>
+                <div className="flex gap-2">
+                  <input
+                    className={input}
+                    type="text"
+                    inputMode="decimal"
+                    aria-label={`Descuento en ${service.name}`}
+                    value={text.value}
+                    onChange={(e) => setDiscount({ ...text, value: e.target.value })}
+                    placeholder={text.mode === 'percent' ? 'Por ejemplo 10' : 'Por ejemplo 5.00'}
+                  />
+                  <div className="flex shrink-0 gap-1">
+                    {(['amount', 'percent'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        aria-pressed={text.mode === mode}
+                        onClick={() => setDiscount({ mode, value: text.value })}
+                        className={
+                          chip + ' ' +
+                          (text.mode === mode ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white text-neutral-700')
+                        }
+                      >
+                        {mode === 'amount' ? 'RD$' : '%'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {error !== null && <p className="text-sm text-red-600">{error}</p>}
+              </div>
+            );
+          })}
+
           {/* Sin vista previa (servicio de precio variable sin precio todavía) el
               panel sigue: el campo de arriba es justo el que la desbloquea. */}
           {preview && (
             <>
+              {/* Con descuento se ve la cuenta completa: subtotal, descuentos y total. */}
+              {totals !== null && totals.discounts > 0 && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Subtotal</span>
+                    <span>{formatMoney(totals.gross)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Descuentos</span>
+                    <span>−{formatMoney(totals.discounts)}</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between">
-                <span className="text-neutral-600">Precio</span>
+                <span className="text-neutral-600">{totals !== null && totals.discounts > 0 ? 'Total' : 'Precio'}</span>
                 <strong>{formatMoney(preview.charged_price)}</strong>
               </div>
               <div className="flex justify-between">

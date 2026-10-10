@@ -53,9 +53,29 @@ el logo del negocio y un QR a un recibo digital.
   `build` verdes. Reglas: la empleada es opcional por línea; al cobrar debe ser del
   negocio y estar activa; se da de baja, no se borra. Sección "Tu equipo" en la
   pantalla del negocio y selector "¿Quién hizo X?" en el cobro.
-- [ ] **P2 · Descuentos.** Descuento por línea (monto o %); `charged_price` pasa a
+- [x] **P2 · Descuentos.** Descuento por línea (monto o %); `charged_price` pasa a
   ser el neto y la línea guarda el precio de lista y el descuento.
   `complete_appointment` lo valida.
+  Evidencia: migración `20261010000009_line_discounts.sql` (`list_price`,
+  `discount`; respaldo `list_price = charged_price` en líneas viejas; RPC recreada
+  con cambio mínimo y mensajes 'Hay líneas con un descuento inválido.' y 'El precio
+  de una línea no es precio de lista menos descuento.'); suite
+  `supabase/tests/line-discounts.sql` (usuaria ...09a3, datos 9996xx; NO ejecutada en
+  local, la corre `sql-regression`). Dominio `discounts.ts` + `resolveDiscounts` /
+  `previewLines` / `lineDiscountCents`. RED observado (18 pruebas en rojo en
+  appointments/charge y `discounts.test.ts` sin módulo), luego `npm run test:run`
+  486/486, `typecheck` y `build` verdes.
+  Reglas: (1) el **bruto** es el de siempre: precio de lista, precio puesto a un
+  servicio variable, o el total pactado repartido a prorrata (D1); (2) el descuento de
+  cada línea se resta DESPUÉS del reparto, así que un pacto fija el bruto y el
+  descuento va encima; (3) `list_price` = parte del bruto de la línea, `charged_price`
+  de la línea = lista − descuento (neto) y `charged_price` de la cita = suma de netos;
+  subtotal y descuentos del recibo = suma de `list_price` y de `discount`; (4)
+  porcentaje ENTERO 0–100, redondeo half-up al centavo; nunca negativo ni mayor que la
+  línea (la pantalla y el dominio rechazan un monto mayor); (5) el costo no cambia, la
+  ganancia sí y puede ser negativa (como ya pasaba); (6) sin descuento los números
+  son exactamente los de antes. `list_price` queda nulo solo en líneas que escribió el
+  trigger de la UI vieja: leer siempre `coalesce(list_price, charged_price)`.
 - [ ] **P3 · Pagos.** Tabla de pagos por cita (monto, vía, momento, abono o
   cobro); el abono existente pasa a ser un pago. Reporte por vía.
 - [ ] **P4 · Datos del recibo.** Logo (Supabase Storage), dirección, teléfono y

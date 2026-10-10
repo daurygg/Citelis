@@ -487,6 +487,16 @@ describe('descuentos por línea', () => {
     expect(lineas.reduce((s, l) => s + l.charged_price, 0)).toBe(hecha.charged_price);
   });
 
+  it('previewCompletion con descuentos muestra el neto; sin ellos, lo de siempre', () => {
+    const apt = cita();
+    expect(previewCompletion(apt, [a, b])).toEqual({ charged_price: 9000, actual_cost: 1500, profit: 7500 });
+    expect(previewCompletion(apt, [a, b], undefined, undefined, new Map([[1, { kind: 'percent', percent: 10 }]]))).toEqual({
+      charged_price: 8500,
+      actual_cost: 1500,
+      profit: 7000,
+    });
+  });
+
   it('previewLines da el desglose y avisa de un descuento demasiado grande', () => {
     const ok = previewLines(cita(), [a, b], { discounts: new Map([[1, { kind: 'percent', percent: 10 }]]) });
     expect(ok?.lines.map((l) => [l.service_id, l.list_price, l.discount, l.charged_price])).toEqual([
