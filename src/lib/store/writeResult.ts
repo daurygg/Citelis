@@ -16,3 +16,11 @@ export function isAlreadySaved(error: WriteError | null): boolean {
   // restricción (las líneas, o un índice futuro) es un fallo de verdad.
   return error?.code === '23505' && error.message.includes('"appointment_pkey"');
 }
+
+/**
+ * Igual que `isAlreadySaved`, para un pago: el reintento lleva el MISMO id de pago
+ * y la llave primaria de `appointment_payment` lo frena, así que no se paga dos veces.
+ */
+export function isPaymentAlreadySaved(error: WriteError | null): boolean {
+  return error?.code === '23505' && error.message.includes('"appointment_payment_pkey"');
+}
