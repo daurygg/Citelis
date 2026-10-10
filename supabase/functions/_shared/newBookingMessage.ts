@@ -6,7 +6,8 @@
 export interface NewBookingInput {
   appointment_id: number;
   client: string;
-  service_name: string | null;
+  /** Nombres de TODOS los servicios de la solicitud; vacío si no se pudo leer ninguno. */
+  service_names: string[];
   datetime: string;
 }
 
@@ -33,9 +34,22 @@ function whenLabel(datetime: string): string {
   return `${weekday} ${day}/${month} a las ${hour12}:${minute} ${period}`;
 }
 
+/**
+ * "A", "A y B", "A, B y C" y, desde cuatro, "A, B y N más": una notificación de
+ * teléfono se corta pronto, así que el resto se resume en vez de listarse.
+ */
+function servicesLabel(names: string[]): string {
+  const clean = names.map((n) => n.trim()).filter(Boolean);
+  if (clean.length === 0) return 'una cita';
+  if (clean.length === 1) return clean[0];
+  if (clean.length === 2) return `${clean[0]} y ${clean[1]}`;
+  if (clean.length === 3) return `${clean[0]}, ${clean[1]} y ${clean[2]}`;
+  return `${clean[0]}, ${clean[1]} y ${clean.length - 2} más`;
+}
+
 export function newBookingMessage(input: NewBookingInput): PushMessage {
   const client = input.client.trim() || 'Una clienta';
-  const what = input.service_name?.trim() || 'una cita';
+  const what = servicesLabel(input.service_names);
   return {
     title: 'Nueva solicitud de cita',
     body: `${client} pidió ${what} para el ${whenLabel(input.datetime)}`,

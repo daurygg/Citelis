@@ -216,7 +216,15 @@ mano, no en CI**.
   RED: suite sin módulo; GREEN: 388 passed (+9). Portal con chips multi-selección,
   huecos para la suma y envío en orden. Suite `supabase/tests/public-business-variable.sql`
   PENDIENTE de correr en dev (más las dos regresiones). Sin ver en navegador.
-- [ ] **T7 · Calendario y aviso push.** Título con N nombres, fin en la suma.
+- [x] **T7 · Calendario y aviso push.** Título con N nombres, fin en la suma.
+  `buildICS`/`googleCalendarUrl` reciben `services[]`: título "Clienta — A + B", fin = inicio + suma.
+  Fallo seguro: si falta CUALQUIER servicio del catálogo `CalendarActions` no ofrece el evento
+  (igual que la disponibilidad; una hora de fin falsa es peor que no ofrecer el botón).
+  Push: `notifyWiring`/`newBookingMessage` usan `service_names[]` (1, "A y B", "A, B y C",
+  "A, B y N más"); `index.ts` lee `appointment_service` filtrado por el business_id de la cita y
+  cae al servicio principal si no hay líneas. RED: 19 + 12 tests fallando; GREEN: 398 passed.
+  ACCIÓN DE LA DUEÑA: `supabase functions deploy notify-new-booking` (no se desplegó). `index.ts`
+  no tiene test (Deno) ni lo cubre tsc: sin ver el aviso real.
 - [ ] **T8 · Reportes.** Leer el reparto congelado en vez de atribuir a uno.
 
 ## Verificación

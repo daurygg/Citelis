@@ -49,7 +49,7 @@ describe('buildICS', () => {
   it('usa saltos de línea CRLF en todo el archivo (Apple Calendar rechaza LF suelto)', () => {
     const ics = buildICS({
       appointment: appointment(),
-      service: service(),
+      services: [service()],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -65,7 +65,7 @@ describe('buildICS', () => {
   it('incluye todas las propiedades requeridas por RFC 5545', () => {
     const ics = buildICS({
       appointment: appointment(),
-      service: service(),
+      services: [service()],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -91,7 +91,7 @@ describe('buildICS', () => {
   it('el UID es estable y viene del llamador, sin importar el SEQUENCE', () => {
     const base = {
       appointment: appointment(),
-      service: service(),
+      services: [service()],
       now: new Date('2026-09-17T10:00:00Z'),
     };
     const first = buildICS({ ...base, uid: 'appt-42@citelis', sequence: 0 });
@@ -104,7 +104,7 @@ describe('buildICS', () => {
   it('el SEQUENCE aumenta cuando la cita cambia, para que iOS/Google actualicen en vez de duplicar', () => {
     const base = {
       appointment: appointment(),
-      service: service(),
+      services: [service()],
       uid: 'appt-42@citelis',
       now: new Date('2026-09-17T10:00:00Z'),
     };
@@ -120,7 +120,7 @@ describe('buildICS', () => {
   it('DTSTART y DTEND se emiten como hora local flotante, sin Z y sin desplazar horas', () => {
     const ics = buildICS({
       appointment: appointment({ datetime: '2026-09-21T14:30' }),
-      service: service({ duration_min: 45 }),
+      services: [service({ duration_min: 45 })],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -136,7 +136,7 @@ describe('buildICS', () => {
   it('DTEND cruza la medianoche correctamente cuando el servicio se extiende más allá del cierre del día', () => {
     const ics = buildICS({
       appointment: appointment({ datetime: '2026-09-21T23:30' }),
-      service: service({ duration_min: 90 }),
+      services: [service({ duration_min: 90 })],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -149,7 +149,7 @@ describe('buildICS', () => {
   it('DTSTAMP es un instante UTC real derivado de `now`, con sufijo Z (a diferencia de DTSTART/DTEND)', () => {
     const ics = buildICS({
       appointment: appointment(),
-      service: service(),
+      services: [service()],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:05:07Z'),
@@ -161,7 +161,7 @@ describe('buildICS', () => {
   it('SUMMARY es "clienta — servicio": el evento es para la agenda de la dueña, no de la clienta', () => {
     const ics = buildICS({
       appointment: appointment({ client: 'Ana' }),
-      service: service({ name: 'Corte' }),
+      services: [service({ name: 'Corte' })],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -173,7 +173,7 @@ describe('buildICS', () => {
   it('DESCRIPTION solo lleva "Clienta: <nombre>" cuando la cita no trae teléfono', () => {
     const ics = buildICS({
       appointment: appointment({ client: 'Ana', client_phone: null }),
-      service: service(),
+      services: [service()],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -185,7 +185,7 @@ describe('buildICS', () => {
   it('DESCRIPTION agrega una segunda línea "Tel. <teléfono>" cuando la cita lo trae', () => {
     const ics = buildICS({
       appointment: appointment({ client: 'Ana', client_phone: '+56 9 1234 5678' }),
-      service: service(),
+      services: [service()],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -201,7 +201,7 @@ describe('buildICS', () => {
         client: 'Ana;Reyes\\Torres, con nota\nespecial',
         client_phone: '+56 9 1234;5678',
       }),
-      service: service({ name: 'Corte; especial' }),
+      services: [service({ name: 'Corte; especial' })],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -219,9 +219,11 @@ describe('buildICS', () => {
   it('dobla (fold) líneas de más de 75 octetos con CRLF + un espacio, sin cortar caracteres multibyte', () => {
     const ics = buildICS({
       appointment: appointment({ client: 'Añañuca' }),
-      service: service({
-        name: 'Peinado de novia con extensiones, trenzas y tratamiento capilar profundo',
+      services: [
+        service({
+          name: 'Peinado de novia con extensiones, trenzas y tratamiento capilar profundo',
       }),
+      ],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -247,14 +249,14 @@ describe('buildICS', () => {
   it('es una presentación de solo lectura: el resultado no cambia si los campos de dinero congelados cambian', () => {
     const withoutMoney = buildICS({
       appointment: appointment({ charged_price: null, actual_cost: null, profit: null }),
-      service: service(),
+      services: [service()],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
     });
     const withMoney = buildICS({
       appointment: appointment({ charged_price: 50000, actual_cost: 12000, profit: 38000 }),
-      service: service(),
+      services: [service()],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -271,7 +273,7 @@ describe('buildICS', () => {
 
     buildICS({
       appointment: appt,
-      service: svc,
+      services: [svc],
       uid: 'appt-1@citelis',
       sequence: 0,
       now: new Date('2026-09-17T10:00:00Z'),
@@ -286,7 +288,7 @@ describe('googleCalendarUrl', () => {
   it('genera un link de plantilla de Google Calendar con texto, fechas y detalles', () => {
     const url = googleCalendarUrl({
       appointment: appointment({ datetime: '2026-09-21T14:30', client: 'Ana', client_phone: null }),
-      service: service({ name: 'Corte', duration_min: 45 }),
+      services: [service({ name: 'Corte', duration_min: 45 })],
     });
 
     expect(url.startsWith('https://calendar.google.com/calendar/render?')).toBe(true);
@@ -301,7 +303,7 @@ describe('googleCalendarUrl', () => {
   it('agrega una segunda línea con el teléfono en los detalles cuando la cita lo trae', () => {
     const url = googleCalendarUrl({
       appointment: appointment({ client: 'Ana', client_phone: '+56 9 1234 5678' }),
-      service: service({ name: 'Corte' }),
+      services: [service({ name: 'Corte' })],
     });
 
     const parsed = new URL(url);
@@ -311,7 +313,7 @@ describe('googleCalendarUrl', () => {
   it('escapa correctamente valores con caracteres especiales de URL (coma, &, espacios)', () => {
     const url = googleCalendarUrl({
       appointment: appointment({ client: 'Ana, Luz & Uñas' }),
-      service: service({ name: 'Corte' }),
+      services: [service({ name: 'Corte' })],
     });
 
     const parsed = new URL(url);
@@ -362,5 +364,35 @@ describe('revisionSequence', () => {
 
   it('cabe en un entero de 32 bits con signo, que es lo que asumen varios calendarios', () => {
     expect(revisionSequence(new Date('2090-01-01T00:00:00Z'))).toBeLessThan(2 ** 31 - 1);
+  });
+});
+
+describe('cita con varios servicios', () => {
+  const corte = service({ id: 1, name: 'Corte', duration_min: 45 });
+  const tinte = service({ id: 2, name: 'Tinte', duration_min: 90 });
+
+  it('el título del ICS lista TODOS los nombres y el fin suma las duraciones', () => {
+    const ics = buildICS({
+      appointment: appointment({ service_id: 1, service_ids: [1, 2], datetime: '2026-09-21T14:30' }),
+      services: [corte, tinte],
+      uid: 'appt-1@citelis',
+      sequence: 0,
+      now: new Date('2026-09-17T10:00:00Z'),
+    });
+
+    expect(propertyValue(ics, 'SUMMARY')).toBe('Ana — Corte + Tinte');
+    // 45 + 90 = 135 min => 14:30 + 2h15 = 16:45
+    expect(propertyValue(ics, 'DTEND')).toBe('20260921T164500');
+  });
+
+  it('el link de Google lista todos los nombres y suma las duraciones', () => {
+    const url = googleCalendarUrl({
+      appointment: appointment({ service_id: 1, service_ids: [1, 2], datetime: '2026-09-21T14:30' }),
+      services: [corte, tinte],
+    });
+
+    const parsed = new URL(url);
+    expect(parsed.searchParams.get('text')).toBe('Ana — Corte + Tinte');
+    expect(parsed.searchParams.get('dates')).toBe('20260921T143000/20260921T164500');
   });
 });
