@@ -16,7 +16,9 @@ import { supabase } from '../supabase/client';
 export interface PublicBusinessService {
   service_id: number;
   service_name: string;
-  price: number; // centavos
+  /** Centavos. null si el servicio es de precio variable: la RPC no publica ese precio. */
+  price: number | null;
+  variable_price: boolean;
   duration_min: number;
 }
 
@@ -51,7 +53,8 @@ interface PublicBusinessRow {
   business_name: string;
   service_id: number;
   service_name: string;
-  price: number;
+  price: number | null;
+  variable_price: boolean;
   duration_min: number;
   slot_step_min: number;
   buffer_min: number;
@@ -87,6 +90,7 @@ export async function fetchPublicBusiness(slug: string): Promise<PublicBusinessR
         service_id: r.service_id,
         service_name: r.service_name,
         price: r.price,
+        variable_price: r.variable_price,
         duration_min: r.duration_min,
       })),
     },
