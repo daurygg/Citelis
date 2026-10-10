@@ -305,8 +305,9 @@ begin
   if v_n <> 1 then
     raise exception 'FALLÓ 11: el reintento con el mismo client_ref pagó dos veces (%)', v_n;
   end if;
-  -- 11b · El mismo client_ref en OTRA cita es independiente.
-  perform add_appointment_payment(v_biz, v_aptC, 300, 'cash', 'deposit', '00000000-0000-4000-8000-000000000841');
+  -- 11b · El mismo client_ref en OTRA cita (pendiente) es independiente.
+  perform schedule_appointment(v_biz, 999839, 'Fer', '2026-10-12T16:00', null, null, array[v_svc], null);
+  perform add_appointment_payment(v_biz, 999839, 300, 'cash', 'deposit', '00000000-0000-4000-8000-000000000841');
   select count(*) into v_n from appointment_payment
    where client_ref = '00000000-0000-4000-8000-000000000841';
   if v_n <> 2 then
