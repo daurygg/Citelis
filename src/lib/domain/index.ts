@@ -3,3 +3,4 @@ export * from './types';
 export * from './costs';
 export * from './appointments';
 export * from './reports';
+export * from './charge';

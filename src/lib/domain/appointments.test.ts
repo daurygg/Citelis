@@ -436,6 +436,15 @@ describe('previewCompletion', () => {
     expect(previewCompletion(apt, [a, variable], 9000)).toEqual({ charged_price: 9000, actual_cost: 1300, profit: 7700 });
   });
 
+  it('con el precio de cada servicio variable ya no hace falta un total', () => {
+    const apt = appointment({ service_id: 1, service_ids: [1, 3] });
+    expect(previewCompletion(apt, [a, variable], undefined, new Map([[3, 2000]]))).toEqual({
+      charged_price: 7000,
+      actual_cost: 1300,
+      profit: 5700,
+    });
+  });
+
   it('si falta algún servicio del catálogo devuelve null', () => {
     const apt = appointment({ service_id: 1, service_ids: [1, 2] });
     expect(previewCompletion(apt, [a])).toBeNull();

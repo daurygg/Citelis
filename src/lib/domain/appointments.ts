@@ -138,13 +138,16 @@ export function previewCompletion(
   appointment: Appointment,
   services: readonly Service[],
   overridePrice?: number,
+  priceOverrides?: ReadonlyMap<number, number>,
 ): CompletionPreviewValues | null {
   const ids = appointmentServiceIds(appointment);
   const found = ids.map((id) => services.find((s) => s.id === id));
   if (found.some((s) => s === undefined)) return null;
   const set = found as Service[];
 
-  const quote = priceForServices(set);
+  // Con el precio que la dueña le puso a cada servicio variable ya no falta
+  // ninguno, y el total sale de la suma sin necesidad de un total dado.
+  const quote = priceForServices(set, priceOverrides);
   const totalGiven = overridePrice ?? appointment.quoted_price ?? null;
   if (quote.needsPrice.length > 0 && totalGiven === null) return null;
 
