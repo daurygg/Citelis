@@ -1,7 +1,7 @@
 // La selección de servicios del formulario de agendar, sin React (INVARIANTE 5).
 // CERO dependencias de React. La UI solo llama a estas funciones y pinta.
 
-import type { Service } from './types';
+import type { PaymentMethod, Service } from './types';
 import { priceForServices } from './costs';
 
 /** Marca o desmarca un servicio. Conserva el orden en que la dueña los fue eligiendo. */
@@ -55,6 +55,8 @@ export interface ScheduleDraft {
   service_ids: readonly number[];
   quoted_price?: number | null;
   deposit?: number | null;
+  /** Cómo pagó el abono. Con abono, el pago nace en la misma transacción que la cita. */
+  deposit_method?: PaymentMethod | null;
 }
 
 /** Argumentos de la RPC `schedule_appointment`. El negocio va explícito (INVARIANTE 1). */
@@ -67,5 +69,6 @@ export function scheduleRpcArgs(businessId: number, draft: ScheduleDraft) {
     p_quoted_price: draft.quoted_price ?? null,
     p_deposit: draft.deposit ?? null,
     p_service_ids: [...draft.service_ids],
+    p_deposit_method: draft.deposit_method ?? null,
   };
 }

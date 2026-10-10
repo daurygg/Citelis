@@ -7,3 +7,4 @@ export * from './charge';
 export * from './employees';
 export * from './selection';
 export * from './discounts';
+export * from './payments';

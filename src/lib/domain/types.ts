@@ -34,6 +34,24 @@ export interface Employee {
   active: boolean;
 }
 
+// Vía de pago y tipo de pago de una cita (P3). Los pagos son APPEND-ONLY: lo
+// pagado es la suma de las filas de `appointment_payment`, nunca un campo de la cita.
+export type PaymentMethod = 'cash' | 'transfer' | 'card';
+// deposit = abono antes de cobrar; charge = al cobrar; credit_payment = pago
+// posterior de un saldo ya cobrado.
+export type PaymentKind = 'deposit' | 'charge' | 'credit_payment';
+
+export interface AppointmentPayment {
+  id: number;
+  business_id: number; // INVARIANTE 1
+  appointment_id: number;
+  amount: number; // centavos, > 0
+  // null SOLO en abonos históricos (anteriores a P3): la vía no se guardaba y no se inventa.
+  method: PaymentMethod | null;
+  kind: PaymentKind;
+  paid_at: string; // ISO 8601
+}
+
 // Insumo GLOBAL del negocio (INVARIANTE 1). Un mismo insumo (wipes, pegamento…)
 // puede usarse en varios servicios → la relación vive en ServiceSupply (N↔N).
 export interface Supply {

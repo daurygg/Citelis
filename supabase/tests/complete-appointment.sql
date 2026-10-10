@@ -46,7 +46,7 @@ declare
   v_chg     bigint;
 begin
   -- 0 · La función existe.
-  if to_regprocedure('public.complete_appointment(bigint,bigint,bigint,bigint,bigint,jsonb)') is null then
+  if to_regprocedure('public.complete_appointment(bigint,bigint,bigint,bigint,bigint,jsonb,jsonb)') is null then
     raise exception 'FALLÓ 0: complete_appointment no existe. ¿Aplicaste la migración?';
   end if;
 
@@ -215,10 +215,10 @@ begin
   end if;
 
   -- 10 · `anon` no puede ejecutarla; `authenticated` sí.
-  if has_function_privilege('anon', 'public.complete_appointment(bigint,bigint,bigint,bigint,bigint,jsonb)', 'execute') then
+  if has_function_privilege('anon', 'public.complete_appointment(bigint,bigint,bigint,bigint,bigint,jsonb,jsonb)', 'execute') then
     raise exception 'FALLÓ 10: anon puede ejecutar complete_appointment';
   end if;
-  if not has_function_privilege('authenticated', 'public.complete_appointment(bigint,bigint,bigint,bigint,bigint,jsonb)', 'execute') then
+  if not has_function_privilege('authenticated', 'public.complete_appointment(bigint,bigint,bigint,bigint,bigint,jsonb,jsonb)', 'execute') then
     raise exception 'FALLÓ 10: authenticated no puede ejecutar complete_appointment';
   end if;
 

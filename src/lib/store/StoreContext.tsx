@@ -5,11 +5,14 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   Appointment,
+  AppointmentPayment,
   BookingPolicyRow,
   Business,
   BusinessHours,
   Employee,
   FixedExpense,
+  PaymentKind,
+  PaymentMethod,
   Service,
   ServiceSupply,
   Supply,
@@ -24,7 +27,8 @@ import {
   type AppointmentServiceRow,
   type CompleteOptions,
 } from '../domain/appointments';
-import { completeRpcArgs, planCompletion } from '../domain/charge';
+import { completeRpcArgs, planCompletion, type ChargePayment } from '../domain/charge';
+import { creditsByClient, incomeByMethod, paymentStatus, type ClientCredit, type IncomeByMethod, type PaymentStatus } from '../domain/payments';
 import { scheduleRpcArgs } from '../domain/selection';
 import { checkServicesEdit, updateServicesRpcArgs, type ServicesEditCheck } from '../domain/editServices';
 import { applyAppointmentChange, applyServiceIds, keepKnownServiceIds } from './appointmentSync';
@@ -49,6 +53,7 @@ export interface ScheduleInput {
   datetime: string;
   quoted_price?: number; // precio acordado (servicios variables), opcional
   deposit?: number; // abono/adelanto pagado al reservar, opcional
+  deposit_method?: PaymentMethod; // cómo pagó el abono (el pago nace con la cita)
 }
 export interface WalkInInput {
   /** Id fijo entre reintentos (ver `newId`): un reintento no duplica la cita. */
@@ -61,6 +66,8 @@ export interface WalkInInput {
   priceOverrides?: ReadonlyMap<number, number>;
   /** Total pactado, si lo hay: manda sobre la suma. */
   price?: number;
+  /** Vía con la que pagó TODO el cobro. null = no pagó todavía: queda a crédito. */
+  payment_method?: PaymentMethod | null;
 }
 // Resultado de una escritura que SÍ espera al servidor (cobrar). `message` va en
 // el idioma de la dueña porque la UI lo muestra tal cual.
@@ -133,7 +140,17 @@ export interface Store {
   checkServicesEdit: (appointmentId: number, serviceIds: readonly number[]) => ServicesEditCheck;
   updateAppointmentServices: (appointmentId: number, serviceIds: readonly number[]) => Promise<ActionResult>;
   reschedule: (appointmentId: number, datetime: string) => void;
-  complete: (appointmentId: number, options?: CompleteOptions) => Promise<ActionResult>;
+  complete: (appointmentId: number, options?: CompleteOptions, payments?: readonly ChargePayment[]) => Promise<ActionResult>;
+  /** Pagos de la cita (abonos, cobro y pagos de crédito). Solo lectura: append-only. */
+  payments: readonly AppointmentPayment[];
+  paymentStatusOf: (appointmentId: number) => PaymentStatus | null;
+  /** Lo ya pagado de una cita (para el resto por cobrar). */
+  paidOf: (appointmentId: number) => number;
+  /** Crédito vivo de servicios por clienta. Separado del crédito de ropa (INVARIANTE 3). */
+  serviceCredits: () => ClientCredit[];
+  incomeByMethod: (from: string, to: string) => IncomeByMethod;
+  /** Registra un abono (cita abierta) o un pago de crédito (cita cobrada). Espera al servidor. */
+  addPayment: (appointmentId: number, amount: number, method: PaymentMethod, kind: Extract<PaymentKind, 'deposit' | 'credit_payment'>, clientRef?: string) => Promise<ActionResult>;
   cancel: (appointmentId: number) => void;
   markNoShow: (appointmentId: number) => void;
   registerWalkIn: (input: WalkInInput) => Promise<ActionResult>;
@@ -198,6 +215,7 @@ interface LoadedData {
   supplies: Supply[];
   serviceSupplies: ServiceSupply[];
   employees: Employee[];
+  payments: AppointmentPayment[];
   appointments: Appointment[];
   /** Líneas de `appointment_service` con su ganancia congelada (reportes por servicio). */
   serviceLines: ServiceProfitLine[];
@@ -241,7 +259,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // INVARIANTE 1: cada consulta filtra por business_id de forma explícita,
       // además de la RLS. Con varias membresías, la RLS deja ver las filas de
       // todos los negocios del usuario; sin este filtro se mezclarían.
-      const [biz, svc, sup, ss, emp, apt, aptSvc, fx, bh, tb, bp] = await Promise.all([
+      const [biz, svc, sup, ss, emp, apt, aptSvc, fx, bh, tb, bp, pay] = await Promise.all([
         // El nombre del negocio sale en el .ics y en el link de Google Calendar.
         supabase.from('business').select('*').eq('id', businessId),
         supabase.from('service').select('*').eq('business_id', businessId),
@@ -257,6 +275,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('time_block').select('*').eq('business_id', businessId),
         // Una fila por negocio (PK = business_id); todavía puede no existir.
         supabase.from('booking_policy').select('*').eq('business_id', businessId),
+        // Pagos de las citas (abonos, cobros, pagos de crédito). Si falla, se cargan sin pagos.
+        supabase.from('appointment_payment').select('*').eq('business_id', businessId),
       ]);
       if (!active) return;
       setData({
@@ -266,6 +286,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supplies: (sup.data ?? []) as Supply[],
         serviceSupplies: (ss.data ?? []) as ServiceSupply[],
         employees: (emp.data ?? []) as Employee[],
+        payments: ((pay.data ?? []) as AppointmentPayment[]).filter((p) => p.business_id === businessId),
         // Si la consulta de líneas falla, cada cita cae a su `service_id`.
         appointments: foldServiceIds((apt.data ?? []) as Appointment[], (aptSvc.data ?? []) as AppointmentServiceRow[], businessId),
         serviceLines: ((aptSvc.data ?? []) as ServiceProfitLine[]).filter((l) => l.business_id === businessId),
@@ -306,6 +327,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   const [supplies, setSupplies] = useState<readonly Supply[]>(data.supplies);
   const [serviceSupplies, setServiceSupplies] = useState<readonly ServiceSupply[]>(data.serviceSupplies);
   const [employees, setEmployees] = useState<readonly Employee[]>(data.employees);
+  const [payments, setPayments] = useState<readonly AppointmentPayment[]>(data.payments);
   const [appointments, setAppointments] = useState<readonly Appointment[]>(data.appointments);
   const [serviceLines, setServiceLines] = useState<readonly ServiceProfitLine[]>(data.serviceLines);
   const [fixedExpenses, setFixedExpenses] = useState<readonly FixedExpense[]>(data.fixedExpenses);
@@ -403,6 +425,25 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     return previewLines(appointment, services, options);
   }
 
+  function paymentStatusOf(appointmentId: number): PaymentStatus | null {
+    const appointment = appointments.find((a) => a.id === appointmentId && a.business_id === businessId);
+    return appointment ? paymentStatus(appointment, payments, businessId) : null;
+  }
+
+  function paidOf(appointmentId: number): number {
+    return payments
+      .filter((p) => p.business_id === businessId && p.appointment_id === appointmentId)
+      .reduce((sum, p) => sum + p.amount, 0);
+  }
+
+  function serviceCredits(): ClientCredit[] {
+    return creditsByClient(appointments, payments, businessId);
+  }
+
+  function paymentsIncome(from: string, to: string): IncomeByMethod {
+    return incomeByMethod(appointments, payments, businessId, from, to);
+  }
+
   function suppliesForService(serviceId: number): Supply[] {
     const linkedIds = serviceSupplies.filter((l) => l.service_id === serviceId).map((l) => l.supply_id);
     return supplies.filter((s) => linkedIds.includes(s.id));
@@ -461,16 +502,42 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   // el formulario conserva lo escrito para reintentar.
   // Si la respuesta se perdió tras el commit, el reintento (mismo id) choca con
   // la clave primaria: eso confirma que ya estaba guardada (isAlreadySaved).
-  async function insertScheduled(appointment: Appointment): Promise<WriteError | null> {
+  async function insertScheduled(appointment: Appointment, depositMethod?: PaymentMethod): Promise<WriteError | null> {
     try {
       const { error } = await supabase.rpc(
         'schedule_appointment',
-        scheduleRpcArgs(businessId, { ...appointment, service_ids: appointmentServiceIds(appointment) }),
+        scheduleRpcArgs(businessId, { ...appointment, service_ids: appointmentServiceIds(appointment), deposit_method: depositMethod }),
       );
       return isAlreadySaved(error) ? null : error;
     } catch (e) {
       return { message: e instanceof Error ? e.message : 'No se pudo conectar con el servidor.' };
     }
+  }
+
+  function newPayment(appointmentId: number, amount: number, method: PaymentMethod | null, kind: PaymentKind, id = newId()): AppointmentPayment {
+    return { id, business_id: businessId, appointment_id: appointmentId, amount, method, kind, paid_at: new Date().toISOString() };
+  }
+
+  // Pone al día los pagos de UNA cita con lo que el servidor guardó de verdad
+  // (ids reales). Si la lectura falla, se añaden los pagos recién confirmados para
+  // que la pantalla no se quede atrás; el servidor ya los tiene.
+  async function syncPayments(appointmentId: number, added: AppointmentPayment[]): Promise<void> {
+    try {
+      // INVARIANTE 1: filtro explícito por negocio, además de la RLS.
+      const { data: rows, error } = await supabase
+        .from('appointment_payment')
+        .select('*')
+        .eq('business_id', businessId)
+        .eq('appointment_id', appointmentId);
+      if (!error && rows) {
+        const fresh = (rows as AppointmentPayment[]).filter((p) => p.business_id === businessId);
+        setPayments((prev) => [...prev.filter((p) => p.appointment_id !== appointmentId), ...fresh]);
+        return;
+      }
+    } catch {
+      // cae al respaldo local
+    }
+    setPayments((prev) => [...prev, ...added]);
   }
 
   async function schedule(input: ScheduleInput): Promise<ActionResult> {
@@ -489,9 +556,13 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       actual_cost: null,
       profit: null,
     };
-    const error = await insertScheduled(appointment);
+    const error = await insertScheduled(appointment, input.deposit_method);
     if (error) return { ok: false, message: error.message };
     putAppointment(appointment);
+    // El abono es un pago: el servidor lo creó con la cita, aquí se refleja.
+    if (appointment.deposit != null && appointment.deposit > 0) {
+      await syncPayments(appointment.id, [newPayment(appointment.id, appointment.deposit, input.deposit_method ?? null, 'deposit')]);
+    }
     return { ok: true };
   }
 
@@ -534,9 +605,12 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
 
   // Llama a la RPC de cobro. Un fallo de red puede llegar como excepción en vez de
   // como `error`; se normaliza para que quien llama siempre reciba un resultado.
-  async function callCompleteRpc(plan: Parameters<typeof completeRpcArgs>[1]): Promise<{ error: { message: string } | null }> {
+  async function callCompleteRpc(
+    plan: Parameters<typeof completeRpcArgs>[1],
+    chargePayments: readonly ChargePayment[] = [],
+  ): Promise<{ error: { message: string } | null }> {
     try {
-      const { error } = await supabase.rpc('complete_appointment', completeRpcArgs(businessId, plan));
+      const { error } = await supabase.rpc('complete_appointment', completeRpcArgs(businessId, plan, chargePayments));
       return { error };
     } catch (e) {
       return { error: { message: e instanceof Error ? e.message : 'No se pudo conectar con el servidor.' } };
@@ -566,7 +640,11 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   // solo cambia cuando el servidor confirma; si falla, la cita sigue abierta y
   // la dueña puede reintentar. El cálculo es del dominio; el servidor solo
   // persiste lo que llega y comprueba que cuadre.
-  async function complete(appointmentId: number, options: CompleteOptions = {}): Promise<ActionResult> {
+  async function complete(
+    appointmentId: number,
+    options: CompleteOptions = {},
+    chargePayments: readonly ChargePayment[] = [],
+  ): Promise<ActionResult> {
     const current = appointments.find((a) => a.id === appointmentId);
     if (!current) return { ok: false, message: 'No encontramos esa cita.' };
     let plan;
@@ -575,11 +653,45 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     } catch (e) {
       return { ok: false, message: e instanceof Error ? e.message : 'No se pudo calcular el cobro.' };
     }
-    const { error } = await callCompleteRpc(plan);
+    const { error } = await callCompleteRpc(plan, chargePayments);
     if (error) return { ok: false, message: error.message };
     const { status, charged_price, actual_cost, profit } = plan.completed;
     setServiceLines((prev) => mergeServiceLines(prev, planLines(plan), businessId));
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, status, charged_price, actual_cost, profit } : a)));
+    await syncPayments(
+      appointmentId,
+      chargePayments.map((p) => newPayment(appointmentId, p.amount, p.method, 'charge')),
+    );
+    return { ok: true };
+  }
+
+  // Registra un pago suelto: un abono (cita abierta) o un pago de crédito (cita
+  // ya cobrada). Como `complete`, ESPERA al servidor, que valida estado y sobrepago;
+  // el estado local solo cambia cuando confirma. NO toca el dinero congelado de la
+  // cita (INVARIANTE 2): solo añade un pago. La referencia del intento la fija quien llama
+  // (el servidor la deduplica por cita) para que un reintento tras un corte de red no pague dos veces.
+  async function addPayment(
+    appointmentId: number,
+    amount: number,
+    method: PaymentMethod,
+    kind: Extract<PaymentKind, 'deposit' | 'credit_payment'>,
+    clientRef: string = crypto.randomUUID(),
+  ): Promise<ActionResult> {
+    let error: WriteError | null;
+    try {
+      ({ error } = await supabase.rpc('add_appointment_payment', {
+        p_business_id: businessId,
+        p_appointment_id: appointmentId,
+        p_amount: amount,
+        p_method: method,
+        p_kind: kind,
+        p_client_ref: clientRef,
+      }));
+    } catch (e) {
+      error = { message: e instanceof Error ? e.message : 'No se pudo conectar con el servidor.' };
+    }
+    if (error) return { ok: false, message: error.message };
+    await syncPayments(appointmentId, [newPayment(appointmentId, amount, method, kind)]);
     return { ok: true };
   }
 
@@ -634,7 +746,10 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     const insertError = await insertScheduled(pending);
     if (insertError) return { ok: false, message: insertError.message };
     putAppointment(pending);
-    const { error } = await callCompleteRpc(plan);
+    // Con vía, la clienta pagó TODO el cobro por ella; sin vía queda a crédito.
+    const total = plan.completed.charged_price as number;
+    const walkInPayments: ChargePayment[] = input.payment_method && total > 0 ? [{ amount: total, method: input.payment_method }] : [];
+    const { error } = await callCompleteRpc(plan, walkInPayments);
     if (error) {
       // La cita ya existe (PENDING, visible en la agenda). Reintentar el alta la
       // duplicaría, así que se avisa que se cobre desde la agenda.
@@ -646,6 +761,10 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     }
     setServiceLines((prev) => mergeServiceLines(prev, planLines(plan), businessId));
     putAppointment({ ...pending, ...plan.completed });
+    await syncPayments(
+      pending.id,
+      walkInPayments.map((p) => newPayment(pending.id, p.amount, p.method, 'charge')),
+    );
     return { ok: true };
   }
 
@@ -924,6 +1043,12 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     updateAppointmentServices,
     reschedule,
     complete,
+    payments,
+    paymentStatusOf,
+    paidOf,
+    serviceCredits,
+    incomeByMethod: paymentsIncome,
+    addPayment,
     cancel,
     markNoShow,
     registerWalkIn,

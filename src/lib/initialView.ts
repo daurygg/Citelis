@@ -9,7 +9,7 @@
 // dos líneas de negocio y sobre el portal público, así que vive en su propia
 // pantalla fuera de los modos, no en una pestaña de Servicios.
 export type Screen = 'work' | 'business';
-export type ServiceView = 'agenda' | 'reservas' | 'services' | 'report';
+export type ServiceView = 'agenda' | 'reservas' | 'services' | 'credits' | 'report';
 
 export interface InitialView {
   screen: Screen;

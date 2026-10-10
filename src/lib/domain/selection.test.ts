@@ -92,6 +92,7 @@ describe('scheduleRpcArgs', () => {
       p_quoted_price: null,
       p_deposit: null,
       p_service_ids: [2, 1],
+      p_deposit_method: null,
     });
   });
 
@@ -106,5 +107,17 @@ describe('scheduleRpcArgs', () => {
     });
     expect(args.p_quoted_price).toBe(7000);
     expect(args.p_deposit).toBe(1500);
+  });
+
+  it('lleva la vía del abono para que el pago nazca con la cita', () => {
+    const args = scheduleRpcArgs(1, {
+      id: 55,
+      client: 'Ana',
+      datetime: '2026-10-12T10:00',
+      service_ids: [1],
+      deposit: 1500,
+      deposit_method: 'transfer',
+    });
+    expect(args.p_deposit_method).toBe('transfer');
   });
 });
