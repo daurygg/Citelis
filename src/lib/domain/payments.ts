@@ -95,8 +95,20 @@ export function buildPaymentPlan(rows: readonly PaymentRowText[], total: number,
     payments.push({ amount: cents, method: row.method });
   }
   const paid = payments.reduce((sum, p) => sum + p.amount, 0);
-  const overpaid = alreadyPaid + paid > total;
+  // Igual que el servidor: solo hay sobrepago si se cargan pagos NUEVOS que pasan
+  // el total. Un abono viejo que ya lo supera no impide completar sin pagar más.
+  const overpaid = paid > 0 && alreadyPaid + paid > total;
   return { payments, paid, credit: overpaid ? 0 : Math.max(0, total - alreadyPaid - paid), overpaid, invalid };
+}
+
+/**
+ * Texto con el que nace la fila de pago en la pantalla de cobro: el saldo
+ * pendiente. Si no queda nada por pagar (ya abonado o cita gratis), vacía: "0.00"
+ * sería un pago inválido y bloquearía completar.
+ */
+export function initialPaymentText(total: number, alreadyPaid: number): string {
+  const pending = total - alreadyPaid;
+  return pending > 0 ? (pending / 100).toFixed(2) : '';
 }
 
 /** Ingresos de un periodo repartidos por vía. `unknown` = pagos históricos sin vía. */

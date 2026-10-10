@@ -12,11 +12,11 @@ import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
 import { activeEmployees } from '../lib/domain/employees';
 import { chargeTotals, type DiscountMode } from '../lib/domain/discounts';
 import { appointmentServices, buildChargeForm, initialChargeTexts, type ChargeTexts } from '../lib/domain/charge';
-import { buildPaymentPlan, type PaymentRowText } from '../lib/domain/payments';
+import { buildPaymentPlan, initialPaymentText, type PaymentRowText } from '../lib/domain/payments';
 import { useToast } from './Toast';
 import { CalendarActions } from './CalendarActions';
 import { ClientNotice } from './ClientNotice';
-import { PaymentMethodChips, RegisterPaymentPanel, centsToText } from './PaymentPanel';
+import { PaymentMethodChips, RegisterPaymentPanel } from './PaymentPanel';
 import { btnGhostSm, btnPrimary, btnPrimarySm, btnText, card, chip, field, fieldLabel, input } from './ui';
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
@@ -65,7 +65,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   // Lo ya pagado (abonos) sale de los pagos, no de la columna legada `deposit`.
   const alreadyPaid = store.paidOf(appointment.id);
   const total = preview?.charged_price ?? 0;
-  const rows: PaymentRowText[] = payRows ?? [{ amount: centsToText(Math.max(0, total - alreadyPaid)), method: 'cash' }];
+  const rows: PaymentRowText[] = payRows ?? [{ amount: initialPaymentText(total, alreadyPaid), method: 'cash' }];
   const paymentPlan = buildPaymentPlan(rows, total, alreadyPaid);
   const canComplete =
     cobroServices !== null && form.ready && !saving && (breakdown?.errors.size ?? 0) === 0 && !paymentPlan.invalid && !paymentPlan.overpaid;

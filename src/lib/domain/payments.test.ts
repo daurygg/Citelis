@@ -4,6 +4,7 @@ import {
   PAYMENT_METHODS,
   appointmentBalance,
   buildPaymentPlan,
+  initialPaymentText,
   checkPaymentAmount,
   creditsByClient,
   incomeByMethod,
@@ -94,6 +95,37 @@ describe('checkPaymentAmount', () => {
   });
   it('rechaza pasarse del saldo', () => {
     expect(checkPaymentAmount(3001, 3000)).toEqual({ ok: false, reason: 'Eso es más de lo que debe.' });
+  });
+});
+
+describe('buildPaymentPlan: abono que ya cubre o supera el total', () => {
+  it('sin pagos nuevos se puede completar aunque el abono supere el total (igual que el servidor)', () => {
+    const plan = buildPaymentPlan([], 5000, 6000);
+    expect(plan.overpaid).toBe(false);
+    expect(plan.invalid).toBe(false);
+    expect(plan.credit).toBe(0);
+  });
+
+  it('con pagos nuevos que pasan el total sí es sobrepago', () => {
+    expect(buildPaymentPlan([{ amount: '1', method: 'cash' }], 5000, 5000).overpaid).toBe(true);
+  });
+
+  it('una cita gratis o ya pagada se completa sin filas de pago', () => {
+    const plan = buildPaymentPlan([{ amount: '', method: 'cash' }], 0, 0);
+    expect(plan.invalid).toBe(false);
+    expect(plan.overpaid).toBe(false);
+  });
+});
+
+describe('initialPaymentText', () => {
+  it('precarga el saldo pendiente', () => {
+    expect(initialPaymentText(5000, 2000)).toBe('30.00');
+  });
+
+  it('si no queda nada por pagar, la fila nace vacía (no "0.00", que sería un pago inválido)', () => {
+    expect(initialPaymentText(5000, 5000)).toBe('');
+    expect(initialPaymentText(0, 0)).toBe('');
+    expect(initialPaymentText(5000, 7000)).toBe('');
   });
 });
 
