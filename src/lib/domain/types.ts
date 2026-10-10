@@ -25,6 +25,15 @@ export interface Business {
   theme_color?: string;
 }
 
+// Empleada del negocio (INVARIANTE 1). No es usuaria de la app. Se da de baja
+// (`active = false`) en vez de borrarse: su nombre sigue en el historial cobrado.
+export interface Employee {
+  id: number;
+  business_id: number;
+  name: string;
+  active: boolean;
+}
+
 // Insumo GLOBAL del negocio (INVARIANTE 1). Un mismo insumo (wipes, pegamento…)
 // puede usarse en varios servicios → la relación vive en ServiceSupply (N↔N).
 export interface Supply {

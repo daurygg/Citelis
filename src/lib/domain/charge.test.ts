@@ -6,7 +6,7 @@ import {
   initialChargeTexts,
   planCompletion,
 } from './charge';
-import type { Appointment, Service } from './types';
+import type { Appointment, Employee, Service } from './types';
 
 function service(partial: Partial<Service> = {}): Service {
   return {
@@ -179,5 +179,35 @@ describe('completeRpcArgs', () => {
       p_profit: 7500,
       p_lines: plan.lines,
     });
+  });
+});
+
+describe('empleada por servicio (opcional)', () => {
+  const marta: Employee = { id: 7, business_id: 1, name: 'Marta', active: true };
+  const baja: Employee = { id: 8, business_id: 1, name: 'Baja', active: false };
+
+  it('sin elegir a nadie no se inventa ninguna', () => {
+    const form = buildChargeForm([cejas, ondas], { prices: {}, total: '' }, [marta]);
+    expect(form.employeeIds.size).toBe(0);
+    expect(form.ready).toBe(true);
+  });
+
+  it('guarda la empleada elegida por servicio', () => {
+    const form = buildChargeForm([cejas, ondas], { prices: {}, total: '', employees: { 1: 7, 2: null } }, [marta]);
+    expect([...form.employeeIds]).toEqual([[1, 7]]);
+  });
+
+  it('descarta una empleada dada de baja, desconocida o de un servicio que no es de la cita', () => {
+    const form = buildChargeForm([cejas], { prices: {}, total: '', employees: { 1: 8, 2: 7 } }, [marta, baja]);
+    expect(form.employeeIds.size).toBe(0);
+    expect(buildChargeForm([cejas], { prices: {}, total: '', employees: { 1: 99 } }, [marta]).employeeIds.size).toBe(0);
+  });
+
+  it('planCompletion y la RPC llevan employee_id solo donde se eligió', () => {
+    const plan = planCompletion(appointment({ service_ids: [1, 2] }), catalog, { employeeIds: new Map([[2, 7]]) });
+    expect(plan.lines.find((l) => l.service_id === 1)).not.toHaveProperty('employee_id');
+    expect(plan.lines.find((l) => l.service_id === 2)?.employee_id).toBe(7);
+    const args = completeRpcArgs(1, plan);
+    expect(args.p_lines.map((l) => l.employee_id ?? null)).toEqual([null, 7]);
   });
 });
