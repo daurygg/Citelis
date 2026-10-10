@@ -2,7 +2,7 @@
 // usaban las Fases 1-3 (para no reescribir la UI). Al montar carga los datos del
 // negocio; cada cambio actualiza el estado local (optimista) y se persiste por
 // detrás (write-through). Los cálculos siguen en el dominio puro (INVARIANTE 5).
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   Appointment,
   BookingPolicyRow,
@@ -29,7 +29,8 @@ import { isAlreadySaved, type WriteError } from './writeResult';
 import { startLiveAppointments } from './liveAppointments';
 import { findScheduleConflict } from '../domain/scheduling';
 import { effectiveCost, profit, suppliesCost } from '../domain/costs';
-import { expectedProfitForServices, fixedExpensesForMonth, weekSummary, type WeekSummary } from '../domain/reports';
+import { expectedProfitForServices, fixedExpensesForMonth, weekSummary, type ServiceProfitLine, type WeekSummary } from '../domain/reports';
+import { completedWithoutLines, mergeServiceLines } from './serviceLines';
 import { dayRange, shiftMonthISODate } from '../format';
 import { supabase } from '../supabase/client';
 import { useAuth } from '../auth/AuthContext';
@@ -184,6 +185,8 @@ interface LoadedData {
   supplies: Supply[];
   serviceSupplies: ServiceSupply[];
   appointments: Appointment[];
+  /** Líneas de `appointment_service` con su ganancia congelada (reportes por servicio). */
+  serviceLines: ServiceProfitLine[];
   fixedExpenses: FixedExpense[];
   businessHours: BusinessHours[];
   timeBlocks: TimeBlock[];
@@ -231,8 +234,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('supply').select('*').eq('business_id', businessId),
         supabase.from('service_supply').select('*').eq('business_id', businessId),
         supabase.from('appointment').select('*').eq('business_id', businessId),
-        // Los servicios de cada cita (varios por cita): alimentan `service_ids`.
-        supabase.from('appointment_service').select('appointment_id, service_id, business_id').eq('business_id', businessId),
+        // Los servicios de cada cita (varios por cita): alimentan `service_ids` y,
+        // con `profit` (congelado al completar), el servicio más rentable.
+        supabase.from('appointment_service').select('appointment_id, service_id, business_id, profit').eq('business_id', businessId),
         supabase.from('fixed_expense').select('*').eq('business_id', businessId),
         supabase.from('business_hours').select('*').eq('business_id', businessId),
         supabase.from('time_block').select('*').eq('business_id', businessId),
@@ -248,6 +252,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         serviceSupplies: (ss.data ?? []) as ServiceSupply[],
         // Si la consulta de líneas falla, cada cita cae a su `service_id`.
         appointments: foldServiceIds((apt.data ?? []) as Appointment[], (aptSvc.data ?? []) as AppointmentServiceRow[], businessId),
+        serviceLines: ((aptSvc.data ?? []) as ServiceProfitLine[]).filter((l) => l.business_id === businessId),
         fixedExpenses: (fx.data ?? []) as FixedExpense[],
         businessHours: (bh.data ?? []) as BusinessHours[],
         timeBlocks: (tb.data ?? []) as TimeBlock[],
@@ -285,6 +290,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   const [supplies, setSupplies] = useState<readonly Supply[]>(data.supplies);
   const [serviceSupplies, setServiceSupplies] = useState<readonly ServiceSupply[]>(data.serviceSupplies);
   const [appointments, setAppointments] = useState<readonly Appointment[]>(data.appointments);
+  const [serviceLines, setServiceLines] = useState<readonly ServiceProfitLine[]>(data.serviceLines);
   const [fixedExpenses, setFixedExpenses] = useState<readonly FixedExpense[]>(data.fixedExpenses);
   const [businessHours, setBusinessHoursState] = useState<readonly BusinessHours[]>(data.businessHours);
   const [timeBlocks, setTimeBlocksState] = useState<readonly TimeBlock[]>(data.timeBlocks);
@@ -305,6 +311,39 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       }),
     [businessId],
   );
+
+  // Una cita cobrada desde otro dispositivo llega por Realtime sin sus líneas
+  // (esa tabla no se emite). Se piden aparte, una sola vez por cita: si no las
+  // hay (cita anterior al reparto) el reporte la atribuye a su servicio principal.
+  const linesRequested = useRef(new Set<number>());
+  const missingLineIds = completedWithoutLines(appointments, serviceLines).filter((id) => !linesRequested.current.has(id));
+  const missingKey = missingLineIds.join(',');
+  useEffect(() => {
+    if (missingLineIds.length === 0) return;
+    missingLineIds.forEach((id) => linesRequested.current.add(id));
+    let active = true;
+    void (async () => {
+      try {
+        // INVARIANTE 1: filtro explícito por negocio, además de la RLS.
+        const { data: rows, error } = await supabase
+          .from('appointment_service')
+          .select('appointment_id, service_id, business_id, profit')
+          .eq('business_id', businessId)
+          .in('appointment_id', missingLineIds);
+        if (error || !rows) {
+          missingLineIds.forEach((id) => linesRequested.current.delete(id)); // reintentable
+          return;
+        }
+        if (active) setServiceLines((prev) => mergeServiceLines(prev, rows as ServiceProfitLine[], businessId));
+      } catch {
+        missingLineIds.forEach((id) => linesRequested.current.delete(id));
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // missingKey resume missingLineIds: solo se vuelve a pedir si cambia el conjunto.
+  }, [missingKey, businessId]);
 
   // ── Lecturas (puras, sobre el estado ya cargado) ──────────────────────────
   function appointmentsForDay(isoDate: string): Appointment[] {
@@ -332,7 +371,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
 
   function dayReport(isoDate: string): WeekSummary {
     const { from, to } = dayRange(isoDate);
-    return weekSummary(appointments, businessId, from, to);
+    return weekSummary(appointments, businessId, from, to, serviceLines);
   }
 
   function completionPreview(appointmentId: number, options: CompleteOptions = {}): CompletionPreview | null {
@@ -358,7 +397,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   }
 
   function weekReport(from: string, to: string): WeekSummary {
-    return weekSummary(appointments, businessId, from, to);
+    return weekSummary(appointments, businessId, from, to, serviceLines);
   }
 
   function expensesForMonth(month: string): FixedExpense[] {
@@ -450,6 +489,16 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     setAppointments((prev) => (prev.some((a) => a.id === next.id) ? prev.map((a) => (a.id === next.id ? next : a)) : [...prev, next]));
   }
 
+  // Las líneas que acaba de congelar el servidor, para el reporte sin recargar.
+  function planLines(plan: Parameters<typeof completeRpcArgs>[1]): ServiceProfitLine[] {
+    return plan.lines.map((l) => ({
+      appointment_id: plan.completed.id,
+      service_id: l.service_id,
+      business_id: businessId,
+      profit: l.profit,
+    }));
+  }
+
   // Cobra la cita: congela su dinero Y el de cada servicio en UNA transacción
   // (`complete_appointment`, T6b). ROMPE A PROPÓSITO el patrón fire-and-forget de
   // `persist()`: si la cita quedara COMPLETED sin su reparto no habría forma de
@@ -469,6 +518,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     const { error } = await callCompleteRpc(plan);
     if (error) return { ok: false, message: error.message };
     const { status, charged_price, actual_cost, profit } = plan.completed;
+    setServiceLines((prev) => mergeServiceLines(prev, planLines(plan), businessId));
     setAppointments((prev) => prev.map((a) => (a.id === appointmentId ? { ...a, status, charged_price, actual_cost, profit } : a)));
     return { ok: true };
   }
@@ -534,6 +584,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
         message: `La atención quedó en la agenda sin cobrar (${error.message}). Cóbrala desde ahí.`,
       };
     }
+    setServiceLines((prev) => mergeServiceLines(prev, planLines(plan), businessId));
     putAppointment({ ...pending, ...plan.completed });
     return { ok: true };
   }

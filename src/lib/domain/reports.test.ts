@@ -113,6 +113,62 @@ describe('weekSummary', () => {
     expect(r.gross_profit).toBe(0);
     expect(r.most_profitable_service).toBeNull();
   });
+
+  describe('reparto congelado por servicio (D1)', () => {
+    const line = (appointment_id: number, service_id: number, profit: number, business_id = 1) => ({
+      appointment_id,
+      service_id,
+      business_id,
+      profit,
+    });
+
+    it('atribuye a cada servicio SU ganancia congelada, no toda la cita al principal', () => {
+      // Cita 1: servicio 1 (principal) gana 500 y servicio 2 gana 3500. Total 4000.
+      const appointments = [completed({ id: 1, service_id: 1, profit: 4000 })];
+      const lines = [line(1, 1, 500), line(1, 2, 3500)];
+      const r = weekSummary(appointments, 1, FROM, TO, lines);
+      expect(r.most_profitable_service).toEqual({ service_id: 2, profit: 3500 });
+      // El total del periodo sigue saliendo de la cita, no de las líneas.
+      expect(r.gross_profit).toBe(4000);
+    });
+
+    it('acumula las líneas de un mismo servicio entre varias citas', () => {
+      const appointments = [
+        completed({ id: 1, service_id: 1, profit: 1500 }),
+        completed({ id: 2, service_id: 2, profit: 1500 }),
+      ];
+      const lines = [line(1, 1, 500), line(1, 2, 1000), line(2, 2, 700), line(2, 1, 800)];
+      const r = weekSummary(appointments, 1, FROM, TO, lines);
+      expect(r.most_profitable_service).toEqual({ service_id: 2, profit: 1700 });
+    });
+
+    it('una cita COMPLETED sin líneas se atribuye a su servicio principal (defensivo)', () => {
+      const appointments = [
+        completed({ id: 1, service_id: 1, profit: 1000 }),
+        completed({ id: 2, service_id: 3, profit: 2000 }), // sin líneas
+      ];
+      const r = weekSummary(appointments, 1, FROM, TO, [line(1, 1, 1000)]);
+      expect(r.most_profitable_service).toEqual({ service_id: 3, profit: 2000 });
+    });
+
+    it('ignora líneas de otro negocio o de citas fuera del periodo o no completadas', () => {
+      const appointments = [
+        completed({ id: 1, service_id: 1, profit: 1000 }),
+        completed({ id: 2, service_id: 1, profit: 9000, datetime: '2026-08-01T10:00:00.000Z' }),
+        completed({ id: 3, service_id: 1, profit: 9000, status: 'PENDING' }),
+      ];
+      const lines = [line(1, 1, 1000), line(1, 2, 8000, 99), line(2, 2, 9000), line(3, 2, 9000)];
+      const r = weekSummary(appointments, 1, FROM, TO, lines);
+      expect(r.most_profitable_service).toEqual({ service_id: 1, profit: 1000 });
+    });
+
+    it('si las líneas de una cita no tienen ganancia (null) se atribuye al principal', () => {
+      const appointments = [completed({ id: 1, service_id: 1, profit: 1000 })];
+      const lines = [{ appointment_id: 1, service_id: 2, business_id: 1, profit: null }];
+      const r = weekSummary(appointments, 1, FROM, TO, lines);
+      expect(r.most_profitable_service).toEqual({ service_id: 1, profit: 1000 });
+    });
+  });
 });
 
 function expense(partial: Partial<FixedExpense>): FixedExpense {
