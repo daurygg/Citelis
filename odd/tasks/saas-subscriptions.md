@@ -79,6 +79,7 @@ existentes. Un negocio exento o en prueba debe comportarse exactamente igual que
   - RED: CI run 38301502577 (commit `a76cb2e`, solo la suite): `FALLÓ 0: falta subscription_status`.
   - GREEN: CI run 38301726713 (commit `2480bec`): las 20 suites SQL y `test` en verde.
   - Ruta: delegado (migración + suite). PR #55 (borrador) hacia `develop`.
+  - Revisión del corte (develop..d0623ef): riesgo medio, `under_budget`, sin revisión nativa pendiente.
 - [ ] **S3 · Bloqueo en el servidor.**
   - `is_member` exige negocio operativo.
   - Las RPC públicas de reserva cortan cuando está bloqueado.
