@@ -1,0 +1,466 @@
+# Varias servicios en una misma cita
+
+## Objetivo
+
+Que una cita pueda llevar varios servicios —cejas + ondas + pestañas— y que la
+clienta pueda elegirlos ella sola desde el portal, viendo los huecos que caben
+para la suma de todos.
+
+## Alcance
+
+Decidido por el usuario (2026-09-29): **también en el portal de la clienta**, no
+solo del lado de la dueña. Eso obliga a reescribir las RPC públicas.
+
+## El mapa: qué se toca
+
+88 referencias a `service_id` en 21 archivos de `src/`, 33 de ellas en 7 archivos
+de test. Más la lógica duplicada en SQL.
+
+### Barato (no engaña)
+- `src/lib/domain/costs.ts` — **cero cambios**. `effectiveCost` y `profit` ya son
+  por servicio y se suman.
+- Sitios que solo muestran el nombre: `RequestsInbox`, `ClientNotice`, la etiqueta
+  de `AppointmentRow`. Mecánicos en cuanto el tipo sea lista.
+- El dinero congelado ya vive en la cita (`charged_price`, `actual_cost`,
+  `profit`), no en el servicio: la INVARIANTE 2 no cambia de sitio.
+
+### Caro
+- `availability.ts` (`occupiesSchedule`, `generateSlots`) y `scheduling.ts`
+  (`findScheduleConflict`): duración de una a suma.
+- `appointments.ts` (`completeAppointment`): es el punto de congelación.
+- `public_request_booking`, `public_busy`: la misma matemática, otra vez, en SQL.
+- `calendar.ts` (`buildICS`, `googleCalendarUrl`): título con N nombres y fin en
+  la suma de duraciones.
+- La Edge `notify-new-booking` arma el aviso con `service:service_id (name)`.
+
+## Decisiones
+
+### D1 · El reparto de la ganancia se CONGELA al completar
+
+El problema: hoy el reporte de "servicio más rentable" atribuye la ganancia
+congelada de la cita a su único servicio. Con tres servicios no existe dato que
+diga cuánta ganancia fue de cada uno, y repartirla después sería inventar una
+regla sobre dinero histórico — justo lo que la INVARIANTE 2 protege.
+
+La salida: la fila de `appointment_service` guarda **su parte** de
+`charged_price`, `actual_cost` y `profit`, calculada y congelada **en el momento
+de COMPLETAR**, a prorrata del precio de lista de cada servicio.
+
+Eso no es recalcular historia: es **registrarla**. El reporte pasa a leer datos
+reales en vez de un reparto inventado a posteriori, y las citas de un solo
+servicio siguen dando exactamente el mismo número que hoy.
+
+### D2 · Los servicios de precio variable SÍ entran al portal
+
+CORREGIDA el 2026-09-29. La versión anterior los dejaba fuera "por ahora"; el
+usuario lo rechazó con un caso que la tumba: si una clienta quiere cejas Y
+trenzas, obligarla a pedir dos citas no es defendible.
+
+Y al mirarlo de cerca, el miedo era exagerado. **El portal no cobra: pide.** El
+dinero se congela al COMPLETAR pase lo que pase, así que un servicio de precio
+variable en el portal solo significa que el estimado es parcial:
+
+    Cejas          RD$1,500
+    Trenzas        a convenir
+    ─────────────────────────
+    Desde          RD$1,500
+
+Lo que sí obliga: la pantalla de cobro deja de preguntar "¿esta cita es de precio
+variable?" (un sí/no que con mezcla no tiene respuesta) y pasa a pedir **un precio
+por cada servicio variable** de la cita.
+
+Se mantiene el filtro `duration_min > 0`: un servicio sin duración no se puede
+agendar, y eso no cambia. Lo que se cae del filtro del portal es solo
+`variable_price = false`.
+
+### D3 · Expandir, migrar, contraer
+
+Tabla `appointment_service` nueva; se rellena una fila por cada cita existente con
+su servicio actual; `service_id` se queda como servicio principal. Las citas
+históricas no se tocan. Quitar la columna, si llega, es otro cambio.
+
+### D4 · El precio de un conjunto se calcula en UN solo sitio
+
+Nace de lo que pidió el usuario: precio especial por combinación
+(micropigmentación 5000 + labios 4000 = 8000 juntos).
+
+Los combos son una funcionalidad aparte y posterior —necesitan que exista lo
+múltiple, y una pantalla donde la dueña los defina—, pero la costura se deja
+puesta desde ahora: **una única función pura que responde "cuánto cuesta este
+conjunto de servicios"**. Empieza siendo una suma; cuando entren los combos, es el
+único sitio que cambia.
+
+Retrofitear eso después significaría perseguir el cálculo del precio por el
+portal, la agenda, el cobro y los reportes. Anticipar la costura es barato; el
+combo en sí, no.
+
+Nota importante que ya es verdad hoy:
+`charged_price = overridePrice ?? quoted_price ?? service.price`. La dueña YA
+puede cobrar 8000 al completar. Lo que no existe es que la clienta lo VEA en el
+portal ni que se aplique sola.
+
+Cuando lleguen los combos, el reparto congelado de D1 usa el precio cobrado, no
+el de lista: 8000 se reparte a prorrata de 5000/4000, o sea 4444 y 3556. Sigue
+siendo dato registrado, no inventado.
+
+## El riesgo que manda
+
+Hay TRES puertas por las que se crea o cambia una cita: la agenda de la dueña, el
+portal, y **reprogramar**. Si una se queda atrás conociendo un solo `service_id`,
+reprogramar una cita de tres servicios borraría dos **en silencio**. El tipo tiene
+que dejar de ser `service_id: number` de golpe, para que `tsc` cace todos los
+sitios — pero `tsc` no cruza a SQL.
+
+Y la duración vive en dos implementaciones independientes: `availability.ts` y
+`public_request_booking`. La de SQL se escribió replicando la de TS "al detalle"
+después de fallos reales en producción, y su única red de regresión **se corre a
+mano, no en CI**.
+
+## Tareas
+
+- [x] **T1 · Dominio: la duración pasa a ser suma.** `availability.ts` y
+  `scheduling.ts`. Preservar el "fallo seguro" de `occupiesSchedule` (decisión A6,
+  hallazgo CRÍTICO de una revisión): hoy bloquea a infinito si no encuentra el
+  servicio; con un conjunto hay que decidir si basta con que falte UNO.
+
+  Hecho en `feat/multi-service-domain` (TDD estricto). `Appointment.service_ids?:
+  number[]` opcional en `types.ts`; `appointmentServiceIds` (scheduling.ts) es la
+  única fuente de verdad de qué servicios tiene una cita. Se decidió: basta con
+  que falte UNO de los servicios para fallar en seguro a Infinity, no que falten
+  todos (test: cita con 2 servicios, solo 1 en catálogo → bloquea a Infinity).
+  `generateSlots` cambió su input de `service: Service` a `candidateServices:
+  readonly Service[]`; `findScheduleConflict` cambió `service_id: number` a
+  `service_ids: number[]`. Callers (`PublicBooking.tsx`, `StoreContext.tsx`)
+  actualizados a pasar arreglos de un solo elemento, sin cambio de comportamiento.
+
+  RED observado: 30 tests fallando (24 en `availability.test.ts` — `service` ya
+  no existe en el input; 6 en `scheduling.test.ts` — `service_id` ignorado o
+  funciones nuevas inexistentes), 250 pasando en los otros 18 archivos.
+  GREEN: `npm run test:run` → 280 passed (280) en 20 archivos (271 base + 9
+  tests nuevos). `npm run typecheck` limpio. `npm run build` limpio.
+
+  Fixture reformada: los ~19 call-sites de `generateSlots` en
+  `availability.test.ts` que usaban `service: svc` pasaron a `candidateServices:
+  [svc]` — mecánico, exigido por el cambio de firma del punto 3 del diseño, no
+  cambia lo que cada test verifica.
+
+  Commit: `feat(dominio): duración de citas soporta varios servicios (suma)`.
+- [x] **T2 · Dominio: el dinero.** Una función pura "precio de este conjunto"
+  (D4), `completeAppointment` recibiendo N servicios, y el reparto congelado de
+  D1. Aquí muere el booleano `isVariable`: pasa a ser "qué servicios de esta cita
+  necesitan que les pongas precio".
+- [x] **T3 · Migración.** `appointment_service` con su RLS, backfill, y las
+  columnas del reparto congelado. Verificada en CitelisDev el 2026-10-09.
+- [x] **T4 · RPC públicas.** `public_request_booking` y `public_busy` con sumas,
+  más su regresión SQL. Verificada en CitelisDev el 2026-10-09.
+- [x] **T6a · La agenda LEE los servicios de cada cita.** Cargar `appointment_service`
+  y volcarlo en `service_ids`, también en la sincronización en vivo. Nombres de
+  todos los servicios en `AppointmentRow`, `RequestsInbox` y `ClientNotice`.
+  Reprogramar comprueba choques con la duración de todos. Vista previa del cobro
+  y proyección del día con el precio del conjunto.
+
+  Hecho en `feat/multi-service-6a-read` (TDD): `foldServiceIds`, `serviceNames`,
+  `previewCompletion` (appointments.ts), `expectedProfitForServices` (reports.ts),
+  `applyServiceIds` (appointmentSync.ts). Live sync: `applyAppointmentChange`
+  conserva el `service_ids` en memoria si la fila del servidor no lo trae; tras
+  cada evento se piden las líneas de ESA cita (Realtime no emite
+  `appointment_service`); la puesta al día pide citas y líneas juntas y no
+  reemplaza nada si falla alguna. `scheduleConflict` ahora recibe un arreglo de
+  ids. `AppointmentRow` exige precio si CUALQUIER servicio es variable y ya no
+  oculta el panel de cobro cuando la vista previa es null.
+  RED: 30 tests fallando (appointments 14, reports 6, appointmentSync 6,
+  liveAppointments 4 nuevos). GREEN: 340 passed (340) en 21 archivos; typecheck
+  y build limpios. Sin ver en navegador. Commit: `f0a8d98`.
+- [x] **T6b · Cobrar una cita de varios servicios.** Un precio por cada servicio
+  variable (muere `isVariable` en la UI). Congelar la cita y sus líneas
+  (`appointmentServiceLines`) en UNA transacción, con una RPC que solo persiste
+  lo que calculó el dominio y rechaza tocar una cita ya `COMPLETED`.
+
+  Hecho en `feat/multi-service-6b-charge` (TDD). Dominio puro nuevo
+  `src/lib/domain/charge.ts` (`buildChargeForm`, `initialChargeTexts`,
+  `planCompletion`, `completeRpcArgs`, `appointmentServices`); `previewCompletion`
+  acepta `priceOverrides`. `AppointmentRow` pide un precio por servicio variable
+  (con su nombre) + total opcional; `isVariable` ya no existe en la UI.
+  `store.complete` y `registerWalkIn` son ahora `async`, esperan la RPC
+  `complete_appointment` (migración `20261010000001`) y solo cambian el estado
+  local si el servidor confirma; el error se muestra con el toast. La atención de mostrador
+  inserta PENDING y completa con la misma RPC (una línea). La RPC exige membresía,
+  cita del negocio, estado PENDING/IN_PROGRESS, conjunto de servicios exacto,
+  sumas y ganancia por línea cuadradas.
+  RED: 1 test fallando + suite `charge.test.ts` sin cargar (módulo inexistente).
+  GREEN: 366 passed (366) en 22 archivos (+26); typecheck y build limpios.
+  Regresión SQL `supabase/tests/complete-appointment.sql` escrita, PENDIENTE de
+  correr contra la base de desarrollo. Sin ver en navegador.
+- [x] **T6c · La dueña agenda varios servicios.** `ScheduleForm` y la cita de
+  mostrador con selección múltiple; la cita nace con sus líneas.
+
+  Hecho en `feat/multi-service-6c-schedule` (TDD). Dominio puro
+  `src/lib/domain/selection.ts` (`toggleServiceId`, `summarizeSelection`,
+  `scheduleRpcArgs`). `ScheduleForm`: chips de servicios, duración sumada y
+  precio estimado ("a convenir" si hay variables); el cobro al paso reutiliza
+  `buildChargeForm`. RPC `schedule_appointment` (migración `20261010000002`):
+  miembro, servicios del negocio, sin repetir ni vacíos, duración > 0, siempre
+  PENDING, cita + líneas en una transacción. `store.schedule` es `async`, solo
+  cambia el estado local si el servidor confirma; `registerWalkIn` inserta por la
+  misma RPC y conserva `leftPending`. Id: sigue siendo `newId()` del cliente.
+  RED: suite `selection.test.ts` sin cargar; luego 2 tests de `scheduleRpcArgs`
+  fallando. GREEN: 376 passed (+10) en 23 archivos; typecheck y build limpios.
+  Migración + `supabase/tests/schedule-appointment.sql` PENDIENTES de aplicar/correr
+  en dev. Sin ver en navegador.
+- [x] **T5 · Portal.** Selección múltiple, huecos para la suma, y el envío.
+  Incluye abrir `public_business` a los servicios de precio variable (D2).
+  Hecho: migración `20261010000003` (`public_business` devuelve variables con
+  `variable_price` y `price` NULL si es variable, nunca costos; `public_request_booking`
+  SÍ cambió: solo se quitó `variable_price = false` de su validación, resto idéntico).
+  Helpers puros `src/lib/public/publicSelection.ts` ("A convenir" / "Desde X").
+  RED: suite sin módulo; GREEN: 388 passed (+9). Portal con chips multi-selección,
+  huecos para la suma y envío en orden. Suite `supabase/tests/public-business-variable.sql`
+  PENDIENTE de correr en dev (más las dos regresiones). Sin ver en navegador.
+- [x] **T7 · Calendario y aviso push.** Título con N nombres, fin en la suma.
+  `buildICS`/`googleCalendarUrl` reciben `services[]`: título "Clienta — A + B", fin = inicio + suma.
+  Fallo seguro: si falta CUALQUIER servicio del catálogo `CalendarActions` no ofrece el evento
+  (igual que la disponibilidad; una hora de fin falsa es peor que no ofrecer el botón).
+  Push: `notifyWiring`/`newBookingMessage` usan `service_names[]` (1, "A y B", "A, B y C",
+  "A, B y N más"); `index.ts` lee `appointment_service` filtrado por el business_id de la cita y
+  cae al servicio principal si no hay líneas. RED: 19 + 12 tests fallando; GREEN: 398 passed.
+  ACCIÓN DE LA DUEÑA: `supabase functions deploy notify-new-booking` (no se desplegó). `index.ts`
+  no tiene test (Deno) ni lo cubre tsc: sin ver el aviso real.
+- [x] **T8 · Reportes.** Leer el reparto congelado en vez de atribuir a uno.
+  `weekSummary(..., lines)` suma la `profit` congelada de cada línea de `appointment_service` para el
+  servicio más rentable; los totales siguen saliendo de la cita. Cita COMPLETED sin líneas con
+  ganancia: a su servicio principal (defensivo, nunca se redistribuye). Carga: el store trae `profit`
+  en la MISMA consulta de `appointment_service` y guarda las líneas en un estado aparte
+  (`serviceLines.ts`), sin tocar la sincronización de `service_ids`; `complete()`/`registerWalkIn()`
+  las ponen desde el plan al confirmar el servidor, y un efecto pide una vez las líneas de citas
+  COMPLETED que llegan por Realtime sin ellas (cobradas en otro dispositivo). RED: 2 tests de
+  reports fallando; GREEN: 408 passed. Sin ver el reporte en navegador.
+
+## Verificación
+
+`npm run test:run`, `npm run typecheck`, `npm run build`, y la regresión SQL a
+mano. 33 tests existentes tocan un `service_id` único y hay que reescribirlos.
+
+## Entrega
+
+Muy por encima de las 400 líneas: va en PRs encadenados. Corte natural: dominio y
+migración primero (T1–T3), servidor después (T4), y las pantallas al final
+(T5–T8), que es también el orden en que se puede verificar cada pieza.
+
+## T2 cerrada (2026-09-29)
+
+ROJO observado en dos tandas: 11 fallos (`priceForServices`, `allocateProportionally`)
+y luego 8 (`completeAppointment` con N, `appointmentServiceLines`).
+VERDE: **302 tests** (22 nuevos), typecheck limpio, build correcto.
+
+### Lo implementado
+
+- `priceForServices(services, priceOverrides?)` en `costs.ts` — la costura de D4.
+  Un servicio de precio variable sin precio NO se cuenta como cero: se devuelve
+  en `needsPrice`.
+- `allocateProportionally(total, weights)` — reparto por **resto mayor**, con la
+  suma exactamente igual al total. Pesos todos en cero → reparto por igual (una
+  cita regalada no puede producir un NaN).
+- `completeAppointment(appointment, services[], options?)` — suma precios y
+  costos, valida negocio y que el conjunto sea EXACTAMENTE el de la cita.
+- `appointmentServiceLines(appointment, services, priceOverrides?)` — el reparto
+  congelado de D1. El **costo no se prorratea**: cada servicio aporta su propio
+  `effectiveCost`, que es el valor de verdad y suma exacto. Solo se reparte el
+  precio cobrado, porque la dueña puede cobrar un total distinto al de lista. La
+  ganancia de cada línea se **deriva** restando, así cuadra sola aunque sea
+  negativa.
+
+### Una regla que hubo que afinar, y la cazó un test que ya existía
+
+La primera versión se negaba a completar en cuanto un servicio de precio
+variable no tenía precio propio. Eso **rompía el comportamiento de siempre**: un
+`quoted_price` acordado al agendar ya cubría a un servicio variable, y hay un
+test desde hace tiempo que lo afirma.
+
+Regla corregida: solo se bloquea cuando **no hay ningún número en ninguna parte**
+—ni `overridePrice`, ni `quoted_price`, ni precio de lista—. Un total acordado
+cubre a los variables. Fijado con su propio test para que nadie lo deshaga.
+
+Consecuencia en el reparto: con UN servicio no hay nada que repartir y se lleva
+todo tenga o no precio propio; con VARIOS sí hace falta el precio de cada uno,
+porque es el peso, y repartir con un peso desconocido sería inventarlo.
+
+### Cambio de sitio
+
+`appointmentServiceIds` se movió de `scheduling.ts` a `appointments.ts`:
+`scheduling.ts` ya importaba `holdsSchedule` de allí, así que usarlo al revés
+cerraba un ciclo de imports. Se re-exporta desde `scheduling.ts` para no romper
+a quien ya lo importaba.
+
+## T3 escrita, PENDIENTE de correr contra una base (2026-09-29)
+
+`supabase/migrations/20260929000001_appointment_service.sql` y su regresión
+`supabase/tests/appointment-service.sql`.
+
+**NO verificada.** A diferencia de T1 y T2, esta no se pudo probar: los dos
+servidores MCP de Supabase piden autenticación y el CLI sigue devolviendo
+`Unauthorized`. El rojo y el verde los tiene que correr el usuario. Copias para
+pegar en `~/citelis-T3-migracion.sql` y `~/citelis-T3-regresion.sql`.
+
+### Decisiones tomadas
+
+- **Clave primaria (appointment_id, service_id)**: un mismo servicio no se repite
+  en una cita. Si algún día hace falta ("dos manicuras en la misma visita"), se
+  cambia por un id propio más una cantidad; hoy sería complejidad sin caso.
+- **`business_id` desnormalizado**: es lo que mira la RLS, igual que el resto de
+  tablas. Sin él cada comprobación saltaría a `appointment` primero.
+- **NO se añade `performed_by`**, y es deliberado. El empleado que pide la
+  factura va en esta tabla, pero el concepto de empleado no existe todavía en el
+  modelo, y apuntarlo hoy a `auth.users` obligaría a que toda empleada use la
+  aplicación — una decisión de producto que no toca tomar por accidente aquí. Lo
+  que había que contemplar era la FORMA (una fila por servicio, no un arreglo en
+  la cita), y eso está. La columna será anulable y barata.
+- **El relleno deja una línea por cita existente con SU dinero congelado**, que
+  es exactamente lo que devuelve `appointmentServiceLines` para un solo servicio.
+  Los dos lados cuentan la misma historia.
+
+### La aserción que más importa
+
+La número 4 de la regresión: ninguna cita se queda sin línea, y ninguna cita
+COMPLETADA de un solo servicio tiene su línea con dinero distinto al de la cita.
+Si una sola cita histórica cambia de números, la migración es inaceptable
+(INVARIANTE 2).
+
+## T4 escrita, PENDIENTE de correr contra una base (2026-09-29)
+
+`supabase/migrations/20260929000002_public_rpcs_multi_service.sql` y
+`supabase/tests/public-rpcs-multi-service.sql`. Copias para pegar en
+`~/citelis-T4-migracion.sql` y `~/citelis-T4-regresion.sql`.
+
+**NO verificada**, por lo mismo que T3: sin acceso a base de datos.
+
+### Cómo se escribió, que aquí importa más que qué se escribió
+
+`public_request_booking` son 100 líneas de validaciones que se escribieron a mano
+replicando `availability.ts` "al detalle" DESPUÉS de fallos reales en producción
+(H2–H5). Reescribirla es la forma más rápida de que las dos copias se separen.
+
+Por eso no se reescribió: se partió del texto vigente y se aplicaron **cuatro
+cambios dirigidos** — la firma, la duración como suma, el choque leyendo
+`appointment_service`, y el insert de las líneas. Ninguna validación se tocó,
+reordenó ni relajó.
+
+**La regresión `self-booking-regression.sql` tiene que seguir pasando.** No es
+opcional: es la única red que avisa si esta migración tocó H1–H6 sin querer.
+
+### El fallo seguro, replicado
+
+`availability.ts` bloquea a infinito cuando no puede saber cuánto dura una cita
+(decisión A6). Lo mismo aquí, en los dos sitios: `public_busy` reporta un bloque
+de 24 h y el choque trata `d.total is null` como que choca. Sin eso, una cita sin
+líneas resolubles ocuparía cero minutos y dejaría pasar una doble reserva —
+exactamente el agujero que A6 cerró del lado del navegador.
+
+La aserción 7 de la regresión lo prueba borrando las líneas de una cita y
+comprobando que sigue bloqueando.
+
+### Lo que NO cambia
+
+`public_business` sigue filtrando `variable_price = false`. Los servicios de
+precio variable entran al portal en T5, junto con la pantalla que sabe decir "a
+convenir". Así T4 no cambia nada visible: el portal sigue mandando un solo
+servicio, ahora dentro de un arreglo.
+
+### Corrección de T4 tras correrla (2026-09-29)
+
+```
+ERROR: 42883: function make_interval(mins => bigint) does not exist
+```
+
+`sum()` devuelve `bigint` y `make_interval(mins =>)` solo acepta `integer`. El
+cast estaba puesto en `public_busy` pero NO en el lateral del choque dentro de
+`public_request_booking` — una inconsistencia que solo aparece ejecutando, no
+leyendo.
+
+Corregido en los tres `sum()` que alimentan cálculos de intervalo. Y anotado como
+recordatorio: escribir SQL sin poder correrlo tiene este coste, y la única
+defensa es que alguien lo corra antes de que llegue a producción.
+
+### La red de seguridad estaba rota, y no por T4 (2026-09-29)
+
+Al correr `self-booking-regression.sql` tras T4:
+
+```
+ERROR: 42883: function "public.create_business(text)" does not exist
+```
+
+Eso NO lo rompió T4. `create_business(text)` se eliminó el **22 de septiembre**,
+en la migración del color, y la tabla de permisos de H1 seguía preguntando por
+esa firma. `has_function_privilege` revienta si la función no existe, así que la
+suite entera moría en su primera aserción.
+
+Conclusión incómoda: **la suite llevaba una semana sin correrse y nadie se
+enteró**. Es la consecuencia exacta de que sea manual y no esté en CI, que ya
+estaba anotado como deuda en `self-booking.md` y hoy pasó factura.
+
+Actualizado: la firma de `create_business` a la vigente (tres argumentos), la de
+`public_request_booking` al arreglo, y las tres llamadas del test. Con un
+comentario en la tabla para que la próxima vez se vea el porqué.
+
+**Pendiente propuesto**: meter esta suite en CI contra una base efímera. Mientras
+sea manual, va a volver a pasar.
+
+## T3 y T4 verificadas en CitelisDev (2026-10-09)
+
+El usuario corrió las migraciones y las regresiones a mano el 2026-10-01. Hoy se
+confirmó con una consulta de solo lectura (`supabase db query --linked`):
+`appointment_service` existe con RLS activa, `public_busy` y
+`public_request_booking` llevan el cast `::integer` corregido, y solo hay una
+versión de `public_request_booking`.
+
+Como se corrieron a mano, no estaban en el historial. Se marcaron con
+`migration repair --status applied 20260929000001 20260929000002`, y
+`migration list` muestra las 13 con Local = Remote.
+
+La rama trae `develop` (#27, filtro `business_id`) sin conflictos. Typecheck
+limpio, 302/302 tests.
+
+## Entrega de T1–T4 (2026-10-09)
+
+Estrategia: PRs apilados contra `develop` (`stacked-to-main`). Cuatro cortes, uno
+por tarea, sobre los commits que ya existían:
+
+| PR | Rama | Commits | Líneas |
+|---|---|---|---|
+| 1 | `feat/multi-service-1-duration` | 3ef1d62, 0faa9f1, 257fe15 | ~701 |
+| 2 | `feat/multi-service-2-money` | e64c4fe | ~570 |
+| 3 | `feat/multi-service-3-table` | 06552bc | ~244 |
+| 4 | `feat/multi-service-4-rpcs` | af0a4f7, 40ec895, d6760f8 y este documento | ~490 |
+
+PR 1 y PR 2 pasan de 400 líneas: achicarlos más obligaba a separar el código de
+sus tests (`size:exception`). Cada corte, integrado sobre `develop`, pasa
+typecheck y tests (280, 302, 302, 302).
+
+Al mergear un PR, el siguiente se retargetea a `develop` ANTES de mergearlo. Si
+no, se mergea en la rama vieja y no llega a `develop` (ya pasó con #21).
+
+CitelisDev ya tiene aplicadas las migraciones de T3 y T4. Mientras PR 4 no esté
+en `develop`, el portal del preview de `develop` llama a `public_request_booking`
+con la firma vieja y la reserva falla. En producción hay que aplicar las dos
+migraciones en el mismo release que lleve el portal nuevo.
+
+## Orden de T5–T8 corregido (2026-10-10)
+
+T6 va ANTES que T5. El mapa del lado de la dueña lo dejó claro: hoy nada en
+`src/` lee ni escribe `appointment_service`, así que `appointmentServiceIds`
+devuelve siempre `[service_id]`. Si el portal empezara a mandar tres servicios,
+la agenda mostraría uno, reprogramar comprobaría choques con la duración de uno,
+y cobrar congelaría el dinero de uno, para siempre (INVARIANTE 2). Por eso la
+dueña tiene que saber leer y cobrar varios servicios antes de que nadie pueda
+reservarlos.
+
+Además, `applyAppointmentChange` reemplaza la fila con la del servidor, que
+nunca trae `service_ids`: la sincronización en vivo borraría lo hidratado si no
+se ocupa de ello.
+
+Las líneas congeladas se escriben con una RPC porque `persist()` es "dispara y
+olvida": sin transacción, una cita podría quedar `COMPLETED` sin su reparto, y
+eso ya no se puede arreglar después sin reescribir historia.
+
+TDD: activo (precedente de T1/T2 en este documento), runner `npm run test:run`
+(vitest). No hay tests de componentes (vitest en entorno node, sin
+testing-library): toda lógica nueva va en funciones puras testeables.

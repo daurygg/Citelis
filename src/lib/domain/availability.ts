@@ -12,7 +12,7 @@ import type {
   Slot,
   TimeBlock,
 } from './types';
-import { serviceDurationMs } from './scheduling';
+import { resolveAppointmentServices, servicesDurationMs } from './scheduling';
 import { holdsSchedule } from './appointments';
 
 const ONE_MINUTE_MS = 60_000;
@@ -66,11 +66,15 @@ function intervalsOverlap(aStart: number, aEnd: number, bStart: number, bEnd: nu
  * citas", así que también protege el hueco previo (si no, se podría reservar
  * justo pegado antes de una cita existente y la dueña se quedaría sin respiro).
  *
- * Si el servicio de una cita existente NO está en `services` (por ejemplo, un
- * servicio borrado o filtrado por el llamador) no se puede saber cuánto dura.
- * Se FALLA EN SEGURO: se bloquea desde su inicio en adelante. Ignorarla
- * ofrecería como libre un horario ya ocupado, que es justo la doble reserva
- * que este módulo existe para impedir.
+ * Una cita puede tener VARIOS servicios (T1, odd/tasks/multi-service-appointments.md);
+ * su duración es la SUMA de todos. Si ALGUNO de los servicios de una cita
+ * existente NO está en `services` (por ejemplo, un servicio borrado o
+ * filtrado por el llamador) no se puede saber cuánto dura la cita completa —
+ * no basta con que falten TODOS, porque con dos servicios donde solo uno
+ * desapareció la suma calculada con el que queda sería corta e igual dejaría
+ * pasar una doble reserva. Se FALLA EN SEGURO: se bloquea desde su inicio en
+ * adelante. Ignorarla ofrecería como libre un horario ya ocupado, que es
+ * justo la doble reserva que este módulo existe para impedir.
  */
 function occupiesSchedule(
   start: number,
@@ -83,10 +87,11 @@ function occupiesSchedule(
     if (!holdsSchedule(a.status)) continue;
     const aStart = new Date(a.datetime).getTime();
     if (Number.isNaN(aStart)) continue;
-    const svc = services.find((s) => s.id === a.service_id);
+    const { services: found, anyMissing } = resolveAppointmentServices(a, services);
     const occupiedStart = aStart - bufferMs;
-    // Duración desconocida → se bloquea hasta el cierre (Infinity acota el día).
-    const occupiedEnd = svc ? aStart + serviceDurationMs(svc) + bufferMs : Infinity;
+    // Duración desconocida (falta algún servicio) → se bloquea hasta el
+    // cierre (Infinity acota el día).
+    const occupiedEnd = anyMissing ? Infinity : aStart + servicesDurationMs(found) + bufferMs;
     if (intervalsOverlap(start, end, occupiedStart, occupiedEnd)) return true;
   }
   return false;
@@ -104,14 +109,16 @@ function isBlocked(start: number, end: number, blocks: readonly TimeBlock[]): bo
 }
 
 /**
- * Genera los slots reservables de `service` para `date`, respetando el
- * horario del negocio, los bloqueos, las citas ya ocupadas y la política
- * de reserva. Pura: no muta ninguna entrada y con el mismo `now` siempre
- * devuelve el mismo resultado.
+ * Genera los slots reservables de `candidateServices` para `date`, respetando
+ * el horario del negocio, los bloqueos, las citas ya ocupadas y la política
+ * de reserva. `candidateServices` es la cita que se está por agendar (uno o
+ * varios servicios); su duración es la SUMA. `services` es el catálogo
+ * completo, usado para saber cuánto duran las citas YA existentes. Pura: no
+ * muta ninguna entrada y con el mismo `now` siempre devuelve el mismo resultado.
  */
 export function generateSlots(input: {
   date: string;
-  service: Service;
+  candidateServices: readonly Service[];
   hours: readonly BusinessHours[];
   blocks: readonly TimeBlock[];
   appointments: readonly Appointment[];
@@ -119,12 +126,12 @@ export function generateSlots(input: {
   policy: BookingPolicy;
   now: Date;
 }): Slot[] {
-  const { date, service, hours, blocks, appointments, services, policy, now } = input;
+  const { date, candidateServices, hours, blocks, appointments, services, policy, now } = input;
 
-  if (service.duration_min <= 0) return [];
+  const durationMs = servicesDurationMs(candidateServices);
+  if (durationMs <= 0) return [];
   if (!isValidDate(date)) return [];
 
-  const durationMs = serviceDurationMs(service);
   const stepMs = Math.max(1, policy.slot_step_min) * ONE_MINUTE_MS;
   const bufferMs = Math.max(0, policy.buffer_min) * ONE_MINUTE_MS;
   const earliestStart = now.getTime() + policy.min_notice_hours * ONE_HOUR_MS;

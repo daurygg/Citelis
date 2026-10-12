@@ -10,7 +10,8 @@ import { CalendarActions } from '../CalendarActions';
 import { type BookingOutcome } from '../../lib/domain/whatsapp';
 import { ClientNotice } from '../ClientNotice';
 import type { Appointment } from '../../lib/domain/types';
-import { btnGhost, btnPrimary, card } from '../ui';
+import { serviceNames } from '../../lib/domain/appointments';
+import { btnGhostSm, btnPrimarySm, card } from '../ui';
 
 /** La solicitud que se acaba de responder, y qué se decidió sobre ella. */
 interface Answered {
@@ -63,15 +64,23 @@ export function RequestsInbox() {
       {requests.length > 0 && (
         <ul className="flex flex-col gap-3">
           {requests.map((request) => {
-            const service = store.services.find((s) => s.id === request.service_id);
             return (
               <li key={request.id} className="flex flex-col gap-2 rounded-xl border border-violet-200 bg-violet-50 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-medium">{request.client}</span>
-                  <span className="text-sm text-neutral-600">{request.client_phone ?? 'Sin teléfono'}</span>
+                <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3">
+                  <span className="min-w-0 break-words font-medium">{request.client}</span>
+                  {request.client_phone ? (
+                    <a
+                      href={`tel:${request.client_phone.replace(/[^\d+]/g, '')}`}
+                      className="inline-flex min-h-11 items-center text-sm text-brand-700 hover:underline"
+                    >
+                      {request.client_phone}
+                    </a>
+                  ) : (
+                    <span className="text-sm text-neutral-600">Sin teléfono</span>
+                  )}
                 </div>
                 <div className="text-sm text-neutral-700">
-                  {service?.name ?? 'Servicio desconocido'} · {formatDateShort(request.datetime)} ·{' '}
+                  {serviceNames(request, store.services) || 'Servicio desconocido'} · {formatDateShort(request.datetime)} ·{' '}
                   {formatTime(request.datetime)}
                 </div>
                 {request.quoted_price != null && (
@@ -80,14 +89,14 @@ export function RequestsInbox() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    className={btnPrimary + ' px-3 py-1.5 text-sm'}
+                    className={btnPrimarySm}
                     onClick={() => handleAccept(request)}
                   >
                     Aceptar
                   </button>
                   <button
                     type="button"
-                    className={btnGhost + ' px-3 py-1.5 text-sm'}
+                    className={btnGhostSm}
                     onClick={() => handleReject(request)}
                   >
                     Rechazar
@@ -128,7 +137,7 @@ function AnsweredPanel({ answered, onDismiss }: { answered: Answered; onDismiss:
     <div className={`flex flex-col gap-2 rounded-xl border p-3 ${tone}`}>
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium text-neutral-900">{headline}</p>
-        <button type="button" className="shrink-0 text-sm text-neutral-500 hover:underline" onClick={onDismiss}>
+        <button type="button" className="min-h-11 shrink-0 px-2 text-sm text-neutral-500 hover:underline" onClick={onDismiss}>
           Listo
         </button>
       </div>

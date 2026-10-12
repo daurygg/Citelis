@@ -3,11 +3,23 @@
 // CERO dependencias de React. Todo en centavos enteros.
 
 import type { Appointment, FixedExpense, Service } from './types';
-import { effectiveCost, profit } from './costs';
+import { effectiveCost, priceForServices, profit } from './costs';
 
 export interface MostProfitableService {
   service_id: number;
   profit: number; // ganancia acumulada del servicio en el periodo (centavos)
+}
+
+/**
+ * Una línea de `appointment_service` con su ganancia congelada (decisión D1). Es lo
+ * que hace falta para repartir la ganancia de una cita entre sus servicios.
+ * `profit` es null mientras la cita no está COMPLETED.
+ */
+export interface ServiceProfitLine {
+  appointment_id: number;
+  service_id: number;
+  business_id: number;
+  profit: number | null;
 }
 
 export interface WeekSummary {
@@ -28,12 +40,18 @@ export interface WeekSummary {
  * - Cuenta SOLO citas COMPLETED cuyo `datetime` cae en el rango `[from, to)`
  *   (desde inclusive, hasta exclusivo — evita solapes entre semanas).
  * - Suma los valores congelados; nunca recalcula precios ni costos.
+ * - Los totales salen de la cita misma. El "servicio más rentable" suma la
+ *   ganancia congelada de cada LÍNEA (`lines`), de modo que un servicio acompañante
+ *   recibe lo suyo y no queda tapado por el principal. Una cita sin líneas con
+ *   ganancia se atribuye a su servicio principal (cita anterior al reparto): nunca
+ *   se redistribuye ni se recalcula la historia (INVARIANTE 2).
  */
 export function weekSummary(
   appointments: readonly Appointment[],
   businessId: number,
   from: string,
   to: string,
+  lines: readonly ServiceProfitLine[] = [],
 ): WeekSummary {
   const fromTime = new Date(from).getTime();
   const toTime = new Date(to).getTime();
@@ -50,6 +68,15 @@ export function weekSummary(
   let gross_profit = 0;
   const profitByService = new Map<number, number>();
 
+  // Líneas con ganancia congelada, por cita (INVARIANTE 1: solo las de este negocio).
+  const linesByAppointment = new Map<number, ServiceProfitLine[]>();
+  for (const line of lines) {
+    if (line.business_id !== businessId || line.profit === null) continue;
+    const list = linesByAppointment.get(line.appointment_id);
+    if (list) list.push(line);
+    else linesByAppointment.set(line.appointment_id, [line]);
+  }
+
   for (const a of inScope) {
     // Las citas COMPLETED tienen los tres valores congelados (no null), pero
     // el contrato los tipa como `number | null`; el `?? 0` es defensivo.
@@ -57,8 +84,14 @@ export function weekSummary(
     total_cost += a.actual_cost ?? 0;
     gross_profit += a.profit ?? 0;
 
-    const acc = profitByService.get(a.service_id) ?? 0;
-    profitByService.set(a.service_id, acc + (a.profit ?? 0));
+    const own = linesByAppointment.get(a.id);
+    if (own && own.length > 0) {
+      for (const line of own) {
+        profitByService.set(line.service_id, (profitByService.get(line.service_id) ?? 0) + (line.profit ?? 0));
+      }
+    } else {
+      profitByService.set(a.service_id, (profitByService.get(a.service_id) ?? 0) + (a.profit ?? 0));
+    }
   }
 
   let most_profitable_service: MostProfitableService | null = null;
@@ -122,6 +155,27 @@ export function expectedProfit(appointment: Appointment, service: Service): numb
   const price = appointment.quoted_price ?? service.price;
   if (price <= 0) return null;
   return profit(price, effectiveCost(service));
+}
+
+/**
+ * Ganancia esperada de una cita abierta con TODOS sus servicios (`services` son
+ * los de la cita). Precio: el acordado al agendar, o el del conjunto
+ * (`priceForServices`). Devuelve null si no hay servicios, si hay uno de precio
+ * variable sin precio y sin acuerdo, o si el precio total es 0 (desconocido):
+ * mejor no sumar nada que inventar dinero. Con un solo servicio da lo mismo que
+ * `expectedProfit`.
+ */
+export function expectedProfitForServices(
+  appointment: Appointment,
+  services: readonly Service[],
+): number | null {
+  if (services.length === 0) return null;
+  const quote = priceForServices(services);
+  if (quote.needsPrice.length > 0 && appointment.quoted_price === null) return null;
+  const price = appointment.quoted_price ?? quote.total;
+  if (price <= 0) return null;
+  const cost = services.reduce((sum, s) => sum + effectiveCost(s), 0);
+  return profit(price, cost);
 }
 
 /**

@@ -15,7 +15,7 @@ const booking: BookingForNotice = {
   client: 'Ana Pérez',
   datetime: '2026-10-03T15:30',
   status: 'REQUESTED',
-  service_name: 'Uñas acrílicas',
+  service_names: ['Uñas acrílicas'],
 };
 
 const sub = (id: number): StoredSubscription => ({

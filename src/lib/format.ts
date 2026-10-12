@@ -3,7 +3,7 @@
 // (INVARIANTE: dinero entero) y SOLO aquí se vuelve texto de moneda.
 import type { AppointmentStatus } from './domain/types';
 
-/** Centavos enteros → texto de moneda. Ej: 350000 → "$3,500.00". */
+/** Centavos enteros → texto de moneda (pesos dominicanos). Ej: 350000 → "RD$3,500.00". */
 export function formatMoney(cents: number): string {
   const sign = cents < 0 ? '-' : '';
   const abs = Math.abs(cents);
@@ -11,16 +11,21 @@ export function formatMoney(cents: number): string {
   const frac = String(abs % 100).padStart(2, '0');
   // Separador de miles sin depender de Intl (estable en cualquier entorno).
   const wholeWithSeparators = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${sign}$${wholeWithSeparators}.${frac}`;
+  return `${sign}RD$${wholeWithSeparators}.${frac}`;
 }
 
-/** ISO 8601 → hora de 12h con AM/PM. Ej: "2026-07-02T14:30" → "2:30 PM". */
-export function formatTime(iso: string): string {
-  const [hourStr, minute] = iso.slice(11, 16).split(':');
+/** 'HH:MM' (o 'HH:MM:SS') → hora de 12h con AM/PM. Ej: "18:00" → "6:00 PM". */
+export function formatClock(hhmm: string): string {
+  const [hourStr, minute] = hhmm.slice(0, 5).split(':');
   const hour = Number(hourStr);
   const period = hour < 12 ? 'AM' : 'PM';
   const hour12 = hour % 12 === 0 ? 12 : hour % 12;
   return `${hour12}:${minute} ${period}`;
+}
+
+/** ISO 8601 → hora de 12h con AM/PM. Ej: "2026-07-02T14:30" → "2:30 PM". */
+export function formatTime(iso: string): string {
+  return formatClock(iso.slice(11, 16));
 }
 
 /**

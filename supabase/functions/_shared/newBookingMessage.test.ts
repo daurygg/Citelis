@@ -5,7 +5,7 @@ describe('newBookingMessage', () => {
   const base = {
     appointment_id: 42,
     client: 'Ana Pérez',
-    service_name: 'Uñas acrílicas',
+    service_names: ['Uñas acrílicas'],
     datetime: '2026-10-03T15:30',
   };
 
@@ -35,7 +35,27 @@ describe('newBookingMessage', () => {
   });
 
   it('sin servicio conocido no inventa uno', () => {
-    const message = newBookingMessage({ ...base, service_name: null });
+    const message = newBookingMessage({ ...base, service_names: [] });
     expect(message.body).toBe('Ana Pérez pidió una cita para el sábado 3/10 a las 3:30 PM');
+  });
+
+  it('con dos servicios los une con "y"', () => {
+    const message = newBookingMessage({ ...base, service_names: ['Uñas acrílicas', 'Pedicura'] });
+    expect(message.body).toBe('Ana Pérez pidió Uñas acrílicas y Pedicura para el sábado 3/10 a las 3:30 PM');
+  });
+
+  it('con tres servicios los separa con comas y cierra con "y"', () => {
+    const message = newBookingMessage({ ...base, service_names: ['Corte', 'Tinte', 'Peinado'] });
+    expect(message.body).toContain('pidió Corte, Tinte y Peinado para el');
+  });
+
+  it('con más de tres resume el resto para que quepa en el teléfono', () => {
+    const message = newBookingMessage({ ...base, service_names: ['Corte', 'Tinte', 'Peinado', 'Manicura', 'Cejas'] });
+    expect(message.body).toContain('pidió Corte, Tinte y 3 más para el');
+  });
+
+  it('ignora nombres vacíos', () => {
+    const message = newBookingMessage({ ...base, service_names: ['  ', 'Corte'] });
+    expect(message.body).toContain('pidió Corte para el');
   });
 });

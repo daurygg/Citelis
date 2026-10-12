@@ -69,11 +69,18 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     (async () => {
-      const { data: members } = await supabase.from('business_member').select('business_id').limit(1);
+      // Mismo desempate que StoreContext: el negocio más antiguo del usuario. Sin
+      // ORDER BY, con varias membresías Ropa podía abrir otro negocio que Servicios.
+      const { data: members } = await supabase
+        .from('business_member')
+        .select('business_id')
+        .order('business_id', { ascending: true })
+        .limit(1);
       const businessId = members && members.length > 0 ? (members[0] as { business_id: number }).business_id : 0;
+      // RLS deja ver todos los negocios del usuario: se filtra por el abierto (invariante 1).
       const [p, s] = await Promise.all([
-        supabase.from('product').select('*'),
-        supabase.from('sale').select('*'),
+        supabase.from('product').select('*').eq('business_id', businessId),
+        supabase.from('sale').select('*').eq('business_id', businessId),
       ]);
       if (!active) return;
       setLoaded({ businessId, products: (p.data ?? []) as Product[], sales: (s.data ?? []) as Sale[] });

@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { netProfit, proratedFixedExpenses } from '../lib/domain/reports';
+import { PAYMENT_METHODS, paymentMethodLabel } from '../lib/domain/payments';
 import {
   dayRange,
   daysBetween,
@@ -18,7 +19,7 @@ import {
   weekRange,
 } from '../lib/format';
 import { FixedExpenses } from './FixedExpenses';
-import { btnGhost, card, field, fieldLabel, input } from './ui';
+import { btnGhost, card, field, fieldLabel, input, kpi } from './ui';
 
 type Mode = 'day' | 'week' | 'month' | 'range';
 
@@ -57,6 +58,7 @@ export function PeriodReport() {
   }
 
   const summary = store.weekReport(from, to);
+  const income = store.incomeByMethod(from, to);
   const days = Math.max(1, daysBetween(from, to));
   // Mes de referencia del periodo (el mes en que empieza).
   const monthKey = from.slice(0, 7); // 'YYYY-MM'
@@ -87,7 +89,7 @@ export function PeriodReport() {
             type="button"
             onClick={() => setMode(m.id)}
             className={
-              'flex-1 rounded-lg px-3 py-2 text-sm font-medium transition ' +
+              'min-h-11 flex-1 rounded-lg px-3 text-sm font-medium transition ' +
               (mode === m.id ? 'bg-white text-brand-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800')
             }
           >
@@ -99,22 +101,22 @@ export function PeriodReport() {
       {/* Navegación (día/semana/mes) o selector de rango */}
       {mode === 'range' ? (
         <div className="flex flex-wrap gap-3">
-          <label className={field + ' flex-1'}>
+          <label className={field + ' min-w-40 flex-1'}>
             <span className={fieldLabel}>Desde</span>
             <input className={input} type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value || today)} />
           </label>
-          <label className={field + ' flex-1'}>
+          <label className={field + ' min-w-40 flex-1'}>
             <span className={fieldLabel}>Hasta</span>
             <input className={input} type="date" value={rangeTo} onChange={(e) => setRangeTo(e.target.value || today)} />
           </label>
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <button type="button" className={btnGhost + ' px-3 py-1.5'} onClick={() => navigate(-1)} aria-label="Anterior">
+          <button type="button" className={btnGhost + ' px-3'} onClick={() => navigate(-1)} aria-label="Anterior">
             ‹
           </button>
           <div className="flex-1 text-center font-semibold capitalize">{label}</div>
-          <button type="button" className={btnGhost + ' px-3 py-1.5'} onClick={() => navigate(1)} aria-label="Siguiente">
+          <button type="button" className={btnGhost + ' px-3'} onClick={() => navigate(1)} aria-label="Siguiente">
             ›
           </button>
         </div>
@@ -123,23 +125,23 @@ export function PeriodReport() {
       <p className="text-center text-sm text-neutral-500">{summary.completed_count} cita(s) completada(s)</p>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className={card}>
+        <div className={kpi}>
           <div className="text-sm text-neutral-500">Ingresos</div>
-          <div className="text-xl font-bold">{formatMoney(summary.total_income)}</div>
+          <div className="text-lg font-bold">{formatMoney(summary.total_income)}</div>
         </div>
-        <div className={card}>
+        <div className={kpi}>
           <div className="text-sm text-neutral-500">Costo de insumos</div>
-          <div className="text-xl font-bold">{formatMoney(summary.total_cost)}</div>
+          <div className="text-lg font-bold">{formatMoney(summary.total_cost)}</div>
         </div>
-        <div className={card}>
+        <div className={kpi}>
           <div className="text-sm text-neutral-500">Ganancia de servicios</div>
-          <div className="text-xl font-bold text-green-700">{formatMoney(summary.gross_profit)}</div>
+          <div className="text-lg font-bold text-green-700">{formatMoney(summary.gross_profit)}</div>
         </div>
-        <div className={card}>
+        <div className={kpi}>
           <div className="text-sm text-neutral-500">Gastos fijos (del periodo)</div>
-          <div className="text-xl font-bold text-neutral-700">−{formatMoney(periodFixed)}</div>
+          <div className="text-lg font-bold text-neutral-700">−{formatMoney(periodFixed)}</div>
         </div>
-        <div className={card + ' col-span-2'}>
+        <div className={kpi + ' col-span-2'}>
           <div className="text-sm text-neutral-500">Ganancia neta</div>
           <div className={'text-2xl font-bold ' + (net >= 0 ? 'text-green-700' : 'text-red-700')}>{formatMoney(net)}</div>
         </div>
@@ -156,6 +158,38 @@ export function PeriodReport() {
           <div className="text-neutral-500">Sin citas completadas en este periodo.</div>
         )}
       </div>
+
+      {/* Lo pagado por vía NO es lo mismo que lo cobrado cuando hay crédito: se ven
+          las dos cifras y la diferencia. Cada pago cuenta en el periodo de su cita. */}
+      {summary.completed_count > 0 && (
+        <div className={card + ' flex flex-col gap-2'}>
+          <div className="text-sm text-neutral-500">¿Cómo te pagaron? (citas de este periodo)</div>
+          {PAYMENT_METHODS.map((method) => (
+            <div key={method} className="flex justify-between">
+              <span className="text-neutral-600">{paymentMethodLabel(method)}</span>
+              <span>{formatMoney(income.by_method[method])}</span>
+            </div>
+          ))}
+          {income.by_method.unknown > 0 && (
+            <div className="flex justify-between">
+              <span className="text-neutral-600">{paymentMethodLabel(null)}</span>
+              <span>{formatMoney(income.by_method.unknown)}</span>
+            </div>
+          )}
+          <div className="flex justify-between border-t border-neutral-200 pt-2">
+            <span className="text-neutral-600">Ya pagado</span>
+            <strong>{formatMoney(income.total_paid)}</strong>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-600">Cobrado (ingresos de arriba)</span>
+            <span>{formatMoney(income.total_charged)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-neutral-600">Quedó a crédito</span>
+            <strong className={income.pending_credit > 0 ? 'text-orange-700' : ''}>{formatMoney(income.pending_credit)}</strong>
+          </div>
+        </div>
+      )}
 
       <FixedExpenses month={monthKey} />
     </section>

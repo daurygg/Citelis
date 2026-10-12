@@ -3,7 +3,7 @@
 --
 -- CÓMO CORRERLO
 --   Editor SQL de Supabase, MCP (`execute_sql`) o psql. Pégalo entero.
---   NO corre en CI: el workflow solo ejecuta vitest, sin base de datos.
+--   Corre en CI (job `sql-regression`), contra una base efímera.
 --
 -- VALIDADO CONTRA UNA REGRESIÓN REAL (2026-09-23)
 --   La aserción 1 no comprueba solo que la dirección cambie: comprueba que
@@ -15,22 +15,34 @@
 -- Trabaja sobre negocios de prueba (999xxx / los que asigne la secuencia) y los
 -- borra al final; el borrado en cascada se lleva política, membresía e historial.
 
+-- Usa SUS PROPIAS usuarias: cada cuenta solo puede crear un negocio (20261010000005),
+-- y esta prueba crea dos. Se borran al final.
+
 do $$
 declare
   v_uid   uuid;
+  v_uid2  uuid;
   v_id_a  bigint;
   v_id_b  bigint;
   v_slug  text;
   v_ok    boolean;
 begin
-  select id into v_uid from auth.users order by created_at limit 1;
-  if v_uid is null then
-    raise exception 'FALLÓ preparación: no hay usuario en auth.users con el que impersonar a la dueña';
-  end if;
+  -- Usuarias propias de la prueba (ver cabecera); limpieza previa por si una corrida murió a medias.
+  v_uid := '00000000-0000-0000-0000-0000000009f1';
+  v_uid2 := '00000000-0000-0000-0000-0000000009f2';
+  delete from business where created_by in (v_uid, v_uid2);
+  delete from auth.users where id in (v_uid, v_uid2);
+  insert into auth.users (id, aud, role, email, created_at, updated_at) values
+    (v_uid, 'authenticated', 'authenticated', 'prueba-f1@citelis.test', now(), now()),
+    (v_uid2, 'authenticated', 'authenticated', 'prueba-f2@citelis.test', now(), now());
   perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
 
   v_id_a := create_business('PRUEBA Slug A', '#e11d48', 'prueba-slug-a');
+  perform set_config('request.jwt.claims', json_build_object('sub', v_uid2)::text, true);
   v_id_b := create_business('PRUEBA Slug B', '#e11d48', 'prueba-slug-b');
+  -- Como antes de la regla de un negocio por cuenta: la dueña también es miembro del segundo.
+  insert into business_member (user_id, business_id) values (v_uid, v_id_b);
+  perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
   update booking_policy set enabled = true where business_id in (v_id_a, v_id_b);
 
   -- 1 · Cambia la dirección DEL NEGOCIO QUE SE PIDE, no de otro.
@@ -87,9 +99,8 @@ end $$;
 -- 6 · El grant por columna: sin esto la función sería una sugerencia y el
 --     historial se quedaría cojo cada vez que alguien escribiera directo.
 do $$
-declare v_uid uuid; v_ok boolean := false;
+declare v_uid uuid := '00000000-0000-0000-0000-0000000009f1'; v_ok boolean := false;
 begin
-  select id into v_uid from auth.users order by created_at limit 1;
   perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
   execute 'set local role authenticated';
   begin
@@ -101,5 +112,8 @@ begin
     raise exception 'FALLÓ 6: se pudo escribir public_slug directo, saltándose la función';
   end if;
 end $$;
+
+reset role;
+delete from auth.users where id in ('00000000-0000-0000-0000-0000000009f1', '00000000-0000-0000-0000-0000000009f2');
 
 select 'VERDE: las 6 aserciones pasaron' as resultado;

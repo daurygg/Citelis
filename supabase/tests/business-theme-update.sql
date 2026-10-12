@@ -3,9 +3,9 @@
 -- CÓMO CORRERLO
 --   Editor SQL de Supabase, MCP (`execute_sql`) o psql. Pégalo entero.
 --
--- QUÉ NO ES
---   Esto NO corre en CI: el workflow solo ejecuta vitest, sin base de datos.
---   Hay que lanzarlo a mano tras tocar las policies de `business`.
+-- DÓNDE CORRE
+--   Corre en CI (job `sql-regression`), contra una base efímera.
+--   También se puede lanzar a mano al tocar las policies de `business`.
 --
 -- POR QUÉ EXISTE
 --   `updateBusinessTheme` (src/lib/store/StoreContext.tsx) escribía contra una
@@ -91,5 +91,6 @@ begin
 end $$;
 
 -- ── Limpieza ───────────────────────────────────────────────────────────────
+reset role;
 delete from business_member where business_id = 999998;
 delete from business where id in (999997, 999998);

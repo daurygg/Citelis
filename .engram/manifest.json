@@ -72,6 +72,54 @@
       "sessions": 6,
       "memories": 14,
       "prompts": 28
+    },
+    {
+      "id": "add51ff8",
+      "created_by": "daurygg",
+      "created_at": "2026-09-28T03:49:21Z",
+      "sessions": 1,
+      "memories": 6,
+      "prompts": 11
+    },
+    {
+      "id": "d6ff4c2d",
+      "created_by": "daurygg",
+      "created_at": "2026-09-29T20:24:30.685631553Z",
+      "sessions": 1,
+      "memories": 3,
+      "prompts": 0
+    },
+    {
+      "id": "bbf1af1a",
+      "created_by": "daurygg",
+      "created_at": "2026-10-02T04:06:43Z",
+      "sessions": 2,
+      "memories": 4,
+      "prompts": 7
+    },
+    {
+      "id": "feb43e45",
+      "created_by": "daurygg",
+      "created_at": "2026-10-10T05:42:52Z",
+      "sessions": 4,
+      "memories": 17,
+      "prompts": 33
+    },
+    {
+      "id": "6848eb7f",
+      "created_by": "daurygg",
+      "created_at": "2026-10-10T19:21:45Z",
+      "sessions": 1,
+      "memories": 23,
+      "prompts": 45
+    },
+    {
+      "id": "6001bdf6",
+      "created_by": "daurygg",
+      "created_at": "2026-10-12T04:36:26Z",
+      "sessions": 3,
+      "memories": 3,
+      "prompts": 5
     }
   ]
 }

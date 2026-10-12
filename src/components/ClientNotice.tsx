@@ -12,8 +12,9 @@
 import { bookingNoticeMessage, noticeOutcomeFor, whatsappUrl, type BookingOutcome } from '../lib/domain/whatsapp';
 import { formatDateShort, formatTime } from '../lib/format';
 import type { Appointment } from '../lib/domain/types';
+import { serviceNames } from '../lib/domain/appointments';
 import { useStore } from '../lib/store/StoreContext';
-import { btnPrimary } from './ui';
+import { btnPrimarySm } from './ui';
 
 export function ClientNotice({
   appointment,
@@ -32,14 +33,13 @@ export function ClientNotice({
   const effectiveOutcome = outcome ?? noticeOutcomeFor(appointment.status);
   if (effectiveOutcome === null) return null;
 
-  const service = store.services.find((s) => s.id === appointment.service_id);
   const url = whatsappUrl(
     appointment.client_phone,
     bookingNoticeMessage({
       outcome: effectiveOutcome,
       clientName: appointment.client,
       businessName: store.business?.name ?? 'tu salón',
-      serviceName: service?.name ?? 'tu cita',
+      serviceName: serviceNames(appointment, store.services) || 'tu cita',
       dateLabel: formatDateShort(appointment.datetime),
       timeLabel: formatTime(appointment.datetime),
     }),
@@ -60,7 +60,7 @@ export function ClientNotice({
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className={btnPrimary + ' px-3 py-1.5 text-center text-sm'}
+      className={btnPrimarySm + ' flex items-center justify-center text-center'}
     >
       Avisar a {appointment.client} por WhatsApp
     </a>

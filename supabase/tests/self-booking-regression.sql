@@ -6,9 +6,9 @@
 --   Con psql, si prefieres no escribir nada: `begin;` … `rollback;`.
 --
 -- QUÉ NO ES
---   Esto NO corre en CI: el workflow solo ejecuta vitest, sin base de datos.
---   Hay que lanzarlo a mano tras tocar las funciones del portal. Es una red de
---   seguridad real, pero manual, y conviene no fingir lo contrario.
+--   Corre solo en CI: el job `sql-regression` de .github/workflows/ci.yml lo ejecuta
+--   en cada PR contra una base efímera (migraciones aplicadas + usuarios de
+--   supabase/tests/_fixtures.sql). Sigue siendo válido lanzarlo a mano al iterar.
 --
 -- Trabaja sobre un negocio propio (ids 999xxx) y borra todo al final, así que no
 -- toca los datos reales. Si una aserción falla, la excepción aborta la
@@ -61,7 +61,7 @@ create or replace function pg_temp.debe_rechazar(
   p_caso text, p_datetime text, p_motivo_esperado text, p_phone text
 ) returns void language plpgsql as $$
 begin
-  perform public_request_booking('prueba-h1-h6', 999901, p_datetime, 'Prueba', p_phone);
+  perform public_request_booking('prueba-h1-h6', array[999901::bigint], p_datetime, 'Prueba', p_phone);
   raise exception 'FALLÓ %: la reserva se aceptó cuando debía rechazarse (%)', p_caso, p_datetime;
 exception
   when sqlstate 'P0001' then
@@ -92,7 +92,11 @@ begin
   for r in
     select * from (values
       ('public.expire_stale_requests(bigint)',                      false, false),
-      ('public.create_business(text)',                              false, true ),
+      -- Ojo: esta firma ha cambiado dos veces (color en 20260922000001, slug en
+      -- 20260922000003). has_function_privilege REVIENTA si la función no existe,
+      -- así que una firma vieja aquí rompe toda la suite — y así estuvo desde el
+      -- 22 de septiembre sin que nadie lo notara, porque esto no corre en CI.
+      ('public.create_business(text,text,text)',                     false, true ),
       ('public.create_invitation()',                                false, true ),
       ('public.redeem_invitation(text)',                            false, true ),
       -- is_member sigue abierta a anon A PROPÓSITO: las policies RLS la evalúan
@@ -102,7 +106,7 @@ begin
       ('public.public_business(text)',                              true,  true ),
       ('public.public_hours(text)',                                 true,  true ),
       ('public.public_busy(text,text)',                             true,  true ),
-      ('public.public_request_booking(text,bigint,text,text,text)', true,  true )
+      ('public.public_request_booking(text,bigint[],text,text,text)', true,  true )
     ) as t(fn, anon_esperado, auth_esperado)
   loop
     v_real := has_function_privilege('anon', r.fn, 'EXECUTE');
@@ -175,7 +179,7 @@ declare
   v_id  bigint;
   v_row appointment%rowtype;
 begin
-  v_id := public_request_booking('prueba-h1-h6', 999901,
+  v_id := public_request_booking('prueba-h1-h6', array[999901::bigint],
             pg_temp.fecha_futura(5, '10:00'), '  Clienta Válida  ', '8090000006');
 
   select * into v_row from appointment where id = v_id;
@@ -217,7 +221,7 @@ begin
   -- 11:15 ya está fuera del buffer: tiene que entrar. Si esto fallara, el
   -- servidor sería MÁS estricto que el navegador y la clienta vería errores en
   -- horarios que la web le acaba de ofrecer.
-  v_id := public_request_booking('prueba-h1-h6', 999901,
+  v_id := public_request_booking('prueba-h1-h6', array[999901::bigint],
             pg_temp.fecha_futura(5, '11:15'), 'Justo Después', '8090000009');
   if v_id is null then
     raise exception 'FALLÓ buffer: se rechazó un horario libre pasado el buffer';

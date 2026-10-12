@@ -23,6 +23,44 @@ export interface Business {
   // Color de marca en hex (decisión T5, odd/tasks/business-theming.md). Opcional
   // porque los negocios creados antes de este slice todavía no traen la columna.
   theme_color?: string;
+  // Datos del encabezado del recibo (P4). Nulos hasta que la dueña los llena.
+  address?: string | null;
+  phone?: string | null;
+  // Ruta del logo dentro del bucket `business-logos` (`<business_id>/logo-….png`).
+  logo_path?: string | null;
+}
+
+// Nombre visible de una miembro del negocio (quien cobra, en el recibo).
+export interface MemberName {
+  user_id: string;
+  display_name: string | null;
+}
+
+// Empleada del negocio (INVARIANTE 1). No es usuaria de la app. Se da de baja
+// (`active = false`) en vez de borrarse: su nombre sigue en el historial cobrado.
+export interface Employee {
+  id: number;
+  business_id: number;
+  name: string;
+  active: boolean;
+}
+
+// Vía de pago y tipo de pago de una cita (P3). Los pagos son APPEND-ONLY: lo
+// pagado es la suma de las filas de `appointment_payment`, nunca un campo de la cita.
+export type PaymentMethod = 'cash' | 'transfer' | 'card';
+// deposit = abono antes de cobrar; charge = al cobrar; credit_payment = pago
+// posterior de un saldo ya cobrado.
+export type PaymentKind = 'deposit' | 'charge' | 'credit_payment';
+
+export interface AppointmentPayment {
+  id: number;
+  business_id: number; // INVARIANTE 1
+  appointment_id: number;
+  amount: number; // centavos, > 0
+  // null SOLO en abonos históricos (anteriores a P3): la vía no se guardaba y no se inventa.
+  method: PaymentMethod | null;
+  kind: PaymentKind;
+  paid_at: string; // ISO 8601
 }
 
 // Insumo GLOBAL del negocio (INVARIANTE 1). Un mismo insumo (wipes, pegamento…)
@@ -64,6 +102,13 @@ export interface Appointment {
   id: number;
   business_id: number; // INVARIANTE 1
   service_id: number;
+  /**
+   * Servicios de la cita. OPCIONAL a propósito durante la fase de expansión:
+   * la base todavía guarda un solo `service_id` y ninguna pantalla escribe
+   * varios. Cuando existan escritores de varias (T5/T6) pasa a obligatoria, o
+   * una pantalla que se quede atrás borraría servicios en silencio.
+   */
+  service_ids?: number[];
   client: string;
   // Solo en citas nacidas del portal público. Opcionales porque las citas que la
   // dueña registró antes de esta función no los traen.
@@ -78,6 +123,9 @@ export interface Appointment {
   charged_price: number | null;
   actual_cost: number | null;
   profit: number | null;
+  // Quién cobró (auth.uid, fijado por `complete_appointment`, P4). Nulo en citas
+  // anteriores o sin completar; el nombre sale de `MemberName`.
+  charged_by?: string | null;
 }
 
 // Gasto fijo del negocio (luz, agua, transporte…) NO atribuible a una cita.

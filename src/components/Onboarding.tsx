@@ -65,7 +65,7 @@ export function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50 px-4 py-16 text-neutral-900">
+    <div className="min-h-dvh bg-neutral-50 px-4 py-8 sm:py-16 text-neutral-900">
       <div className="mx-auto max-w-sm">
         <h1 className="mb-1 text-center text-2xl font-bold text-brand-700">Citelis</h1>
         <p className="mb-6 text-center text-sm text-neutral-500">Configura tu negocio para empezar</p>

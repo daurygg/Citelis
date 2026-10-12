@@ -25,3 +25,71 @@
 :root {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
+
+/* iOS: no reescala el texto al girar el teléfono. */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Sin el retraso/zoom por doble toque en controles. */
+button,
+a,
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+/*
+ * Recibo térmico (P5). Al imprimir, el recibo es lo ÚNICO que sale: se oculta todo
+ * hijo directo de <body> salvo el portal del recibo (ReceiptDialog lo monta ahí), se
+ * quitan botones, sombras y fondos, y la página mide 80 mm de ancho sin márgenes.
+ * El papel térmico es solo negro: nada de colores ni fondos.
+ */
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  body > *:not(.receipt-portal) {
+    display: none !important;
+  }
+
+  .receipt-portal {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    background: none !important;
+    padding: 0 !important;
+  }
+
+  .receipt-portal > div {
+    max-width: none !important;
+    margin: 0 !important;
+  }
+
+  .receipt-actions {
+    display: none !important;
+  }
+
+  .receipt-paper {
+    width: 80mm !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 4mm !important;
+    box-shadow: none !important;
+    background: none !important;
+    color: #000 !important;
+  }
+
+  .receipt-paper * {
+    color: #000 !important;
+    background: none !important;
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { weekSummary, sumFixedExpenses, netProfit, proratedFixedExpenses, expectedProfit, fixedExpensesForMonth } from './reports';
+import { weekSummary, sumFixedExpenses, netProfit, proratedFixedExpenses, expectedProfit, expectedProfitForServices, fixedExpensesForMonth } from './reports';
 import type { Appointment, FixedExpense, Service } from './types';
 
 function svc(partial: Partial<Service> = {}): Service {
@@ -113,6 +113,62 @@ describe('weekSummary', () => {
     expect(r.gross_profit).toBe(0);
     expect(r.most_profitable_service).toBeNull();
   });
+
+  describe('reparto congelado por servicio (D1)', () => {
+    const line = (appointment_id: number, service_id: number, profit: number, business_id = 1) => ({
+      appointment_id,
+      service_id,
+      business_id,
+      profit,
+    });
+
+    it('atribuye a cada servicio SU ganancia congelada, no toda la cita al principal', () => {
+      // Cita 1: servicio 1 (principal) gana 500 y servicio 2 gana 3500. Total 4000.
+      const appointments = [completed({ id: 1, service_id: 1, profit: 4000 })];
+      const lines = [line(1, 1, 500), line(1, 2, 3500)];
+      const r = weekSummary(appointments, 1, FROM, TO, lines);
+      expect(r.most_profitable_service).toEqual({ service_id: 2, profit: 3500 });
+      // El total del periodo sigue saliendo de la cita, no de las líneas.
+      expect(r.gross_profit).toBe(4000);
+    });
+
+    it('acumula las líneas de un mismo servicio entre varias citas', () => {
+      const appointments = [
+        completed({ id: 1, service_id: 1, profit: 1500 }),
+        completed({ id: 2, service_id: 2, profit: 1500 }),
+      ];
+      const lines = [line(1, 1, 500), line(1, 2, 1000), line(2, 2, 700), line(2, 1, 800)];
+      const r = weekSummary(appointments, 1, FROM, TO, lines);
+      expect(r.most_profitable_service).toEqual({ service_id: 2, profit: 1700 });
+    });
+
+    it('una cita COMPLETED sin líneas se atribuye a su servicio principal (defensivo)', () => {
+      const appointments = [
+        completed({ id: 1, service_id: 1, profit: 1000 }),
+        completed({ id: 2, service_id: 3, profit: 2000 }), // sin líneas
+      ];
+      const r = weekSummary(appointments, 1, FROM, TO, [line(1, 1, 1000)]);
+      expect(r.most_profitable_service).toEqual({ service_id: 3, profit: 2000 });
+    });
+
+    it('ignora líneas de otro negocio o de citas fuera del periodo o no completadas', () => {
+      const appointments = [
+        completed({ id: 1, service_id: 1, profit: 1000 }),
+        completed({ id: 2, service_id: 1, profit: 9000, datetime: '2026-08-01T10:00:00.000Z' }),
+        completed({ id: 3, service_id: 1, profit: 9000, status: 'PENDING' }),
+      ];
+      const lines = [line(1, 1, 1000), line(1, 2, 8000, 99), line(2, 2, 9000), line(3, 2, 9000)];
+      const r = weekSummary(appointments, 1, FROM, TO, lines);
+      expect(r.most_profitable_service).toEqual({ service_id: 1, profit: 1000 });
+    });
+
+    it('si las líneas de una cita no tienen ganancia (null) se atribuye al principal', () => {
+      const appointments = [completed({ id: 1, service_id: 1, profit: 1000 })];
+      const lines = [{ appointment_id: 1, service_id: 2, business_id: 1, profit: null }];
+      const r = weekSummary(appointments, 1, FROM, TO, lines);
+      expect(r.most_profitable_service).toEqual({ service_id: 1, profit: 1000 });
+    });
+  });
 });
 
 function expense(partial: Partial<FixedExpense>): FixedExpense {
@@ -199,5 +255,37 @@ describe('proratedFixedExpenses', () => {
 
   it('un día devuelve 1/30 del mes', () => {
     expect(proratedFixedExpenses(30000, 1)).toBe(1000);
+  });
+});
+
+describe('expectedProfitForServices', () => {
+  const a = svc({ id: 1, price: 5000, supply_cost: 1000 });
+  const b = svc({ id: 2, price: 4000, supply_cost: 500 });
+  const variable = svc({ id: 3, price: 0, supply_cost: 300, variable_price: true });
+  const open = (partial: Partial<Appointment>) => completed({ status: 'PENDING', charged_price: null, actual_cost: null, profit: null, ...partial });
+
+  it('un solo servicio da lo mismo que expectedProfit', () => {
+    const apt = open({ service_id: 1 });
+    expect(expectedProfitForServices(apt, [a])).toBe(expectedProfit(apt, a));
+  });
+
+  it('con varios, suma precio de lista menos la suma de costos', () => {
+    expect(expectedProfitForServices(open({ service_id: 1, service_ids: [1, 2] }), [a, b])).toBe(9000 - 1500);
+  });
+
+  it('el precio acordado manda sobre la suma', () => {
+    expect(expectedProfitForServices(open({ service_id: 1, service_ids: [1, 2], quoted_price: 8000 }), [a, b])).toBe(8000 - 1500);
+  });
+
+  it('con un servicio variable sin precio ni acuerdo es null (no se inventa)', () => {
+    expect(expectedProfitForServices(open({ service_id: 1, service_ids: [1, 3] }), [a, variable])).toBeNull();
+  });
+
+  it('con precio total acordado, el servicio variable queda cubierto', () => {
+    expect(expectedProfitForServices(open({ service_id: 1, service_ids: [1, 3], quoted_price: 9000 }), [a, variable])).toBe(9000 - 1300);
+  });
+
+  it('sin servicios devuelve null', () => {
+    expect(expectedProfitForServices(open({}), [])).toBeNull();
   });
 });

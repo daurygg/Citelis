@@ -11,7 +11,8 @@ export interface BookingForNotice {
   client: string;
   datetime: string;
   status: string;
-  service_name: string | null;
+  /** Todos los servicios de la solicitud (vacío si no se pudo leer ninguno). */
+  service_names: string[];
 }
 
 export interface StoredSubscription {
@@ -84,7 +85,7 @@ export async function handleNotifyNewBooking(req: Request, deps: NotifyDeps): Pr
   const payload = JSON.stringify(newBookingMessage({
     appointment_id: booking.id,
     client: booking.client,
-    service_name: booking.service_name,
+    service_names: booking.service_names,
     datetime: booking.datetime,
   }));
 

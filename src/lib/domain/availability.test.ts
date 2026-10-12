@@ -73,7 +73,7 @@ describe('generateSlots', () => {
   it('un día sin BusinessHours para ese weekday no ofrece ningún slot', () => {
     const slots = generateSlots({
       date: '2026-09-20', // domingo, sin horario cargado
-      service: service(),
+      candidateServices: [service()],
       hours: [businessHours({ weekday: 1 })], // solo lunes
       blocks: [],
       appointments: [],
@@ -87,7 +87,7 @@ describe('generateSlots', () => {
   it('ofrece slots dentro de [opens_at, closes_at) con el paso de slot_step_min', () => {
     const slots = generateSlots({
       date: '2026-09-21',
-      service: service({ duration_min: 60 }),
+      candidateServices: [service({ duration_min: 60 })],
       hours: [businessHours({ opens_at: '09:00', closes_at: '12:00' })],
       blocks: [],
       appointments: [],
@@ -105,7 +105,7 @@ describe('generateSlots', () => {
   it('un servicio que terminaría después de closes_at no se ofrece', () => {
     const slots = generateSlots({
       date: '2026-09-21',
-      service: service({ duration_min: 90 }), // no cabe en la ventana de 1h
+      candidateServices: [service({ duration_min: 90 })], // no cabe en la ventana de 1h
       hours: [businessHours({ opens_at: '09:00', closes_at: '10:00' })],
       blocks: [],
       appointments: [],
@@ -125,7 +125,7 @@ describe('generateSlots', () => {
     ];
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ opens_at: '09:00', closes_at: '12:00' })],
       blocks: [],
       appointments,
@@ -143,7 +143,7 @@ describe('generateSlots', () => {
     const svc = service({ duration_min: 60 });
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ opens_at: '09:00', closes_at: '12:00' })],
       blocks: [timeBlock({ starts_at: '2026-09-21T11:00', ends_at: '2026-09-21T12:00' })],
       appointments: [],
@@ -161,7 +161,7 @@ describe('generateSlots', () => {
     const svc = service({ duration_min: 60 });
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ opens_at: '09:00', closes_at: '12:00' })],
       blocks: [],
       appointments: [appointment({ datetime: '2026-09-21T09:00' })], // 09:00–10:00
@@ -177,7 +177,7 @@ describe('generateSlots', () => {
     const svc = service({ id: 1, duration_min: 60 });
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ opens_at: '09:00', closes_at: '13:00' })],
       blocks: [],
       // service_id 99 no aparece en `services`: no se puede saber cuánto dura.
@@ -198,7 +198,7 @@ describe('generateSlots', () => {
     const svc = service({ duration_min: 60 });
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ opens_at: '09:00', closes_at: '13:00' })],
       blocks: [],
       appointments: [appointment({ datetime: '2026-09-21T11:00' })], // 11:00-12:00
@@ -215,7 +215,7 @@ describe('generateSlots', () => {
     const svc = service({ duration_min: 60 });
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ opens_at: '09:00', closes_at: '12:00' })],
       blocks: [],
       appointments: [],
@@ -231,7 +231,7 @@ describe('generateSlots', () => {
     const svc = service({ duration_min: 60 });
     const slots = generateSlots({
       date: '2026-09-21', // 4 días después de "now"
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ opens_at: '09:00', closes_at: '12:00' })],
       blocks: [],
       appointments: [],
@@ -246,7 +246,7 @@ describe('generateSlots', () => {
     const svc = service({ duration_min: 30 });
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ opens_at: '09:00', closes_at: '10:00' })],
       blocks: [],
       appointments: [],
@@ -275,7 +275,7 @@ describe('generateSlots', () => {
 
     const input = {
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: hoursInput,
       blocks: blocksInput,
       appointments: appointmentsInput,
@@ -298,7 +298,7 @@ describe('generateSlots', () => {
     const svc = service({ duration_min: 60 });
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [
         businessHours({ id: 1, opens_at: '09:00', closes_at: '12:00' }),
         businessHours({ id: 2, opens_at: '14:00', closes_at: '17:00' }),
@@ -323,7 +323,7 @@ describe('generateSlots', () => {
     const svc = service({ duration_min: 0 });
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ opens_at: '09:00', closes_at: '12:00' })],
       blocks: [],
       appointments: [],
@@ -338,7 +338,7 @@ describe('generateSlots', () => {
     const svc = service({ duration_min: 60 });
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ id: 1, opens_at: 'nueve', closes_at: '12:00' })],
       blocks: [],
       appointments: [],
@@ -353,7 +353,7 @@ describe('generateSlots', () => {
     const svc = service({ duration_min: 60 });
     const slots = generateSlots({
       date: '2026-13-40',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours()],
       blocks: [],
       appointments: [],
@@ -371,7 +371,7 @@ describe('generateSlots', () => {
     const appointments = [appointment({ id: 1, status: 'REQUESTED', datetime: '2026-09-21T10:00' })]; // 10:00–11:00
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ opens_at: '09:00', closes_at: '12:00' })],
       blocks: [],
       appointments,
@@ -390,7 +390,7 @@ describe('generateSlots', () => {
     const appointments = [appointment({ id: 1, status: 'REJECTED', datetime: '2026-09-21T10:00' })];
     const slots = generateSlots({
       date: '2026-09-21',
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ opens_at: '09:00', closes_at: '12:00' })],
       blocks: [],
       appointments,
@@ -409,7 +409,7 @@ describe('generateSlots', () => {
     const svc = service({ duration_min: 60 });
     const slots = generateSlots({
       date: '2026-02-30', // febrero no tiene 30: Date lo desbordaría a marzo
-      service: svc,
+      candidateServices: [svc],
       hours: [businessHours({ weekday: 1 }), businessHours({ weekday: 5 })],
       blocks: [],
       appointments: [],
@@ -418,5 +418,115 @@ describe('generateSlots', () => {
       now: new Date('2026-01-01T00:00'),
     });
     expect(slots).toEqual([]);
+  });
+});
+
+// T1: la candidata puede traer varios servicios (odd/tasks/multi-service-appointments.md).
+describe('generateSlots — varios servicios', () => {
+  it('la duración de la candidata con 2 servicios es la suma (30+45=75min, no cabe en 1h)', () => {
+    const a = service({ id: 1, duration_min: 30 });
+    const b = service({ id: 2, duration_min: 45 });
+    const slots = generateSlots({
+      date: '2026-09-21',
+      candidateServices: [a, b], // 75min
+      hours: [businessHours({ opens_at: '09:00', closes_at: '10:00' })], // ventana de 1h
+      blocks: [],
+      appointments: [],
+      services: [a, b],
+      policy: policy({ slot_step_min: 30 }),
+      now: new Date('2026-09-17T00:00'),
+    });
+    expect(slots).toEqual([]);
+  });
+
+  it('la duración de la candidata con 3 servicios es la suma (30+30+30=90min, cabe exactamente una vez)', () => {
+    const a = service({ id: 1, duration_min: 30 });
+    const b = service({ id: 2, duration_min: 30 });
+    const c = service({ id: 3, duration_min: 30 });
+    const slots = generateSlots({
+      date: '2026-09-21',
+      candidateServices: [a, b, c], // 90min
+      // Ventana de exactamente 90min: solo un inicio (09:00) hace que
+      // start + 90min quepa en [opens_at, closes_at).
+      hours: [businessHours({ opens_at: '09:00', closes_at: '10:30' })],
+      blocks: [],
+      appointments: [],
+      services: [a, b, c],
+      policy: policy({ slot_step_min: 30 }),
+      now: new Date('2026-09-17T00:00'),
+    });
+    expect(slots).toEqual([{ start: '2026-09-21T09:00', end: '2026-09-21T10:30' }]);
+  });
+
+  it('una cita existente con varios servicios ocupa la suma: un slot que cabría contra uno solo se rechaza contra la suma', () => {
+    const a = service({ id: 1, duration_min: 30 });
+    const b = service({ id: 2, duration_min: 30 });
+    // Cita existente con servicios [a, b] a las 09:00 ocupa 09:00–10:00 (suma 60min),
+    // no solo 09:00–09:30 (lo que ocuparía si solo contara el primer servicio).
+    const existing = appointment({ id: 1, service_ids: [1, 2], datetime: '2026-09-21T09:00' });
+    const candidate = service({ id: 3, duration_min: 30 });
+    const slots = generateSlots({
+      date: '2026-09-21',
+      candidateServices: [candidate],
+      hours: [businessHours({ opens_at: '09:00', closes_at: '11:00' })],
+      blocks: [],
+      appointments: [existing],
+      services: [a, b, candidate],
+      policy: policy({ slot_step_min: 30 }),
+      now: new Date('2026-09-17T00:00'),
+    });
+    // 09:00 y 09:30 caen dentro de la suma ocupada [09:00, 10:00); solo sobrevive 10:00 y 10:30.
+    expect(slots).toEqual([
+      { start: '2026-09-21T10:00', end: '2026-09-21T10:30' },
+      { start: '2026-09-21T10:30', end: '2026-09-21T11:00' },
+    ]);
+  });
+
+  // El fallo seguro (decisión A6, availability.ts) exige bloquear a Infinity si
+  // no se puede confiar en la duración. Con varios servicios NO basta con que
+  // falten TODOS: si de dos servicios solo UNO desaparece del catálogo, la
+  // duración calculada con el que queda sería corta e igual dejaría pasar una
+  // doble reserva. Por eso el criterio es "si falta CUALQUIERA".
+  it('fallo seguro: cita con 2 servicios donde solo 1 está en el catálogo bloquea a Infinity', () => {
+    const found = service({ id: 1, duration_min: 30 });
+    // El servicio 2 NO está en `services`: falta uno de los dos.
+    const existing = appointment({ id: 1, service_ids: [1, 2], datetime: '2026-09-21T11:00' });
+    const candidate = service({ id: 3, duration_min: 60 });
+    const slots = generateSlots({
+      date: '2026-09-21',
+      candidateServices: [candidate],
+      hours: [businessHours({ opens_at: '09:00', closes_at: '13:00' })],
+      blocks: [],
+      appointments: [existing],
+      services: [found, candidate],
+      policy: policy({ slot_step_min: 60 }),
+      now: new Date('2026-09-17T00:00'),
+    });
+    // Se bloquea desde el inicio de la cita (11:00) hasta el cierre del día.
+    expect(slots).toEqual([
+      { start: '2026-09-21T09:00', end: '2026-09-21T10:00' },
+      { start: '2026-09-21T10:00', end: '2026-09-21T11:00' },
+    ]);
+  });
+
+  it('buffer_min sigue aplicando a AMBOS lados de la suma de duraciones', () => {
+    const a = service({ id: 1, duration_min: 30 });
+    const b = service({ id: 2, duration_min: 30 });
+    // Cita existente [a, b] a las 11:00 ocupa 11:00–12:00 (suma 60min).
+    const existing = appointment({ id: 1, service_ids: [1, 2], datetime: '2026-09-21T11:00' });
+    const candidate = service({ id: 3, duration_min: 60 });
+    const slots = generateSlots({
+      date: '2026-09-21',
+      candidateServices: [candidate],
+      hours: [businessHours({ opens_at: '09:00', closes_at: '13:00' })],
+      blocks: [],
+      appointments: [existing],
+      services: [a, b, candidate],
+      policy: policy({ slot_step_min: 60, buffer_min: 30 }),
+      now: new Date('2026-09-17T00:00'),
+    });
+    // El descanso extiende la suma ocupada a [10:30, 12:30); un slot 10:00-11:00
+    // terminaría pegado a la cita sin descanso, así que no se ofrece.
+    expect(slots).toEqual([{ start: '2026-09-21T09:00', end: '2026-09-21T10:00' }]);
   });
 });

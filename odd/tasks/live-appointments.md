@@ -130,5 +130,10 @@ Pronóstico: ~300 líneas, por debajo de las ~400. Un solo PR contra `develop`.
 
 ## Siguiente paso
 
-Feature cerrada en `develop`. Pendiente para producción: aplicar
-`20260928000001_live_appointments.sql`.
+**En producción desde el 2026-09-27** (release #25, `main` `97fa485`).
+`20260928000001` se aplicó con `db push`. Prueba real del usuario en producción:
+la reserva apareció sola en la bandeja.
+
+Queda por hacer: probar a mano la vuelta desde segundo plano (hoy solo la
+cubren los tests), y el filtro por `business_id` en las lecturas iniciales del
+store (`StoreContext.tsx:200-209`), que va en otro slice.
