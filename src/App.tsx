@@ -111,7 +111,7 @@ const headerButton = 'min-h-11 px-2.5 text-sm text-neutral-500 hover:text-neutra
 
 function tabButtonClass(active: boolean): string {
   return (
-    'min-h-11 flex-1 rounded-lg px-3 text-sm font-medium transition ' +
+    'min-h-11 flex-1 shrink-0 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition ' +
     (active ? 'bg-white text-brand-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800')
   );
 }
@@ -208,7 +208,9 @@ function AppShell() {
         /* Pestañas del modo activo */
         <nav className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur">
           <div className="mx-auto max-w-xl px-4 py-2">
-            <div className="flex gap-1 rounded-xl bg-neutral-100 p-1">
+            {/* Con 5 pestañas no caben en un teléfono angosto: la barra se desplaza
+                sola en vez de ensanchar toda la página. */}
+            <div className="flex gap-1 overflow-x-auto rounded-xl bg-neutral-100 p-1">
               {mode === 'services'
                 ? SERVICE_TABS.map((tab) => (
                     <button key={tab.id} type="button" className={tabButtonClass(serviceView === tab.id)} onClick={() => setServiceView(tab.id)}>

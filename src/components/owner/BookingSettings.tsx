@@ -112,8 +112,10 @@ export function BookingSettings() {
           </ul>
         )}
 
-        <form onSubmit={handleAddHours} className="flex flex-wrap items-end gap-3">
-          <label className={field}>
+        {/* Rejilla y no flex-wrap: en iOS los campos de hora traen un ancho propio
+            y, como ítems flex sin ancho, se montaban uno sobre otro. */}
+        <form onSubmit={handleAddHours} className="grid grid-cols-2 items-end gap-3 sm:grid-cols-4">
+          <label className={field + ' col-span-2 sm:col-span-1'}>
             <span className={fieldLabel}>Día</span>
             <select className={input} value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
               {WEEKDAY_LABELS.map((label, i) => (
@@ -131,7 +133,7 @@ export function BookingSettings() {
             <span className={fieldLabel}>Hasta</span>
             <input className={input} type="time" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />
           </label>
-          <button type="submit" className={btnGhost}>
+          <button type="submit" className={btnGhost + ' col-span-2 sm:col-span-1'}>
             Añadir
           </button>
         </form>
@@ -171,7 +173,7 @@ export function BookingSettings() {
         )}
 
         <form onSubmit={handleAddBlock} className="flex flex-wrap items-end gap-3">
-          <label className={field}>
+          <label className={field + ' min-w-[12rem] flex-1'}>
             <span className={fieldLabel}>Desde</span>
             <input
               className={input}
@@ -180,7 +182,7 @@ export function BookingSettings() {
               onChange={(e) => setBlockStart(e.target.value)}
             />
           </label>
-          <label className={field}>
+          <label className={field + ' min-w-[12rem] flex-1'}>
             <span className={fieldLabel}>Hasta</span>
             <input className={input} type="datetime-local" value={blockEnd} onChange={(e) => setBlockEnd(e.target.value)} />
           </label>
