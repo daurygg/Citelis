@@ -69,13 +69,16 @@ existentes. Un negocio exento o en prueba debe comportarse exactamente igual que
   prueba, al día, gracia (día 0 y día 7), bloqueado, exento y los bordes de fecha.
   - RED: `subscription.test.ts` fallaba al no existir el módulo.
   - GREEN: 11/11 tests; suite completa 572/572; `npm run typecheck` limpio.
-  - Ruta: inline (un archivo y su test).
-- [ ] **S2 · Tablas y estado en la base.**
+  - Ruta: inline (un archivo y su test). Commit `94d36de`. Revisión: riesgo medio, `under_budget` (queda pendiente dentro del corte del PR 1).
+- [x] **S2 · Tablas y estado en la base.**
   - Migración: las 3 tablas, `subscription_status` / `business_operational` y
     `is_platform_admin`.
   - Los negocios existentes quedan exentos; `create_business` crea la prueba de 14 días.
   - RLS: la dueña ve su suscripción y no la puede modificar.
   - Suite `supabase/tests/subscription-status.sql`.
+  - RED: CI run 38301502577 (commit `a76cb2e`, solo la suite): `FALLÓ 0: falta subscription_status`.
+  - GREEN: CI run 38301726713 (commit `2480bec`): las 20 suites SQL y `test` en verde.
+  - Ruta: delegado (migración + suite). PR #55 (borrador) hacia `develop`.
 - [ ] **S3 · Bloqueo en el servidor.**
   - `is_member` exige negocio operativo.
   - Las RPC públicas de reserva cortan cuando está bloqueado.
@@ -116,4 +119,5 @@ Modo estricto activado (fuente: CLAUDE.md global del usuario, "Strict TDD Mode: 
 ## Progreso
 
 - 2026-10-12: decisiones tomadas, código mapeado y documento creado.
-- 2026-10-12: S1 hecho. Siguiente: S2.
+- 2026-10-12: S1 hecho.
+- 2026-10-12: S2 hecho, verificado en CI. PR 1 = #55. Siguiente: S3.
