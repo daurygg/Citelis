@@ -43,7 +43,7 @@ describe('summarizePublicSelection', () => {
 
 describe('servicePriceLabel', () => {
   it('fijo: dinero; variable: "A convenir"', () => {
-    expect(servicePriceLabel(eyebrows)).toBe('$1,500.00');
+    expect(servicePriceLabel(eyebrows)).toBe('RD$1,500.00');
     expect(servicePriceLabel(braids)).toBe('A convenir');
   });
 });
@@ -53,12 +53,12 @@ describe('estimateLabel', () => {
     expect(estimateLabel(summarizePublicSelection(catalog, []))).toBe('');
   });
   it('solo fijos: el total', () => {
-    expect(estimateLabel(summarizePublicSelection(catalog, [1, 2]))).toBe('$2,300.00');
+    expect(estimateLabel(summarizePublicSelection(catalog, [1, 2]))).toBe('RD$2,300.00');
   });
   it('solo variables: "A convenir"', () => {
     expect(estimateLabel(summarizePublicSelection(catalog, [3]))).toBe('A convenir');
   });
   it('mezcla: "Desde" el total de los fijos', () => {
-    expect(estimateLabel(summarizePublicSelection(catalog, [1, 3]))).toBe('Desde $1,500.00');
+    expect(estimateLabel(summarizePublicSelection(catalog, [1, 3]))).toBe('Desde RD$1,500.00');
   });
 });

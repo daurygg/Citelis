@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatClock, formatTime } from './format';
+import { formatClock, formatMoney, formatTime } from './format';
 
 describe('formatClock', () => {
   it('pasa una hora de la mañana a 12h', () => {
@@ -23,5 +23,17 @@ describe('formatClock', () => {
 describe('formatTime', () => {
   it('toma la hora de un ISO completo', () => {
     expect(formatTime('2026-07-02T14:30')).toBe('2:30 PM');
+  });
+});
+
+describe('formatMoney', () => {
+  it('muestra pesos dominicanos con separador de miles', () => {
+    expect(formatMoney(350000)).toBe('RD$3,500.00');
+    expect(formatMoney(40000)).toBe('RD$400.00');
+  });
+
+  it('cero y negativos', () => {
+    expect(formatMoney(0)).toBe('RD$0.00');
+    expect(formatMoney(-40000)).toBe('-RD$400.00');
   });
 });
