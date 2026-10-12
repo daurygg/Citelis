@@ -208,7 +208,8 @@ export interface Store {
    * Lee del servidor la cita, sus líneas y sus pagos al abrirlo: las líneas con
    * descuento y empleada no viven en memoria y así el recibo nunca va desfasado.
    */
-  loadReceipt: (appointmentId: number) => Promise<ReceiptResult>;
+  /** `token`: el del recibo digital público (para el QR); null si no se pudo emitir. */
+  loadReceipt: (appointmentId: number) => Promise<{ result: ReceiptResult; token: string | null }>;
   // Dirección pública del negocio (T3, odd/tasks/editable-public-slug.md).
   // A diferencia de todo lo demás de este store, esto NO es optimista: ver el
   // comentario junto a su implementación.
@@ -1011,8 +1012,9 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     persist(supabase.from('business').update({ theme_color: hex }).eq('id', businessId));
   }
 
-  async function loadReceipt(appointmentId: number): Promise<ReceiptResult> {
-    const fail = (message: string): ReceiptResult => ({ ok: false, message });
+  async function loadReceipt(appointmentId: number): Promise<{ result: ReceiptResult; token: string | null }> {
+    let token: string | null = null;
+    const fail = (message: string) => ({ result: { ok: false, message } as ReceiptResult, token });
     if (!business) return fail('No se encontró tu negocio.');
     try {
       const { data: issued, error: issueError } = await supabase.rpc('issue_receipt', {
@@ -1020,8 +1022,9 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
         p_appointment_id: appointmentId,
       });
       if (issueError) return fail(issueError.message);
-      const receipt = (issued as { number: number; issued_at: string }[] | null)?.[0];
+      const receipt = (issued as { number: number; issued_at: string; public_token: string }[] | null)?.[0];
       if (!receipt) return fail('No se pudo emitir el recibo.');
+      token = receipt.public_token;
 
       // INVARIANTE 1: todo filtrado por negocio, además de la RLS.
       const [apt, lines, pay] = await Promise.all([
@@ -1037,7 +1040,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       const appointment = ((apt.data ?? [])[0] ?? null) as Appointment | null;
       if (apt.error || lines.error || pay.error || !appointment) return fail('No se pudieron cargar los datos del recibo.');
 
-      return buildReceiptData({
+      const result = buildReceiptData({
         business,
         logoUrl: businessLogoUrl,
         appointment,
@@ -1048,6 +1051,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
         memberNames,
         receipt,
       });
+      return { result, token };
     } catch (e) {
       return fail(e instanceof Error ? e.message : 'No se pudo conectar con el servidor.');
     }

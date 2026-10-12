@@ -18,6 +18,7 @@ import { CreditsScreen } from './components/CreditsScreen';
 import { ServiceCreditsScreen } from './components/ServiceCreditsScreen';
 import { Login } from './components/Login';
 import { PublicBooking } from './components/public/PublicBooking';
+import { PublicReceipt } from './components/public/PublicReceipt';
 import { BookingSettings } from './components/owner/BookingSettings';
 import { EmployeeSettings } from './components/owner/EmployeeSettings';
 import { BrandSettings } from './components/owner/BrandSettings';
@@ -55,6 +56,15 @@ function publicBookingSlug(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+/**
+ * Ruta pública del recibo digital: /recibo/<token>. La forma exacta del uuid se vuelve
+ * a validar antes de llamar al servidor (ver `isReceiptToken`).
+ */
+function publicReceiptToken(): string | null {
+  const match = /^\/recibo\/([0-9a-f-]{36})\/?$/i.exec(window.location.pathname);
+  return match ? match[1] : null;
+}
+
 export function App() {
   // El portal público va ANTES de AuthProvider y StoreProvider a propósito: la
   // clienta no tiene cuenta ni negocio, y el árbol autenticado exige ambas cosas.
@@ -66,6 +76,9 @@ export function App() {
       </ToastProvider>
     );
   }
+
+  const receiptToken = publicReceiptToken();
+  if (receiptToken) return <PublicReceipt token={receiptToken} />;
 
   return (
     <ToastProvider>

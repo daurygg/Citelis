@@ -100,28 +100,41 @@ function clean(text: string | null | undefined): string | null {
 }
 
 /**
- * Cajero: nombre visible de quien cobró (`charged_by`); si no hay (cobró antes de
- * ponerse nombre, o la cita es anterior a P4), el nombre del NEGOCIO (decisión de la dueña).
+ * Hechos NEUTROS de un recibo ya emitido: lo único que hace falta para dibujarlo, venga
+ * de la dueña (`buildReceiptData`) o de la página pública (`parsePublicReceipt`). Un solo
+ * armador (`assembleReceipt`) para ambos garantiza que el papel impreso y el digital
+ * digan exactamente lo mismo.
  */
-function cashierName(appointment: Appointment, members: readonly MemberName[], business: Business): string {
-  const member = appointment.charged_by ? members.find((m) => m.user_id === appointment.charged_by) : undefined;
-  return clean(member?.display_name) ?? business.name;
+export interface ReceiptFacts {
+  business_name: string;
+  address: string | null | undefined;
+  phone: string | null | undefined;
+  logo_url: string | null;
+  number: number;
+  issued_at: string;
+  /** Fecha de la cita, local 'YYYY-MM-DDTHH:MM'. */
+  appointment_datetime: string;
+  client: string;
+  /** Sin nombre (nulo o vacío): se muestra el del NEGOCIO (decisión de la dueña). */
+  cashier: string | null | undefined;
+  lines: readonly {
+    service_name: string;
+    employee_name: string | null;
+    list_price: number | null;
+    discount: number;
+    charged_price: number;
+  }[];
+  /** Lo cobrado, congelado en la cita (INVARIANTE 2). Las líneas deben sumarlo. */
+  charged_price: number;
+  payments: readonly { method: PaymentMethod | null; amount: number }[];
 }
 
-export function buildReceiptData(input: ReceiptInput): ReceiptResult {
-  const { business, appointment, lines } = input;
-  // INVARIANTE 1 e INVARIANTE 2: solo una cita cobrada de ESTE negocio tiene recibo.
-  if (appointment.business_id !== business.id) return { ok: false, message: 'Esa cita no es de tu negocio.' };
-  if (appointment.status !== 'COMPLETED' || appointment.charged_price === null) {
-    return { ok: false, message: 'Solo las citas completadas tienen recibo.' };
-  }
-
-  const receiptLines: ReceiptLine[] = lines.map((l) => {
+export function assembleReceipt(f: ReceiptFacts): ReceiptResult {
+  const receiptLines: ReceiptLine[] = f.lines.map((l) => {
     const unit = l.list_price ?? l.charged_price;
-    const staff = employeeName(input.employees, l.employee_id);
     return {
-      name: (input.services.find((s) => s.id === l.service_id)?.name ?? 'Servicio').toUpperCase(),
-      note: staff ? `Atendió: ${staff}` : null,
+      name: l.service_name.toUpperCase(),
+      note: l.employee_name ? `Atendió: ${l.employee_name}` : null,
       quantity: 1,
       unit_price: unit,
       line_total: unit,
@@ -133,34 +146,33 @@ export function buildReceiptData(input: ReceiptInput): ReceiptResult {
   const discounts = receiptLines.reduce((sum, l) => sum + l.discount, 0);
   const total = subtotal - discounts;
   // El recibo no puede mostrar un total distinto de lo congelado en la cita.
-  if (total !== appointment.charged_price || total !== lines.reduce((sum, l) => sum + l.charged_price, 0)) {
+  if (total !== f.charged_price || total !== f.lines.reduce((sum, l) => sum + l.charged_price, 0)) {
     return { ok: false, message: 'Las líneas de la cita no cuadran con lo cobrado. No se puede armar el recibo.' };
   }
 
-  const own = input.payments.filter((p) => p.business_id === business.id && p.appointment_id === appointment.id);
   const byMethod = new Map<PaymentMethod | null, number>();
-  for (const p of own) byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + p.amount);
+  for (const p of f.payments) byMethod.set(p.method, (byMethod.get(p.method) ?? 0) + p.amount);
   const order: (PaymentMethod | null)[] = [...PAYMENT_METHODS, null];
   const payments = order
     .filter((m) => (byMethod.get(m) ?? 0) > 0)
     .map((m) => ({ label: paymentMethodLabel(m), amount: byMethod.get(m) ?? 0 }));
-  const paid = own.reduce((sum, p) => sum + p.amount, 0);
+  const paid = f.payments.reduce((sum, p) => sum + p.amount, 0);
 
   return {
     ok: true,
     data: {
       header: {
-        logo_url: input.logoUrl,
-        name: business.name,
-        address: clean(business.address),
-        phone: clean(business.phone),
+        logo_url: f.logo_url,
+        name: f.business_name,
+        address: clean(f.address),
+        phone: clean(f.phone),
       },
       meta: [
-        { label: 'Recibo', value: formatReceiptNumber(input.receipt.number) },
-        { label: 'Fecha', value: `${formatDateShort(appointment.datetime)} ${formatTimePadded(appointment.datetime)}` },
-        { label: 'Registrada', value: formatReceiptDateTime(input.receipt.issued_at) },
-        { label: 'Cajero', value: cashierName(appointment, input.memberNames, business) },
-        { label: 'Cliente', value: appointment.client },
+        { label: 'Recibo', value: formatReceiptNumber(f.number) },
+        { label: 'Fecha', value: `${formatDateShort(f.appointment_datetime)} ${formatTimePadded(f.appointment_datetime)}` },
+        { label: 'Registrada', value: formatReceiptDateTime(f.issued_at) },
+        { label: 'Cajero', value: clean(f.cashier) ?? f.business_name },
+        { label: 'Cliente', value: f.client },
       ],
       lines: receiptLines,
       totals: { subtotal, discounts, total },
@@ -169,6 +181,39 @@ export function buildReceiptData(input: ReceiptInput): ReceiptResult {
       footer: '¡Gracias por su compra!',
     },
   };
+}
+
+export function buildReceiptData(input: ReceiptInput): ReceiptResult {
+  const { business, appointment, lines } = input;
+  // INVARIANTE 1 e INVARIANTE 2: solo una cita cobrada de ESTE negocio tiene recibo.
+  if (appointment.business_id !== business.id) return { ok: false, message: 'Esa cita no es de tu negocio.' };
+  if (appointment.status !== 'COMPLETED' || appointment.charged_price === null) {
+    return { ok: false, message: 'Solo las citas completadas tienen recibo.' };
+  }
+
+  // Cajero: quien cobró (`charged_by`); si no hay (cobró antes de ponerse nombre, o la
+  // cita es anterior a P4), `assembleReceipt` cae al nombre del negocio.
+  const member = appointment.charged_by ? input.memberNames.find((m) => m.user_id === appointment.charged_by) : undefined;
+  return assembleReceipt({
+    business_name: business.name,
+    address: business.address,
+    phone: business.phone,
+    logo_url: input.logoUrl,
+    number: input.receipt.number,
+    issued_at: input.receipt.issued_at,
+    appointment_datetime: appointment.datetime,
+    client: appointment.client,
+    cashier: member?.display_name,
+    lines: lines.map((l) => ({
+      service_name: input.services.find((s) => s.id === l.service_id)?.name ?? 'Servicio',
+      employee_name: employeeName(input.employees, l.employee_id),
+      list_price: l.list_price,
+      discount: l.discount,
+      charged_price: l.charged_price,
+    })),
+    charged_price: appointment.charged_price,
+    payments: input.payments.filter((p) => p.business_id === business.id && p.appointment_id === appointment.id),
+  });
 }
 
 // La hora de la cita ya es local ('YYYY-MM-DDTHH:MM'): se pasa a 12h con dos dígitos
