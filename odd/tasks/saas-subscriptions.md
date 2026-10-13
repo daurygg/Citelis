@@ -80,11 +80,15 @@ existentes. Un negocio exento o en prueba debe comportarse exactamente igual que
   - GREEN: CI run 38301726713 (commit `2480bec`): las 20 suites SQL y `test` en verde.
   - Ruta: delegado (migración + suite). PR #55 (borrador) hacia `develop`.
   - Revisión del corte (develop..d0623ef): riesgo medio, `under_budget`, sin revisión nativa pendiente.
-- [ ] **S3 · Bloqueo en el servidor.**
+- [x] **S3 · Bloqueo en el servidor.** (escrito; falta el verde en CI)
   - `is_member` exige negocio operativo.
   - Las RPC públicas de reserva cortan cuando está bloqueado.
   - `my_subscription()`.
   - Suite `supabase/tests/subscription-block.sql`, y todas las suites existentes en verde.
+  - Migración `20261012000002_subscription_block.sql`. `business_operational` es `security definer` (verificado en S2), así que no recursa. `member_select` no se toca.
+  - RED: NO observado. Esta máquina no tiene `psql` ni Docker, así que `supabase db start` no corre; la suite no se pudo ejecutar antes ni después de la migración. Por construcción, sin la migración falla en la aserción 0 (`FALLÓ 0: falta my_subscription`). Pendiente: RED/GREEN reales en CI.
+  - GREEN local: `npm run typecheck` limpio; `npm run test:run` 572/572. Las 21 suites SQL: sin ejecutar.
+  - Ruta: delegado (migración + suite).
 - [ ] **S4 · RPC del administrador.**
   - `admin_list_businesses`, `admin_register_payment`, `admin_set_exempt`.
   - Solo un `platform_admin` puede llamarlas.
@@ -122,3 +126,4 @@ Modo estricto activado (fuente: CLAUDE.md global del usuario, "Strict TDD Mode: 
 - 2026-10-12: decisiones tomadas, código mapeado y documento creado.
 - 2026-10-12: S1 hecho.
 - 2026-10-12: S2 hecho, verificado en CI. PR 1 = #55. Siguiente: S3.
+- 2026-10-13: S3 escrito (migración + suite); sin verificación SQL local. Siguiente: CI de S3 y luego S4.
