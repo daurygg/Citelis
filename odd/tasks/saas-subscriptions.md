@@ -148,3 +148,4 @@ Modo estricto activado (fuente: CLAUDE.md global del usuario, "Strict TDD Mode: 
 - 2026-10-13: S4 escrito (migración + suite, más el REVOKE de las funciones de estado); sin verificación SQL local. Siguiente: CI de S4 y luego S5.
 - 2026-10-13: S4 verificado en CI (RED y GREEN). Siguiente: S5 + S6 (PR 4).
 - 2026-10-13: S5 y S6 hechos en `feat/saas-subscriptions-ui` (PR 4, sin abrir). Pendiente de producto: texto de cómo pagar (`PAYMENT_INSTRUCTIONS`). Sin verificar en CI ni en dispositivo real.
+- 2026-10-13: S5 + S6 en CI verde (run 38432032812). PR 4 = #59, apilado sobre #58. Revisión del tramo `origin/develop..7964cbc` (S1–S6): riesgo medio, `under_budget`, 3.253 líneas; sin revisión nativa obligatoria. Pendiente: instrucciones de pago (decisión del producto) y prueba en un teléfono real.
