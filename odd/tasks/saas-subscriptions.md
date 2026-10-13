@@ -90,14 +90,17 @@ existentes. Un negocio exento o en prueba debe comportarse exactamente igual que
   - Primer intento de GREEN (run 38429755309, `0967d28`): `FALLÓ 5 [TRIAL]`. Era error de la suite: `public_business` devuelve una fila por servicio y la suite agrega uno en el paso 2. Se cuenta `distinct business_id` (`6827ff4`).
   - GREEN: CI run 38430076566 (`6827ff4`): todas las suites SQL y `test` en verde. Local: typecheck limpio, 572/572.
   - Ruta: delegado (migración + suite).
-- [x] **S4 · RPC del administrador.** (escrito; falta el verde en CI)
+- [x] **S4 · RPC del administrador.**
   - `admin_list_businesses`, `admin_register_payment`, `admin_set_exempt`.
   - Solo un `platform_admin` puede llamarlas.
   - Suite `supabase/tests/subscription-admin.sql`.
   - Migración `20261012000003_subscription_admin.sql`.
   - Decisiones: quien no es administrador recibe el error "No autorizado" (42501), no una lista vacía, igual en las tres. `admin_register_payment` es atómica (bloquea la fila de suscripción con `for update`), exige monto > 0, vía válida, negocio existente y `paid_until` posterior al actual (nunca acorta), y devuelve el id del pago. `admin_set_exempt` devuelve el estado resultante. Los pagos solo entran por la RPC (la API sigue sin INSERT/UPDATE/DELETE).
   - Endurecimiento: se quita a `authenticated` el permiso de `subscription_status` y `business_operational` (la fuga anotada en S2). Todos sus llamadores son `security definer`; la dueña sigue usando `my_subscription()`. La suite lo comprueba (aserción 7).
-  - RED/GREEN: pendiente en CI (esta máquina no tiene `psql` ni Docker). Por construcción, sin la migración la suite falla en la aserción 0 (`FALLÓ 0: falta admin_list_businesses`).
+  - RED: CI run 38430395418 (`1da884a`, solo la suite): `FALLÓ 0: falta admin_list_businesses`.
+  - Primer intento de GREEN (run 38430648294, `7d2a447`): `permission denied for function subscription_status`. Era error de la suite: llamaba a `subscription_status` como `authenticated`, justo lo que el REVOKE prohíbe. Ahora usa el estado que devuelve `admin_set_exempt` (`22f452b`).
+  - GREEN: CI run 38431057224 (`22f452b`): todas las suites SQL (S2 y S3 incluidas, con el REVOKE) y `test` en verde. PR 3 = #58, apilado sobre #57.
+  - Revisión del tramo `origin/develop..22f452b` (S1–S4): riesgo medio (`executable_change`), `under_budget`, 2.246 líneas; sin revisión nativa obligatoria.
   - Local: `npm run typecheck` limpio; `npm run test:run` verde 572/572 en 34 archivos. Las 22 suites SQL: sin ejecutar.
   - Ruta: delegado (migración + suite).
 - [ ] **S5 · Aviso y pantalla de bloqueo (dueña).**
@@ -136,3 +139,4 @@ Modo estricto activado (fuente: CLAUDE.md global del usuario, "Strict TDD Mode: 
 - 2026-10-13: S3 escrito (migración + suite); sin verificación SQL local. Siguiente: CI de S3 y luego S4.
 - 2026-10-13: S3 verificado en CI (RED y GREEN). PR 2 = #57, apilado sobre #55.
 - 2026-10-13: S4 escrito (migración + suite, más el REVOKE de las funciones de estado); sin verificación SQL local. Siguiente: CI de S4 y luego S5.
+- 2026-10-13: S4 verificado en CI (RED y GREEN). Siguiente: S5 + S6 (PR 4).
