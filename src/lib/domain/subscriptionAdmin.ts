@@ -4,7 +4,7 @@
 import type { AdminBusiness, SubscriptionPaymentMethod, SubscriptionStatus } from './types';
 
 const STATUSES: readonly SubscriptionStatus[] = ['TRIAL', 'ACTIVE', 'GRACE', 'BLOCKED', 'EXEMPT'];
-export const PAYMENT_METHODS: readonly SubscriptionPaymentMethod[] = ['TRANSFER', 'CASH', 'CARD', 'OTHER'];
+export const SUBSCRIPTION_PAYMENT_METHODS: readonly SubscriptionPaymentMethod[] = ['TRANSFER', 'CASH', 'CARD', 'OTHER'];
 
 // República Dominicana no tiene horario de verano: UTC-4 fijo todo el año.
 const DR_OFFSET = '-04:00';
@@ -65,7 +65,7 @@ export function subscriptionStatusLabel(status: SubscriptionStatus | null): stri
   return status === null ? 'Sin plan' : labels[status];
 }
 
-export function paymentMethodLabel(method: SubscriptionPaymentMethod): string {
+export function subscriptionPaymentMethodLabel(method: SubscriptionPaymentMethod): string {
   const labels: Record<SubscriptionPaymentMethod, string> = {
     TRANSFER: 'Transferencia',
     CASH: 'Efectivo',
@@ -134,7 +134,7 @@ export function validatePaymentForm(input: PaymentFormInput, currentPaidUntil: s
     errors.paid_until = 'La fecha debe ser posterior a la que ya tiene pagada.';
   }
 
-  const method = PAYMENT_METHODS.find((m) => m === input.method);
+  const method = SUBSCRIPTION_PAYMENT_METHODS.find((m) => m === input.method);
   if (method === undefined) errors.method = 'Elige cómo pagó.';
 
   if (Object.keys(errors).length > 0 || cents === null || paidUntil === null || method === undefined) {

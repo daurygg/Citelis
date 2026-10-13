@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   parseAdminBusinesses,
   parseAmountToCents,
-  paymentMethodLabel,
+  subscriptionPaymentMethodLabel,
   subscriptionStatusLabel,
   validatePaymentForm,
 } from './subscriptionAdmin';
@@ -62,10 +62,10 @@ describe('etiquetas en lenguaje de la dueña', () => {
   });
 
   it('traduce cada vía de pago', () => {
-    expect(paymentMethodLabel('TRANSFER')).toBe('Transferencia');
-    expect(paymentMethodLabel('CASH')).toBe('Efectivo');
-    expect(paymentMethodLabel('CARD')).toBe('Tarjeta');
-    expect(paymentMethodLabel('OTHER')).toBe('Otro');
+    expect(subscriptionPaymentMethodLabel('TRANSFER')).toBe('Transferencia');
+    expect(subscriptionPaymentMethodLabel('CASH')).toBe('Efectivo');
+    expect(subscriptionPaymentMethodLabel('CARD')).toBe('Tarjeta');
+    expect(subscriptionPaymentMethodLabel('OTHER')).toBe('Otro');
   });
 });
 
