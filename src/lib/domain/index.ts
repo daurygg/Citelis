@@ -11,3 +11,5 @@ export * from './payments';
 export * from './receiptProfile';
 export * from './receipt';
 export * from './subscription';
+export * from './subscriptionView';
+export * from './subscriptionAdmin';
