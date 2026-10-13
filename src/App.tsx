@@ -27,6 +27,12 @@ import { PublicLinkSettings } from './components/owner/PublicLinkSettings';
 import { PushNotificationSettings } from './components/owner/PushNotificationSettings';
 import { RequestsInbox } from './components/owner/RequestsInbox';
 import { ToastProvider } from './components/Toast';
+import { SubscriptionNoticeBar } from './components/SubscriptionNotice';
+import { BlockedScreen } from './components/BlockedScreen';
+import { AdminPanel } from './components/admin/AdminPanel';
+import { PAYMENT_INSTRUCTIONS } from './lib/subscription/paymentInstructions';
+import { useIsPlatformAdmin, useMySubscription } from './lib/subscription/useSubscriptionState';
+import { subscriptionNotice, type SubscriptionNotice } from './lib/domain/subscriptionView';
 import { initialViewFromSearch, type Screen, type ServiceView } from './lib/initialView';
 
 type Mode = 'services' | 'clothing';
@@ -95,9 +101,27 @@ function Root() {
     return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando…</div>;
   }
   if (!session) return <Login />;
+  return <SubscriptionGate />;
+}
+
+/**
+ * Lee el estado del plan ANTES de montar el store: con el negocio bloqueado el servidor
+ * ya no deja leer sus datos, así que cargar el store solo daría errores. Si no se puede
+ * leer el estado, la app sigue abierta (falla abierto; el servidor hace cumplir el bloqueo).
+ */
+function SubscriptionGate() {
+  const { signOut } = useAuth();
+  const { loading, state } = useMySubscription();
+  if (loading) {
+    return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando…</div>;
+  }
+  const notice = subscriptionNotice(state);
+  if (notice.kind === 'blocked') {
+    return <BlockedScreen instructions={PAYMENT_INSTRUCTIONS} onSignOut={() => void signOut()} />;
+  }
   return (
     <StoreProvider>
-      <AppShell />
+      <AppShell notice={notice} />
     </StoreProvider>
   );
 }
@@ -116,8 +140,10 @@ function tabButtonClass(active: boolean): string {
   );
 }
 
-function AppShell() {
+function AppShell({ notice }: { notice: SubscriptionNotice }) {
   const { signOut } = useAuth();
+  const isPlatformAdmin = useIsPlatformAdmin();
+  const [adminOpen, setAdminOpen] = useState(false);
   const { business } = useStore();
   // Si la app se abrió desde el toque de un aviso push (?vista=reservas),
   // arranca directo en la bandeja de reservas en vez de en la agenda.
@@ -170,6 +196,11 @@ function AppShell() {
               >
                 {screen === 'business' ? 'Volver' : 'Mi negocio'}
               </button>
+              {isPlatformAdmin && (
+                <button type="button" className={headerButton} onClick={() => setAdminOpen(!adminOpen)}>
+                  {adminOpen ? 'Cerrar panel' : 'Administrar'}
+                </button>
+              )}
               <button type="button" className={headerButton} onClick={invite}>
                 Invitar
               </button>
@@ -204,7 +235,9 @@ function AppShell() {
         </div>
       </header>
 
-      {screen === 'work' && (
+      {notice.kind === 'warning' && <SubscriptionNoticeBar notice={notice} />}
+
+      {screen === 'work' && !adminOpen && (
         /* Pestañas del modo activo */
         <nav className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur">
           <div className="mx-auto max-w-xl px-4 py-2">
@@ -228,7 +261,9 @@ function AppShell() {
       )}
 
       <main className="mx-auto max-w-xl px-4 py-6">
-        {screen === 'business' ? (
+        {adminOpen && isPlatformAdmin ? (
+          <AdminPanel />
+        ) : screen === 'business' ? (
           <div className="flex flex-col gap-6">
             <BrandSettings />
             <ReceiptSettings />
