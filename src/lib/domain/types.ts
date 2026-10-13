@@ -30,6 +30,28 @@ export interface Business {
   logo_path?: string | null;
 }
 
+// Suscripción del negocio a Citelis (odd/tasks/saas-subscriptions.md). Fechas en
+// ISO con zona (timestamptz): a diferencia de las citas, vencer es un instante real.
+// `paid_until` nulo = nunca pagó. `exempt` = negocio anterior a las suscripciones.
+export interface BusinessSubscription {
+  business_id: number;
+  plan: string;
+  trial_ends_at: string;
+  paid_until: string | null;
+  exempt: boolean;
+}
+
+export type SubscriptionStatus = 'TRIAL' | 'ACTIVE' | 'GRACE' | 'BLOCKED' | 'EXEMPT';
+
+// Lo que ve la UI. `ends_at` = fin del tramo actual (prueba, pago o gracia).
+// `operational` = puede usar la app y recibir reservas (falso solo en BLOCKED).
+export interface SubscriptionState {
+  status: SubscriptionStatus;
+  ends_at: string | null;
+  days_left: number;
+  operational: boolean;
+}
+
 // Nombre visible de una miembro del negocio (quien cobra, en el recibo).
 export interface MemberName {
   user_id: string;
