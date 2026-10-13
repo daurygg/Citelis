@@ -80,11 +80,16 @@ existentes. Un negocio exento o en prueba debe comportarse exactamente igual que
   - GREEN: CI run 38301726713 (commit `2480bec`): las 20 suites SQL y `test` en verde.
   - Ruta: delegado (migración + suite). PR #55 (borrador) hacia `develop`.
   - Revisión del corte (develop..d0623ef): riesgo medio, `under_budget`, sin revisión nativa pendiente.
-- [ ] **S3 · Bloqueo en el servidor.**
+- [x] **S3 · Bloqueo en el servidor.**
   - `is_member` exige negocio operativo.
   - Las RPC públicas de reserva cortan cuando está bloqueado.
   - `my_subscription()`.
   - Suite `supabase/tests/subscription-block.sql`, y todas las suites existentes en verde.
+  - Migración `20261012000002_subscription_block.sql`. `business_operational` es `security definer` (verificado en S2), así que no recursa. `member_select` no se toca.
+  - RED: CI run 38429464681 (commit `8a80a01`, solo la suite): `FALLÓ 0: falta my_subscription`.
+  - Primer intento de GREEN (run 38429755309, `0967d28`): `FALLÓ 5 [TRIAL]`. Era error de la suite: `public_business` devuelve una fila por servicio y la suite agrega uno en el paso 2. Se cuenta `distinct business_id` (`6827ff4`).
+  - GREEN: CI run 38430076566 (`6827ff4`): todas las suites SQL y `test` en verde. Local: typecheck limpio, 572/572.
+  - Ruta: delegado (migración + suite).
 - [ ] **S4 · RPC del administrador.**
   - `admin_list_businesses`, `admin_register_payment`, `admin_set_exempt`.
   - Solo un `platform_admin` puede llamarlas.
@@ -122,3 +127,5 @@ Modo estricto activado (fuente: CLAUDE.md global del usuario, "Strict TDD Mode: 
 - 2026-10-12: decisiones tomadas, código mapeado y documento creado.
 - 2026-10-12: S1 hecho.
 - 2026-10-12: S2 hecho, verificado en CI. PR 1 = #55. Siguiente: S3.
+- 2026-10-13: S3 escrito (migración + suite); sin verificación SQL local. Siguiente: CI de S3 y luego S4.
+- 2026-10-13: S3 verificado en CI (RED y GREEN). PR 2 = #57, apilado sobre #55.
