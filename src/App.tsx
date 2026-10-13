@@ -30,9 +30,9 @@ import { ToastProvider } from './components/Toast';
 import { SubscriptionNoticeBar } from './components/SubscriptionNotice';
 import { BlockedScreen } from './components/BlockedScreen';
 import { AdminPanel } from './components/admin/AdminPanel';
-import { PAYMENT_INSTRUCTIONS } from './lib/subscription/paymentInstructions';
+import { CITELIS_WHATSAPP } from './lib/subscription/paymentInstructions';
 import { useIsPlatformAdmin, useMySubscription } from './lib/subscription/useSubscriptionState';
-import { subscriptionNotice, type SubscriptionNotice } from './lib/domain/subscriptionView';
+import { subscriptionNotice, whatsappPaymentLink, type SubscriptionNotice } from './lib/domain/subscriptionView';
 import { initialViewFromSearch, type Screen, type ServiceView } from './lib/initialView';
 
 type Mode = 'services' | 'clothing';
@@ -117,7 +117,8 @@ function SubscriptionGate() {
   }
   const notice = subscriptionNotice(state);
   if (notice.kind === 'blocked') {
-    return <BlockedScreen instructions={PAYMENT_INSTRUCTIONS} onSignOut={() => void signOut()} />;
+    // Aquí el store aún no existe, así que no se conoce el nombre del negocio: mensaje sin nombre.
+    return <BlockedScreen whatsappUrl={whatsappPaymentLink(CITELIS_WHATSAPP)} onSignOut={() => void signOut()} />;
   }
   return (
     <StoreProvider>
@@ -235,7 +236,7 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
         </div>
       </header>
 
-      {notice.kind === 'warning' && <SubscriptionNoticeBar notice={notice} />}
+      {notice.kind === 'warning' && <SubscriptionNoticeBar notice={notice} payUrl={whatsappPaymentLink(CITELIS_WHATSAPP, business?.name)} />}
 
       {screen === 'work' && !adminOpen && (
         /* Pestañas del modo activo */

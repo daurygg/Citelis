@@ -56,3 +56,14 @@ export function subscriptionNotice(state: SubscriptionState | null): Subscriptio
       return { kind: 'none' };
   }
 }
+
+/**
+ * Enlace de wa.me con el mensaje ya escrito para pagar el plan. Si se conoce el
+ * nombre del negocio (sin espacios sobrantes) va en el mensaje; si no, el mensaje
+ * sale sin nombre. El texto se codifica para que acentos y símbolos no rompan el enlace.
+ */
+export function whatsappPaymentLink(phone: string, businessName?: string | null): string {
+  const name = businessName?.trim() ?? '';
+  const message = name === '' ? 'Hola, quiero renovar mi plan de Citelis.' : `Hola, quiero renovar el plan de Citelis de ${name}.`;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}

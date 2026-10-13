@@ -1,5 +1,4 @@
-// PENDIENTE DE DECISIÓN DEL PRODUCTO: cómo le paga la dueña a Citelis.
-// Este texto es un MARCADOR. No hay banco, cuenta ni contacto definidos todavía;
-// no inventes datos aquí. Cuando se decidan, se cambia SOLO esta constante.
-export const PAYMENT_INSTRUCTIONS =
-  '[PENDIENTE] Aquí van las instrucciones para pagar: banco, número de cuenta y a quién escribir para avisar del pago.';
+// Cómo le paga la dueña a Citelis: escribiendo por WhatsApp. No hay datos bancarios en la app.
+// Número en formato wa.me: código de país (1, República Dominicana) + número, sin signos.
+// Se muestra como 849-544-0323.
+export const CITELIS_WHATSAPP = '18495440323';
