@@ -207,3 +207,21 @@ export interface Slot {
   start: string; // ISO local 'YYYY-MM-DDTHH:MM'
   end: string; // ISO local 'YYYY-MM-DDTHH:MM'
 }
+
+// Vía por la que el negocio le pagó a Citelis (espejo del check de `admin_register_payment`).
+export type SubscriptionPaymentMethod = 'TRANSFER' | 'CASH' | 'CARD' | 'OTHER';
+
+// Una fila de `admin_list_businesses()`. `status` es nulo si el negocio no tiene fila
+// de suscripción (no debería pasar tras el backfill).
+export interface AdminBusiness {
+  business_id: number;
+  name: string;
+  slug: string | null;
+  plan: string | null;
+  trial_ends_at: string | null;
+  paid_until: string | null;
+  exempt: boolean;
+  status: SubscriptionStatus | null;
+  last_payment_at: string | null;
+  last_payment_cents: number | null;
+}
