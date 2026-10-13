@@ -103,15 +103,22 @@ existentes. Un negocio exento o en prueba debe comportarse exactamente igual que
   - Revisión del tramo `origin/develop..22f452b` (S1–S4): riesgo medio (`executable_change`), `under_budget`, 2.246 líneas; sin revisión nativa obligatoria.
   - Local: `npm run typecheck` limpio; `npm run test:run` verde 572/572 en 34 archivos. Las 22 suites SQL: sin ejecutar.
   - Ruta: delegado (migración + suite).
-- [ ] **S5 · Aviso y pantalla de bloqueo (dueña).**
-  - Aviso en prueba o gracia con los días restantes.
-  - Pantalla de bloqueo con cómo pagar.
-  - Lee `my_subscription()`.
-- [ ] **S6 · Panel de administración.**
-  - Lista de negocios con su estado.
-  - Registrar pago (monto, vía, nota, pagado hasta).
-  - Quitar o poner la exención.
-  - Visible solo si `is_platform_admin()`.
+- [x] **S5 · Aviso y pantalla de bloqueo (dueña).**
+  - Aviso en prueba o gracia con los días restantes; pantalla de bloqueo con cómo pagar. Lee `my_subscription()`.
+  - Archivos: `src/lib/domain/subscriptionView.ts` (+ test; `parseMySubscription` y `subscriptionNotice`), `src/lib/subscription/subscriptionApi.ts` (+ test), `useSubscriptionState.ts`, `paymentInstructions.ts`, `src/components/SubscriptionNotice.tsx`, `BlockedScreen.tsx`, y `src/App.tsx` (`SubscriptionGate`).
+  - Decisiones: el estado se lee **antes** de montar el store (con el negocio bloqueado el servidor ya no deja leer datos). **Falla abierto**: si `my_subscription()` falla o no se entiende, no se bloquea y se deja `console.error`; el bloqueo real es del servidor. ACTIVE y EXEMPT no muestran nada.
+  - **Pendiente de producto:** las instrucciones de pago (banco, cuenta, contacto) no están decididas. Es un marcador en una sola constante, `PAYMENT_INSTRUCTIONS` en `src/lib/subscription/paymentInstructions.ts`.
+  - RED: `subscriptionView.test.ts` fallaba al no existir el módulo (`Failed to load url ./subscriptionView`); `subscriptionApi.test.ts`, igual con `./subscriptionApi`. Commit RED `28aca0f`.
+  - GREEN: `subscriptionView.test.ts` 11/11 y `subscriptionApi.test.ts` 12/12.
+  - Local: `npm run typecheck` limpio; `npm run test:run` verde 613/613 en 37 archivos; `npm run build` ok. Sin tests de componentes (el proyecto no tiene testing-library); la pantalla no se ha visto en un dispositivo real.
+  - Ruta: delegado (varios componentes y el store).
+- [x] **S6 · Panel de administración.**
+  - Lista de negocios con su estado, "Registrar pago" (monto en RD$, vía, nota, pagado hasta) y quitar o poner la exención. Visible solo si `is_platform_admin()`.
+  - Archivos: `src/lib/domain/subscriptionAdmin.ts` (+ test; mapeo, etiquetas, `parseAmountToCents` y `validatePaymentForm`), tipos en `types.ts`, `src/components/admin/AdminPanel.tsx` (contenedor), `AdminBusinessCard.tsx` y `PaymentForm.tsx` (presentacionales), botón "Administrar" en `App.tsx`.
+  - Decisiones: el monto se convierte a centavos con enteros en el dominio; `paid_until` se envía como el final del día elegido en hora de RD (-04:00, sin horario de verano) y se compara como instante, igual que el servidor. El error del servidor se muestra tal cual. Si `is_platform_admin()` falla, el panel queda oculto.
+  - RED: `subscriptionAdmin.test.ts` fallaba al no existir el módulo (`Failed to load url ./subscriptionAdmin`). Commit RED `923f753`; el RED de la capa de datos es `3a3383c`.
+  - GREEN: `subscriptionAdmin.test.ts` 18/18.
+  - Ruta: delegado (varios componentes y el store).
 
 Ruta por tarea: S1 inline (un archivo y su test); S2–S4 delegado (migración + suite);
 S5–S6 delegado (varios componentes y el store).
@@ -140,3 +147,4 @@ Modo estricto activado (fuente: CLAUDE.md global del usuario, "Strict TDD Mode: 
 - 2026-10-13: S3 verificado en CI (RED y GREEN). PR 2 = #57, apilado sobre #55.
 - 2026-10-13: S4 escrito (migración + suite, más el REVOKE de las funciones de estado); sin verificación SQL local. Siguiente: CI de S4 y luego S5.
 - 2026-10-13: S4 verificado en CI (RED y GREEN). Siguiente: S5 + S6 (PR 4).
+- 2026-10-13: S5 y S6 hechos en `feat/saas-subscriptions-ui` (PR 4, sin abrir). Pendiente de producto: texto de cómo pagar (`PAYMENT_INSTRUCTIONS`). Sin verificar en CI ni en dispositivo real.
