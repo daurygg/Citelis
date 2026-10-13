@@ -337,9 +337,10 @@ begin
 
   -- Un negocio en prueba exento y de vuelta: no pierde la prueba.
   perform admin_set_exempt(v_tri, true);
-  perform admin_set_exempt(v_tri, false);
-  if subscription_status(v_tri) is distinct from 'TRIAL' then
-    raise exception 'FALLÓ 5: tras exentar y quitar, la prueba debía seguir vigente (%)', subscription_status(v_tri);
+  -- Se lee el estado que devuelve la RPC: authenticated ya no ejecuta subscription_status.
+  v_text := admin_set_exempt(v_tri, false);
+  if v_text is distinct from 'TRIAL' then
+    raise exception 'FALLÓ 5: tras exentar y quitar, la prueba debía seguir vigente (%)', v_text;
   end if;
 
   -- Rechazos.
