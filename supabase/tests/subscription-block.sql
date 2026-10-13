@@ -210,9 +210,10 @@ begin
     perform set_config('request.jwt.claims', '', true);
     execute 'set local role anon';
 
-    select count(*) into v_n from public_business(v_slug);
+    -- Una fila por servicio; lo que importa es si el negocio se ve o no.
+    select count(distinct business_id) into v_n from public_business(v_slug);
     if v_n <> (case when v_ok then 1 else 0 end) then
-      raise exception 'FALLÓ 5 [%]: public_business devolvió % filas, esperaba %', v_state, v_n, case when v_ok then 1 else 0 end;
+      raise exception 'FALLÓ 5 [%]: public_business mostró % negocios, esperaba %', v_state, v_n, case when v_ok then 1 else 0 end;
     end if;
     select count(*) into v_n from public_hours(v_slug);
     if v_n <> (case when v_ok then 7 else 0 end) then
