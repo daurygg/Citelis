@@ -136,6 +136,14 @@
       "sessions": 1,
       "memories": 3,
       "prompts": 0
+    },
+    {
+      "id": "5e56e399",
+      "created_by": "daurygg",
+      "created_at": "2026-10-13T20:13:39.331892708Z",
+      "sessions": 1,
+      "memories": 4,
+      "prompts": 0
     }
   ]
 }
