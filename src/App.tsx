@@ -27,6 +27,12 @@ import { PublicLinkSettings } from './components/owner/PublicLinkSettings';
 import { PushNotificationSettings } from './components/owner/PushNotificationSettings';
 import { RequestsInbox } from './components/owner/RequestsInbox';
 import { ToastProvider } from './components/Toast';
+import { SubscriptionNoticeBar } from './components/SubscriptionNotice';
+import { BlockedScreen } from './components/BlockedScreen';
+import { AdminPanel } from './components/admin/AdminPanel';
+import { CITELIS_WHATSAPP } from './lib/subscription/paymentInstructions';
+import { useIsPlatformAdmin, useMySubscription } from './lib/subscription/useSubscriptionState';
+import { subscriptionNotice, whatsappPaymentLink, type SubscriptionNotice } from './lib/domain/subscriptionView';
 import { initialViewFromSearch, type Screen, type ServiceView } from './lib/initialView';
 
 type Mode = 'services' | 'clothing';
@@ -95,9 +101,28 @@ function Root() {
     return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando…</div>;
   }
   if (!session) return <Login />;
+  return <SubscriptionGate />;
+}
+
+/**
+ * Lee el estado del plan ANTES de montar el store: con el negocio bloqueado el servidor
+ * ya no deja leer sus datos, así que cargar el store solo daría errores. Si no se puede
+ * leer el estado, la app sigue abierta (falla abierto; el servidor hace cumplir el bloqueo).
+ */
+function SubscriptionGate() {
+  const { signOut } = useAuth();
+  const { loading, state } = useMySubscription();
+  if (loading) {
+    return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando…</div>;
+  }
+  const notice = subscriptionNotice(state);
+  if (notice.kind === 'blocked') {
+    // Aquí el store aún no existe, así que no se conoce el nombre del negocio: mensaje sin nombre.
+    return <BlockedScreen whatsappUrl={whatsappPaymentLink(CITELIS_WHATSAPP)} onSignOut={() => void signOut()} />;
+  }
   return (
     <StoreProvider>
-      <AppShell />
+      <AppShell notice={notice} />
     </StoreProvider>
   );
 }
@@ -111,13 +136,15 @@ const headerButton = 'min-h-11 px-2.5 text-sm text-neutral-500 hover:text-neutra
 
 function tabButtonClass(active: boolean): string {
   return (
-    'min-h-11 flex-1 rounded-lg px-3 text-sm font-medium transition ' +
+    'min-h-11 flex-1 shrink-0 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition ' +
     (active ? 'bg-white text-brand-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800')
   );
 }
 
-function AppShell() {
+function AppShell({ notice }: { notice: SubscriptionNotice }) {
   const { signOut } = useAuth();
+  const isPlatformAdmin = useIsPlatformAdmin();
+  const [adminOpen, setAdminOpen] = useState(false);
   const { business } = useStore();
   // Si la app se abrió desde el toque de un aviso push (?vista=reservas),
   // arranca directo en la bandeja de reservas en vez de en la agenda.
@@ -170,6 +197,11 @@ function AppShell() {
               >
                 {screen === 'business' ? 'Volver' : 'Mi negocio'}
               </button>
+              {isPlatformAdmin && (
+                <button type="button" className={headerButton} onClick={() => setAdminOpen(!adminOpen)}>
+                  {adminOpen ? 'Cerrar panel' : 'Administrar'}
+                </button>
+              )}
               <button type="button" className={headerButton} onClick={invite}>
                 Invitar
               </button>
@@ -204,11 +236,15 @@ function AppShell() {
         </div>
       </header>
 
-      {screen === 'work' && (
+      {notice.kind === 'warning' && <SubscriptionNoticeBar notice={notice} payUrl={whatsappPaymentLink(CITELIS_WHATSAPP, business?.name)} />}
+
+      {screen === 'work' && !adminOpen && (
         /* Pestañas del modo activo */
         <nav className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur">
           <div className="mx-auto max-w-xl px-4 py-2">
-            <div className="flex gap-1 rounded-xl bg-neutral-100 p-1">
+            {/* Con 5 pestañas no caben en un teléfono angosto: la barra se desplaza
+                sola en vez de ensanchar toda la página. */}
+            <div className="flex gap-1 overflow-x-auto rounded-xl bg-neutral-100 p-1">
               {mode === 'services'
                 ? SERVICE_TABS.map((tab) => (
                     <button key={tab.id} type="button" className={tabButtonClass(serviceView === tab.id)} onClick={() => setServiceView(tab.id)}>
@@ -226,7 +262,9 @@ function AppShell() {
       )}
 
       <main className="mx-auto max-w-xl px-4 py-6">
-        {screen === 'business' ? (
+        {adminOpen && isPlatformAdmin ? (
+          <AdminPanel />
+        ) : screen === 'business' ? (
           <div className="flex flex-col gap-6">
             <BrandSettings />
             <ReceiptSettings />

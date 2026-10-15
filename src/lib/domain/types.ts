@@ -30,6 +30,28 @@ export interface Business {
   logo_path?: string | null;
 }
 
+// Suscripción del negocio a Citelis (odd/tasks/saas-subscriptions.md). Fechas en
+// ISO con zona (timestamptz): a diferencia de las citas, vencer es un instante real.
+// `paid_until` nulo = nunca pagó. `exempt` = negocio anterior a las suscripciones.
+export interface BusinessSubscription {
+  business_id: number;
+  plan: string;
+  trial_ends_at: string;
+  paid_until: string | null;
+  exempt: boolean;
+}
+
+export type SubscriptionStatus = 'TRIAL' | 'ACTIVE' | 'GRACE' | 'BLOCKED' | 'EXEMPT';
+
+// Lo que ve la UI. `ends_at` = fin del tramo actual (prueba, pago o gracia).
+// `operational` = puede usar la app y recibir reservas (falso solo en BLOCKED).
+export interface SubscriptionState {
+  status: SubscriptionStatus;
+  ends_at: string | null;
+  days_left: number;
+  operational: boolean;
+}
+
 // Nombre visible de una miembro del negocio (quien cobra, en el recibo).
 export interface MemberName {
   user_id: string;
@@ -184,4 +206,22 @@ export interface BookingPolicyRow extends BookingPolicy {
 export interface Slot {
   start: string; // ISO local 'YYYY-MM-DDTHH:MM'
   end: string; // ISO local 'YYYY-MM-DDTHH:MM'
+}
+
+// Vía por la que el negocio le pagó a Citelis (espejo del check de `admin_register_payment`).
+export type SubscriptionPaymentMethod = 'TRANSFER' | 'CASH' | 'CARD' | 'OTHER';
+
+// Una fila de `admin_list_businesses()`. `status` es nulo si el negocio no tiene fila
+// de suscripción (no debería pasar tras el backfill).
+export interface AdminBusiness {
+  business_id: number;
+  name: string;
+  slug: string | null;
+  plan: string | null;
+  trial_ends_at: string | null;
+  paid_until: string | null;
+  exempt: boolean;
+  status: SubscriptionStatus | null;
+  last_payment_at: string | null;
+  last_payment_cents: number | null;
 }
