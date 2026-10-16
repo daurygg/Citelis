@@ -5,6 +5,7 @@ import {
   validateHoursRange,
   validateFirstService,
   buildSetupSummary,
+  pendingSetupSteps,
 } from './onboardingSetup';
 
 describe('buildHoursFromPreset', () => {
@@ -79,5 +80,36 @@ describe('buildSetupSummary', () => {
 
   it('usa singular para un solo día', () => {
     expect(buildSetupSummary({ businessName: 'R', hoursDays: 1, serviceName: null })[1].label).toBe('Horarios: 1 día a la semana');
+  });
+});
+
+describe('pendingSetupSteps', () => {
+  const ready = { serviceCount: 2, hoursDays: 5, bookingOpen: true };
+
+  it('devuelve vacío cuando todo está listo', () => {
+    expect(pendingSetupSteps(ready)).toEqual([]);
+  });
+
+  it('pide el primer servicio cuando no hay ninguno', () => {
+    const steps = pendingSetupSteps({ ...ready, serviceCount: 0 });
+    expect(steps.map((s) => s.id)).toEqual(['add_service']);
+    expect(steps[0].label).toBe('Agrega tu primer servicio');
+  });
+
+  it('pide los horarios cuando no hay ninguno', () => {
+    const steps = pendingSetupSteps({ ...ready, hoursDays: 0 });
+    expect(steps.map((s) => s.id)).toEqual(['set_hours']);
+    expect(steps[0].label).toBe('Pon tus horarios');
+  });
+
+  it('pide abrir las reservas en línea cuando el portal está cerrado', () => {
+    const steps = pendingSetupSteps({ ...ready, bookingOpen: false });
+    expect(steps.map((s) => s.id)).toEqual(['open_booking']);
+    expect(steps[0].label).toBe('Abre tus reservas en línea');
+  });
+
+  it('lista todo lo que falta en orden: servicio, horarios, reservas', () => {
+    const steps = pendingSetupSteps({ serviceCount: 0, hoursDays: 0, bookingOpen: false });
+    expect(steps.map((s) => s.id)).toEqual(['add_service', 'set_hours', 'open_booking']);
   });
 });

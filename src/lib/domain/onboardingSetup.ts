@@ -86,3 +86,27 @@ export function buildSetupSummary({ businessName, hoursDays, serviceName }: Setu
       : { label: 'Primer servicio: lo agregas después en Servicios', done: false },
   ];
 }
+
+export type SetupStepId = 'add_service' | 'set_hours' | 'open_booking';
+
+export interface SetupStep {
+  id: SetupStepId;
+  label: string;
+}
+
+export interface SetupStatusInput {
+  serviceCount: number;
+  /** Días con horario guardado. */
+  hoursDays: number;
+  /** El portal de reservas en línea está abierto. */
+  bookingOpen: boolean;
+}
+
+/** Qué le falta configurar al negocio, en el orden en que conviene hacerlo. */
+export function pendingSetupSteps({ serviceCount, hoursDays, bookingOpen }: SetupStatusInput): SetupStep[] {
+  const steps: SetupStep[] = [];
+  if (serviceCount === 0) steps.push({ id: 'add_service', label: 'Agrega tu primer servicio' });
+  if (hoursDays === 0) steps.push({ id: 'set_hours', label: 'Pon tus horarios' });
+  if (!bookingOpen) steps.push({ id: 'open_booking', label: 'Abre tus reservas en línea' });
+  return steps;
+}
