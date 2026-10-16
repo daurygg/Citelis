@@ -3,12 +3,14 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../supabase/client';
+import { friendlyAuthError } from '../domain/authErrors';
 
 interface AuthState {
   session: Session | null;
   loading: boolean; // true mientras resolvemos la sesión inicial
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: string | null }>;
+  // `hasSession` indica si Supabase abrió sesión al registrar (sin confirmación de correo).
+  signUp: (email: string, password: string) => Promise<{ error: string | null; hasSession: boolean }>;
   signOut: () => Promise<void>;
 }
 
@@ -33,12 +35,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function signIn(email: string, password: string): Promise<{ error: string | null }> {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
+    return { error: error ? friendlyAuthError(error) : null };
   }
 
-  async function signUp(email: string, password: string): Promise<{ error: string | null }> {
-    const { error } = await supabase.auth.signUp({ email, password });
-    return { error: error?.message ?? null };
+  async function signUp(
+    email: string,
+    password: string,
+  ): Promise<{ error: string | null; hasSession: boolean }> {
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    // Si hay sesión, onAuthStateChange la recoge y la app entra sola.
+    return { error: error ? friendlyAuthError(error) : null, hasSession: data?.session != null };
   }
 
   async function signOut(): Promise<void> {

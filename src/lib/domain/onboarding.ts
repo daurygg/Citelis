@@ -71,3 +71,10 @@ export function stepProgress(step: OnboardingStep): { current: number; total: nu
   const index = VISIBLE_STEPS.indexOf(step);
   return { current: index === -1 ? total : index + 1, total };
 }
+
+export type SignUpOutcome = 'signed_in' | 'confirm_email';
+
+/** Qué sigue tras registrarse: con sesión se entra directo; sin ella falta confirmar el correo. */
+export function signUpOutcome(hasSession: boolean): SignUpOutcome {
+  return hasSession ? 'signed_in' : 'confirm_email';
+}

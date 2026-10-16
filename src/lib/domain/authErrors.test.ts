@@ -18,7 +18,10 @@ describe('friendlyAuthError', () => {
 
   it('explica la regla de la contraseña', () => {
     expect(friendlyAuthError('Password should be at least 6 characters')).toMatch(/8 caracteres/);
-    expect(friendlyAuthError('Password is too weak')).toMatch(/8 caracteres/);
+    // Débil no siempre es corta: no prometemos que 8 caracteres basten.
+    expect(friendlyAuthError('Password is too weak')).not.toMatch(/8 caracteres/);
+    expect(friendlyAuthError('Password is too weak')).toMatch(/más segura/);
+    expect(friendlyAuthError('weak_password')).toMatch(/más segura/);
   });
 
   it('pide esperar ante demasiados intentos', () => {
