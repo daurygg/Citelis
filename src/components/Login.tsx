@@ -2,6 +2,7 @@
 // Antes de existir un negocio rige el color de marca por defecto (rosa de Citelis).
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../lib/auth/AuthContext';
+import { friendlyAuthError } from '../lib/domain/authErrors';
 import { signUpOutcome, validateSignUp, PASSWORD_MIN_LENGTH, type SignUpErrors } from '../lib/domain/onboarding';
 import { btnGhost, btnPrimary, card, field, fieldLabel, input } from './ui';
 
@@ -73,21 +74,26 @@ export function Login() {
     }
 
     setBusy(true);
-    if (!isSignUp) {
-      const { error: err } = await signIn(email.trim(), password);
-      setBusy(false);
-      if (err) setError(err);
-      return;
-    }
+    try {
+      if (!isSignUp) {
+        const { error: err } = await signIn(email.trim(), password);
+        if (err) setError(err);
+        return;
+      }
 
-    const { error: err, hasSession } = await signUp(email.trim(), password);
-    setBusy(false);
-    if (err) {
-      setError(err);
-      return;
+      const { error: err, hasSession } = await signUp(email.trim(), password);
+      if (err) {
+        setError(err);
+        return;
+      }
+      // Con sesión, AuthContext ya la recogió y la app entra sola.
+      if (signUpOutcome(hasSession) === 'confirm_email') setPendingEmail(email.trim());
+    } catch (err) {
+      setError(friendlyAuthError(err));
+    } finally {
+      // Pase lo que pase, el botón vuelve a estar disponible.
+      setBusy(false);
     }
-    // Con sesión, AuthContext ya la recogió y la app entra sola.
-    if (signUpOutcome(hasSession) === 'confirm_email') setPendingEmail(email.trim());
   }
 
   return (
