@@ -16,7 +16,7 @@ import {
   weekRange,
 } from '../lib/format';
 import { useToast } from './Toast';
-import { btnGhost, card, field, fieldLabel, input, kpi } from './ui';
+import { btnIcon, btnQuietDanger, field, fieldLabel, input, rowDivider, screenTitle, segment, segmented, surface } from './ui';
 
 type Mode = 'day' | 'week' | 'month' | 'range';
 const MODES: { id: Mode; label: string }[] = [
@@ -25,6 +25,14 @@ const MODES: { id: Mode; label: string }[] = [
   { id: 'month', label: 'Mes' },
   { id: 'range', label: 'Rango' },
 ];
+
+function Chevron({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d={dir === 'left' ? 'm10 3.5-4.5 4.5 4.5 4.5' : 'm6 3.5 4.5 4.5-4.5 4.5'} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export function ClothingReport() {
   const inv = useInventory();
@@ -76,97 +84,98 @@ export function ClothingReport() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Reporte de ropa</h2>
+      <h2 className={screenTitle}>Reporte de ropa</h2>
 
-      <div className="flex gap-1 rounded-xl bg-neutral-100 p-1">
+      {/* Selector de modo */}
+      <div className={segmented} role="group" aria-label="Periodo">
         {MODES.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => setMode(m.id)}
-            className={
-              'min-h-11 flex-1 rounded-lg px-3 text-sm font-medium transition ' +
-              (mode === m.id ? 'bg-white text-brand-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800')
-            }
-          >
+          <button key={m.id} type="button" aria-pressed={mode === m.id} onClick={() => setMode(m.id)} className={segment(mode === m.id)}>
             {m.label}
           </button>
         ))}
       </div>
 
+      {/* Navegación (día/semana/mes) o selector de rango */}
       {mode === 'range' ? (
-        <div className="flex flex-wrap gap-3">
-          <label className={field + ' min-w-40 flex-1'}>
+        <div className="grid grid-cols-2 gap-3">
+          <label className={field}>
             <span className={fieldLabel}>Desde</span>
             <input className={input} type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value || today)} />
           </label>
-          <label className={field + ' min-w-40 flex-1'}>
+          <label className={field}>
             <span className={fieldLabel}>Hasta</span>
             <input className={input} type="date" value={rangeTo} onChange={(e) => setRangeTo(e.target.value || today)} />
           </label>
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <button type="button" className={btnGhost + ' px-3'} onClick={() => navigate(-1)} aria-label="Anterior">
-            ‹
+          <button type="button" className={btnIcon} onClick={() => navigate(-1)} aria-label="Anterior">
+            <Chevron dir="left" />
           </button>
-          <div className="flex-1 text-center font-semibold capitalize">{label}</div>
-          <button type="button" className={btnGhost + ' px-3'} onClick={() => navigate(1)} aria-label="Siguiente">
-            ›
+          <div className="min-w-0 flex-1 text-center font-semibold capitalize">{label}</div>
+          <button type="button" className={btnIcon} onClick={() => navigate(1)} aria-label="Siguiente">
+            <Chevron dir="right" />
           </button>
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className={kpi}>
-          <div className="text-sm text-neutral-500">Unidades vendidas</div>
-          <div className="text-lg font-bold">{summary.units_sold}</div>
-        </div>
-        <div className={kpi}>
-          <div className="text-sm text-neutral-500">Ingresos</div>
-          <div className="text-lg font-bold">{formatMoney(summary.total_revenue)}</div>
-        </div>
-        <div className={kpi}>
-          <div className="text-sm text-neutral-500">Costo</div>
-          <div className="text-lg font-bold">{formatMoney(summary.total_cost)}</div>
-        </div>
-        <div className={kpi}>
-          <div className="text-sm text-neutral-500">Ganancia</div>
-          <div className={'text-lg font-bold ' + (summary.total_profit >= 0 ? 'text-green-700' : 'text-red-700')}>
+      {/* Igual que el reporte de servicios en forma, pero con sus propias cifras (servicios y ropa no se mezclan). */}
+      <div className={surface + ' overflow-hidden'}>
+        <div className="p-4">
+          <p className="text-sm text-muted">Ganancia</p>
+          <p className={'text-2xl font-bold tabular-nums ' + (summary.total_profit >= 0 ? 'text-green-700' : 'text-red-700')}>
             {formatMoney(summary.total_profit)}
-          </div>
+          </p>
+          <p className="text-sm text-muted tabular-nums">
+            {summary.units_sold === 1 ? '1 unidad vendida' : `${summary.units_sold} unidades vendidas`}
+          </p>
         </div>
+        <dl className="grid grid-cols-2 gap-px border-t border-line bg-line tabular-nums">
+          <div className="bg-white p-4">
+            <dt className="text-sm text-muted">Ingresos</dt>
+            <dd className="font-semibold">{formatMoney(summary.total_revenue)}</dd>
+          </div>
+          <div className="bg-white p-4">
+            <dt className="text-sm text-muted">Costo</dt>
+            <dd className="font-semibold">{formatMoney(summary.total_cost)}</dd>
+          </div>
+        </dl>
       </div>
 
-      <div className={card}>
-        <div className="text-sm text-neutral-500">Más vendido</div>
+      <div className={surface + ' p-4'}>
+        <p className="text-sm text-muted">Más vendido</p>
         {summary.best_seller ? (
-          <div className="font-semibold">
-            {topProduct?.name ?? `Producto ${summary.best_seller.product_id}`}{' '}
-            <span className="text-neutral-500">({summary.best_seller.units} u.)</span>
-          </div>
+          <p className="flex flex-wrap items-baseline justify-between gap-x-3 font-semibold">
+            <span className="min-w-0 break-words">
+              {topProduct?.name ?? `Producto ${summary.best_seller.product_id}`}
+            </span>
+            <span className="text-muted tabular-nums">
+              {summary.best_seller.units === 1 ? '1 unidad' : `${summary.best_seller.units} unidades`}
+            </span>
+          </p>
         ) : (
-          <div className="text-neutral-500">Sin ventas en este periodo.</div>
+          <p className="text-muted">Sin ventas en este periodo.</p>
         )}
       </div>
 
-      <div className={card + ' flex flex-col gap-2'}>
-        <h3 className="font-semibold">Ventas del periodo</h3>
+      <div className={surface + ' flex flex-col'}>
+        <h3 className="p-4 pb-3 font-semibold">Ventas del periodo</h3>
         {periodSales.length === 0 ? (
-          <p className="text-sm text-neutral-500">No hay ventas registradas en este periodo.</p>
+          <p className="px-4 pb-4 text-muted">No hay ventas registradas en este periodo.</p>
         ) : (
-          <ul className="flex flex-col divide-y divide-neutral-100">
+          <ul className={'border-t border-line px-4 ' + rowDivider}>
             {periodSales.map((sale) => (
-              <li key={sale.id} className="flex items-center justify-between gap-3 py-2">
-                <div className="min-w-0">
-                  <div className="truncate font-medium">
+              <li key={sale.id} className="flex items-center justify-between gap-2">
+                <div className="min-w-0 flex-1 py-3">
+                  <div className="font-medium break-words">
                     {sale.quantity} × {productName(sale.product_id)}
                   </div>
-                  <div className="text-xs text-neutral-500">
-                    {formatDateShort(sale.datetime)} · {formatTime(sale.datetime)} · {formatMoney(saleRevenue(sale))}
+                  <div className="text-sm text-muted tabular-nums">
+                    {formatDateShort(sale.datetime)} a las {formatTime(sale.datetime)}
                   </div>
                 </div>
-                <button type="button" className="shrink-0 text-sm text-red-600 hover:underline" onClick={() => handleDeleteSale(sale.id)}>
+                <div className="shrink-0 font-semibold tabular-nums">{formatMoney(saleRevenue(sale))}</div>
+                <button type="button" className={btnQuietDanger} onClick={() => handleDeleteSale(sale.id)}>
                   Eliminar
                 </button>
               </li>
