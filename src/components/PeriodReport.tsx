@@ -189,7 +189,7 @@ export function PeriodReport() {
               <dd className="font-semibold">{formatMoney(income.total_paid)}</dd>
             </div>
             <div className="flex justify-between gap-3 py-1">
-              <dt className="text-muted">Cobrado (ingresos de arriba)</dt>
+              <dt className="text-muted">Cobrado en total</dt>
               <dd>{formatMoney(income.total_charged)}</dd>
             </div>
             <div className="flex justify-between gap-3 py-1">

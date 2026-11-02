@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, parseMoneyToCents } from '../lib/format';
 import { useToast } from './Toast';
-import { btnGhost, btnQuiet, btnQuietDanger, field, fieldLabel, input, rowDivider, surface } from './ui';
+import { btnGhost, btnQuietDanger, field, fieldLabel, input, rowDivider, surface } from './ui';
 
 export function FixedExpenses({ month }: { month: string }) {
   const store = useStore();
@@ -31,9 +31,9 @@ export function FixedExpenses({ month }: { month: string }) {
 
   return (
     <section className={surface + ' flex flex-col'}>
-      <div className="flex flex-wrap items-center justify-between gap-x-3 pt-4 pr-2 pl-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 pt-4 pr-4 pl-4">
         <h3 className="text-lg font-semibold">Gastos fijos del mes</h3>
-        <button type="button" className={btnQuiet + ' text-brand-700'} onClick={handleCopy}>
+        <button type="button" className="-ml-3 min-h-11 rounded-lg px-3 text-sm font-medium text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700" onClick={handleCopy}>
           Copiar del mes anterior
         </button>
       </div>
@@ -46,7 +46,7 @@ export function FixedExpenses({ month }: { month: string }) {
             <li key={expense.id} className="flex items-center justify-between gap-2">
               <span className="min-w-0 flex-1 py-3 break-words">{expense.concept}</span>
               <span className="shrink-0 font-semibold tabular-nums">{formatMoney(expense.amount)}</span>
-              <button type="button" className={btnQuietDanger} onClick={() => store.removeFixedExpense(expense.id)}>
+              <button type="button" className={btnQuietDanger + ' -mr-3'} onClick={() => store.removeFixedExpense(expense.id)}>
                 Quitar
               </button>
             </li>

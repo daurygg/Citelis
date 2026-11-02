@@ -57,8 +57,8 @@ function ClientCreditRow({ credit }: { credit: ClientCredit }) {
         onClick={() => setOpen((v) => !v)}
       >
         <span className="min-w-0">
-          <span className="block truncate font-semibold">{credit.client}</span>
-          {credit.phone && <span className="block truncate text-sm text-muted">{credit.phone}</span>}
+          <span className="block font-semibold break-words">{credit.client}</span>
+          {credit.phone && <span className="block text-sm text-muted">{credit.phone}</span>}
         </span>
         <span className="flex shrink-0 items-center gap-2">
           <span className="text-right tabular-nums">

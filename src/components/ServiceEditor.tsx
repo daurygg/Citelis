@@ -182,7 +182,7 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
         </div>
         <div className="border-l border-line pl-4">
           <div className="text-sm text-muted">Margen</div>
-          <div className={'text-2xl font-bold ' + (economics.margin >= 0 ? 'text-green-700' : 'text-red-700')}>
+          <div className={'text-xl font-bold ' + (economics.margin >= 0 ? 'text-green-700' : 'text-red-700')}>
             {formatMoney(economics.margin)}
           </div>
         </div>

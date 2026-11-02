@@ -50,7 +50,7 @@ export function SupplyRow({ supply, serviceId }: { supply: Supply; serviceId: nu
 
       <div className="col-span-2 flex items-center justify-between gap-2">
         <span className="text-sm text-muted tabular-nums">Cada clienta: {formatMoney(unitCost(supply))}</span>
-        <button type="button" className={btnQuietDanger} onClick={() => store.unlinkSupply(serviceId, supply.id)}>
+        <button type="button" className={btnQuietDanger + ' -mr-3'} onClick={() => store.unlinkSupply(serviceId, supply.id)}>
           Quitar
         </button>
       </div>

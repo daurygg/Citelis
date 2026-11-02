@@ -114,7 +114,7 @@ export function BookingSettings() {
                       {formatClock(hours.opens_at)} – {formatClock(hours.closes_at)}
                     </div>
                   </div>
-                  <button type="button" className={btnQuietDanger} onClick={() => store.removeBusinessHours(hours.id)}>
+                  <button type="button" className={btnQuietDanger + ' -mr-3'} onClick={() => store.removeBusinessHours(hours.id)}>
                     Quitar
                   </button>
                 </li>
@@ -174,7 +174,7 @@ export function BookingSettings() {
                     </div>
                     {block.reason !== '' && <div className="text-sm text-muted break-words">{block.reason}</div>}
                   </div>
-                  <button type="button" className={btnQuietDanger} onClick={() => store.removeTimeBlock(block.id)}>
+                  <button type="button" className={btnQuietDanger + ' -mr-3'} onClick={() => store.removeTimeBlock(block.id)}>
                     Quitar
                   </button>
                 </li>

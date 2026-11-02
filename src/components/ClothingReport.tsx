@@ -175,7 +175,7 @@ export function ClothingReport() {
                   </div>
                 </div>
                 <div className="shrink-0 font-semibold tabular-nums">{formatMoney(saleRevenue(sale))}</div>
-                <button type="button" className={btnQuietDanger} onClick={() => handleDeleteSale(sale.id)}>
+                <button type="button" className={btnQuietDanger + ' -mr-3'} onClick={() => handleDeleteSale(sale.id)}>
                   Eliminar
                 </button>
               </li>
