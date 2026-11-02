@@ -9,7 +9,7 @@ import type { Appointment, BookingPolicy, BusinessHours, Service, Slot } from '.
 import { generateSlots } from '../../lib/domain/availability';
 import { toggleServiceId } from '../../lib/domain/selection';
 import { formatTime, monthLabel, shiftISODate, todayISODate } from '../../lib/format';
-import { longDayLabel } from '../../lib/public/dayLabels';
+import { dayNumber, longDayLabel, weekdayShort } from '../../lib/public/dayLabels';
 import { estimateLabel, summarizePublicSelection } from '../../lib/public/publicSelection';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { useBusinessTheme } from '../../lib/useBusinessTheme';
@@ -317,7 +317,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
     success: { cta: '', disabled: true, onCta: () => {} },
   }[step];
   const barDetail = slotChosen
-    ? `${longDayLabel(selectedDate)}, ${formatTime(slotChosen.start)}`
+    ? `${weekdayShort(selectedDate)} ${dayNumber(selectedDate)}, ${formatTime(slotChosen.start)}`
     : `${selection.duration_min} min`;
 
   return (

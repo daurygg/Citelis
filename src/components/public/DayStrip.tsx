@@ -11,7 +11,7 @@ interface Props {
 /** Fichas tipo calendario: día de la semana pequeño y número grande. La tira se desliza por dentro. */
 export function DayStrip({ dates, today, selected, onSelect }: Props) {
   return (
-    <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-2">
+    <div className="-mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-2">
       {dates.map((date) => {
         const isSelected = date === selected;
         return (
