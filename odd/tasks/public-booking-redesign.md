@@ -83,6 +83,12 @@ Modo: estricto (sesión del usuario). Runner: `npm run test:run` (vitest).
 - [x] **T4** — Capturas a 390 px con dos colores de marca (claro y oscuro) usando datos
   simulados (`page.route`), sin tocar el Supabase real; autocrítica y ajuste.
 
+- [x] **T5** — Volver atrás con confianza (pedido de la dueña tras ver T1–T4): botón "Atrás"
+  visible de 44 px junto al progreso en los pasos 2 y 3 (reemplaza los enlaces grises), y
+  pasos sincronizados con el historial del navegador para que el atrás del teléfono vuelva al
+  paso anterior conservando lo elegido. Tras enviar, el atrás nunca reabre el formulario.
+  Ruta: delegada (lógica pura de pasos + componente).
+
 ## Checks
 
 `npm run test:run`, `npm run typecheck`, `npm run build`, capturas de T4.
@@ -100,6 +106,11 @@ Modo: estricto (sesión del usuario). Runner: `npm run test:run` (vitest).
 - Verificación final: test:run 627/627, typecheck limpio, build OK (aviso de tamaño previo).
 - RDD: `review assess` (base `develop`, solo commits, untracked excluidos) → riesgo medium
   (cambio de `package-lock.json`), `review_due=false`, `under_budget`. Queda pendiente en el slice.
+- T5 `8b9cea6`: `BackButton` junto al progreso; pasos en `history.state` (`bookingSteps.ts`,
+  TDD: RED por módulo ausente, GREEN 636/636). Tras enviar, el registro de detalles se
+  reemplaza por `success` y cualquier entrada alcanzada muestra el comprobante. Playwright:
+  atrás desde detalles conserva la hora; desde el comprobante no reaparece el formulario.
+  Sin confirmar de punta a punta: que el segundo atrás tras enviar salga del portal.
 
 ## Pendiente / abierto
 
