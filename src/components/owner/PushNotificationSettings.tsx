@@ -7,7 +7,7 @@ import { useStore } from '../../lib/store/StoreContext';
 import { useToast } from '../Toast';
 import { isIOSDevice, pushButtonState, type PushButtonState } from '../../lib/push/pushSupport';
 import { disablePush, enablePush, readPushEnvironment } from '../../lib/push/pushSubscriptionApi';
-import { btnGhost, btnPrimary, card } from '../ui';
+import { btnGhost, btnPrimary, surface } from '../ui';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY;
 
@@ -30,9 +30,9 @@ export function PushNotificationSettings() {
 
   if (!VAPID_PUBLIC_KEY) {
     return (
-      <div className={card + ' flex flex-col gap-2'}>
+      <div className={surface + ' flex flex-col gap-2 p-4'}>
         <h2 className="text-lg font-semibold">Avisos de nuevas reservas</h2>
-        <p className="text-sm text-neutral-500">Todavía no están listos para tu negocio.</p>
+        <p className="text-sm text-muted">Todavía no están listos para tu negocio.</p>
       </div>
     );
   }
@@ -66,13 +66,13 @@ export function PushNotificationSettings() {
   }
 
   return (
-    <div className={card + ' flex flex-col gap-3'}>
+    <div className={surface + ' flex flex-col gap-3 p-4'}>
       <h2 className="text-lg font-semibold">Avisos de nuevas reservas</h2>
 
-      {state === 'loading' && <p className="text-sm text-neutral-500">Comprobando…</p>}
+      {state === 'loading' && <p className="text-sm text-muted">Comprobando…</p>}
 
       {state === 'unsupported' && (
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-muted">
           Este teléfono o navegador no puede recibir avisos.
           {isIOSDevice(navigator.userAgent, navigator.maxTouchPoints) &&
             ' Prueba a actualizar el sistema de tu iPhone.'}
@@ -80,7 +80,7 @@ export function PushNotificationSettings() {
       )}
 
       {state === 'needs-install' && (
-        <div className="text-sm text-neutral-600">
+        <div className="text-sm text-muted">
           <p>Para recibir avisos, primero añade Citelis a tu pantalla de inicio:</p>
           <ol className="mt-2 list-decimal pl-5">
             <li>Toca el botón de Compartir (el cuadrado con la flecha hacia arriba).</li>
@@ -91,8 +91,8 @@ export function PushNotificationSettings() {
       )}
 
       {state === 'denied' && (
-        <p className="text-sm text-neutral-600">
-          Tienes los avisos bloqueados para Citelis. Para activarlos: Ajustes → Notificaciones → Citelis, y
+        <p className="text-sm text-muted">
+          Tienes los avisos bloqueados para Citelis. Para activarlos: Ajustes, Notificaciones, Citelis, y
           permítelos ahí.
         </p>
       )}
@@ -105,7 +105,7 @@ export function PushNotificationSettings() {
 
       {state === 'on' && (
         <div className="flex flex-col items-start gap-2">
-          <p className="text-sm text-neutral-600">Este teléfono te avisa cuando entra una reserva.</p>
+          <p className="text-sm text-muted">Este teléfono te avisa cuando entra una reserva.</p>
           <button type="button" className={btnGhost} disabled={busy} onClick={handleDisable}>
             {busy ? 'Apagando…' : 'Dejar de avisarme'}
           </button>

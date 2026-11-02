@@ -31,7 +31,7 @@ export function BrandColorPicker({
           <span className={fieldLabel}>Elige un color</span>
           <input
             type="color"
-            className="h-11 w-16 cursor-pointer rounded-lg border border-neutral-300"
+            className="h-11 w-16 cursor-pointer rounded-lg bg-white p-1 ring-1 ring-line"
             value={swatchValue}
             onChange={(e) => onChange(e.target.value)}
             aria-label="El color de tu negocio"
@@ -51,7 +51,7 @@ export function BrandColorPicker({
 
       {/* Ver el resultado explica mejor que cualquier texto por qué un color muy
           claro o muy oscuro no sale literal en el botón (decisión T2). */}
-      <div style={themeCssVars(value)} className="rounded-xl bg-brand-50 p-4">
+      <div style={themeCssVars(value)} className="rounded-xl bg-brand-50 p-4 ring-1 ring-line">
         <p className="text-sm font-semibold text-brand-700">Así se va a ver</p>
         <button type="button" className="mt-2 rounded-xl bg-brand-600 px-4 py-2.5 font-medium text-brand-fg">
           Botón de ejemplo

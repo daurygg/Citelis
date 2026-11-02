@@ -5,7 +5,7 @@
 import { useRef, useState } from 'react';
 import { useStore } from '../../lib/store/StoreContext';
 import { useToast } from '../Toast';
-import { btnGhost, btnPrimary, btnText, card, field, fieldLabel, input } from '../ui';
+import { btnGhost, btnPrimary, btnQuietDanger, field, fieldLabel, input, surface } from '../ui';
 
 export function ReceiptSettings() {
   const store = useStore();
@@ -48,22 +48,22 @@ export function ReceiptSettings() {
   }
 
   return (
-    <div className={card + ' flex flex-col gap-4'}>
+    <div className={surface + ' flex flex-col gap-4 p-4'}>
       <div>
         <h2 className="text-lg font-semibold">Datos del recibo</h2>
-        <p className="text-sm text-neutral-500">Aparecen arriba del recibo que le das a tu clienta.</p>
+        <p className="text-sm text-muted">Aparecen arriba del recibo que le das a tu clienta.</p>
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className={fieldLabel + ' text-sm'}>Logo</span>
+        <span className={"text-sm " + fieldLabel}>Logo</span>
         {store.businessLogoUrl ? (
           <img
             src={store.businessLogoUrl}
             alt="Logo de tu negocio"
-            className="max-h-24 max-w-40 self-start rounded-lg border border-neutral-200 bg-white object-contain p-1"
+            className="max-h-24 max-w-40 self-start rounded-lg bg-white object-contain p-1 ring-1 ring-line"
           />
         ) : (
-          <p className="text-sm text-neutral-400">Todavía no tienes logo.</p>
+          <p className="text-sm text-muted">Todavía no tienes logo.</p>
         )}
         <input
           ref={fileRef}
@@ -79,7 +79,7 @@ export function ReceiptSettings() {
           {store.businessLogoUrl && (
             <button
               type="button"
-              className={btnText}
+              className={btnQuietDanger}
               disabled={busy}
               onClick={() => void run(() => store.removeBusinessLogo(), 'Logo quitado')}
             >
@@ -87,7 +87,7 @@ export function ReceiptSettings() {
             </button>
           )}
         </div>
-        <p className="text-xs text-neutral-500">Imagen PNG, JPG o WebP, de hasta 500 KB.</p>
+        <p className="text-sm text-muted">Imagen PNG, JPG o WebP, de hasta 500 KB.</p>
       </div>
 
       <label className={field}>
@@ -107,7 +107,7 @@ export function ReceiptSettings() {
         Guardar dirección y teléfono
       </button>
 
-      <div className="flex flex-col gap-2 border-t border-neutral-200 pt-4">
+      <div className="flex flex-col gap-2 border-t border-line pt-4">
         <label className={field}>
           <span className={fieldLabel}>Tu nombre en los recibos</span>
           <input
@@ -119,7 +119,7 @@ export function ReceiptSettings() {
             onChange={(e) => setName(e.target.value)}
           />
         </label>
-        <p className="text-xs text-neutral-500">Sale como "Cajero" cuando tú cobras.</p>
+        <p className="text-sm text-muted">Sale como "Cajero" cuando tú cobras.</p>
         <button
           type="button"
           className={btnPrimary}
@@ -130,7 +130,7 @@ export function ReceiptSettings() {
         </button>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-700">{error}</p>}
     </div>
   );
 }
