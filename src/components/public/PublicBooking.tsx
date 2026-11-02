@@ -9,6 +9,7 @@ import type { Appointment, BookingPolicy, BusinessHours, Service, Slot } from '.
 import { generateSlots } from '../../lib/domain/availability';
 import { toggleServiceId } from '../../lib/domain/selection';
 import { formatTime, monthLabel, shiftISODate, todayISODate } from '../../lib/format';
+import { resolveStepFromHistory, stepHistoryState, type BookingStep } from '../../lib/public/bookingSteps';
 import { dayNumber, longDayLabel, weekdayShort } from '../../lib/public/dayLabels';
 import { estimateLabel, summarizePublicSelection } from '../../lib/public/publicSelection';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
@@ -20,7 +21,8 @@ import { RequestReceipt } from './RequestReceipt';
 import { ServiceList } from './ServiceList';
 import { SlotPicker } from './SlotPicker';
 import { SummaryBar } from './SummaryBar';
-import { portalBack, portalInput, stepTitle } from './portalStyles';
+import { BackButton } from './BackButton';
+import { portalInput, stepTitle } from './portalStyles';
 import {
   fetchPublicBusiness,
   fetchPublicBusy,
@@ -33,7 +35,7 @@ import {
   type PublicHoursRow,
 } from '../../lib/public/publicBooking';
 
-type Step = 'service' | 'datetime' | 'details' | 'success';
+type Step = BookingStep;
 
 type BusinessLoad =
   | { status: 'loading' }
@@ -156,6 +158,46 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmedId, setConfirmedId] = useState<number | null>(null);
 
+  // Los pasos viven en el historial del navegador (en `history.state`, no en la
+  // URL) para que el atrás del teléfono vuelva al paso anterior sin perder lo
+  // elegido, que ya vive en el estado de este componente. Las decisiones están
+  // en `bookingSteps.ts`; aquí solo se cablea. El ref deja al listener (que se
+  // monta una vez) leer siempre lo más reciente.
+  const historyCtx = useRef({ hasServices: false, hasSlot: false, sent: false });
+  historyCtx.current = {
+    hasServices: selectedServiceIds.length > 0,
+    hasSlot: selectedSlot !== null,
+    sent: confirmedId !== null,
+  };
+
+  /** Avanza de paso agregando una entrada al historial. */
+  function goForward(next: Step) {
+    window.history.pushState(stepHistoryState(next), '');
+    setSubmitError(null);
+    setStep(next);
+  }
+
+  useEffect(() => {
+    // Entrada inicial (o recarga en un paso tardío): se normaliza a 'service'.
+    const initial = resolveStepFromHistory(window.history.state, historyCtx.current);
+    window.history.replaceState(stepHistoryState(initial.step), '');
+    setStep(initial.step);
+    function onPopState(event: PopStateEvent) {
+      const { step: next, skipBack } = resolveStepFromHistory(event.state, historyCtx.current);
+      setStep(next);
+      // Entrada que no se pudo sostener (p. ej. "adelante" a 'details' sin horario):
+      // se corrige su estado para que el historial diga lo que hay en pantalla.
+      if (!skipBack && (event.state as { citelisStep?: unknown } | null)?.citelisStep !== next) {
+        window.history.replaceState(stepHistoryState(next), '');
+      }
+      // Ya enviada: si cayó en una entrada intermedia, otro paso atrás para que
+      // el siguiente atrás salga del portal sin repetir el comprobante.
+      if (skipBack) window.history.back();
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     fetchPublicBusiness(activeSlug).then((result) => {
@@ -176,7 +218,8 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
         resolvePublicSlug(activeSlug).then((currentSlug) => {
           if (cancelled) return;
           if (currentSlug && currentSlug !== activeSlug) {
-            window.history.replaceState(null, '', `/reservar/${encodeURIComponent(currentSlug)}`);
+            // Conserva el `history.state` del paso: pisarlo con null lo perdería.
+            window.history.replaceState(window.history.state, '', `/reservar/${encodeURIComponent(currentSlug)}`);
             setActiveSlug(currentSlug);
             return;
           }
@@ -279,13 +322,19 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
       // en vez de dejarla insistiendo sobre un horario que ya no existe.
       setSubmitError(result.message);
       setSelectedSlot(null);
-      setStep('datetime');
+      // Por el historial (no con push): así 'details' sale de la pila de atrás y
+      // quien avance con "adelante" cae en 'datetime' (sin horario no hay datos).
+      window.history.back();
       return;
     }
     // Solo se recuerda lo que llegó a enviarse bien: si la reserva falló, no
     // hay motivo para dar por buenos esos datos.
     rememberClient({ name, phone });
     setConfirmedId(result.appointmentId);
+    // La entrada de 'details' pasa a ser el comprobante (replace, sin push): no
+    // se agrega ninguna pulsación extra de atrás, y desde aquí el atrás nunca
+    // reabre el formulario (ver `resolveStepFromHistory`).
+    window.history.replaceState(stepHistoryState('success'), '');
     setStep('success');
   }
 
@@ -311,8 +360,8 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
 
   // Qué muestra la barra fija y qué hace su botón en cada paso.
   const bar = {
-    service: { cta: 'Elegir hora', disabled: false, onCta: () => setStep('datetime') },
-    datetime: { cta: 'Revisar mis datos', disabled: !selectedSlot, onCta: () => setStep('details') },
+    service: { cta: 'Elegir hora', disabled: false, onCta: () => goForward('datetime') },
+    datetime: { cta: 'Revisar mis datos', disabled: !selectedSlot, onCta: () => goForward('details') },
     details: { cta: submitting ? 'Enviando…' : 'Enviar solicitud', disabled: submitting, onCta: handleSubmit },
     success: { cta: '', disabled: true, onCta: () => {} },
   }[step];
@@ -339,7 +388,16 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
           </h1>
         </header>
 
-        {step !== 'success' && <BookingProgress current={step === 'service' ? 1 : step === 'datetime' ? 2 : 3} />}
+        {step !== 'success' && (
+          <div className="flex items-center gap-3">
+            {(step === 'datetime' || step === 'details') && (
+              <BackButton onClick={() => window.history.back()} disabled={submitting} />
+            )}
+            <div className="min-w-0 flex-1">
+              <BookingProgress current={step === 'service' ? 1 : step === 'datetime' ? 2 : 3} />
+            </div>
+          </div>
+        )}
 
         {step === 'service' && (
           <section className="flex flex-col gap-4">
@@ -367,9 +425,6 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
         {step === 'datetime' && selection.ready && (
           <section className="flex flex-col gap-4">
             <div>
-              <button type="button" className={portalBack} onClick={() => setStep('service')}>
-                Cambiar servicios
-              </button>
               <h2 className={stepTitle}>¿Cuándo te queda bien?</h2>
               <p className="mt-1 text-portal-muted first-letter:uppercase">{monthLabel(selectedDate)}</p>
             </div>
@@ -403,9 +458,6 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
         {step === 'details' && selection.ready && selectedSlot && (
           <section className="flex flex-col gap-4">
             <div>
-              <button type="button" className={portalBack} onClick={() => setStep('datetime')} disabled={submitting}>
-                Cambiar día u hora
-              </button>
               <h2 className={stepTitle}>¿A nombre de quién va la cita?</h2>
             </div>
 
