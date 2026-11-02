@@ -133,6 +133,8 @@ function businessDisplayName(name: string | undefined): string {
 }
 
 const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700';
+const menuItem =
+  'min-h-11 rounded-lg px-3 text-left text-sm font-medium text-ink hover:bg-paper ' + focusRing;
 const headerButton =
   'min-h-11 rounded-lg px-2.5 text-sm font-medium text-muted hover:text-ink ' + focusRing;
 
@@ -160,6 +162,7 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
   const { signOut } = useAuth();
   const isPlatformAdmin = useIsPlatformAdmin();
   const [adminOpen, setAdminOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const { business } = useStore();
   // Si la app se abrió desde el toque de un aviso push (?vista=reservas),
   // arranca directo en la bandeja de reservas en vez de en la agenda.
@@ -212,17 +215,47 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
               >
                 {screen === 'business' ? 'Volver' : 'Mi negocio'}
               </button>
-              {isPlatformAdmin && (
-                <button type="button" className={headerButton} onClick={() => setAdminOpen(!adminOpen)}>
-                  {adminOpen ? 'Cerrar panel' : 'Administrar'}
+              {/* El resto de acciones, plegadas: el nombre del negocio se queda con el ancho. */}
+              <div className="relative">
+                <button
+                  type="button"
+                  className={headerButton}
+                  aria-expanded={menuOpen}
+                  aria-haspopup="true"
+                  onClick={() => setMenuOpen((v) => !v)}
+                >
+                  Más
                 </button>
-              )}
-              <button type="button" className={headerButton} onClick={invite}>
-                Invitar
-              </button>
-              <button type="button" className={headerButton} onClick={() => signOut()}>
-                Salir
-              </button>
+                {menuOpen && (
+                  <div className="absolute top-full right-0 z-20 mt-1 flex min-w-40 flex-col rounded-xl bg-white p-1 ring-1 ring-line">
+                    {isPlatformAdmin && (
+                      <button
+                        type="button"
+                        className={menuItem}
+                        onClick={() => {
+                          setAdminOpen(!adminOpen);
+                          setMenuOpen(false);
+                        }}
+                      >
+                        {adminOpen ? 'Cerrar panel' : 'Administrar'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={menuItem}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void invite();
+                      }}
+                    >
+                      Invitar
+                    </button>
+                    <button type="button" className={menuItem} onClick={() => signOut()}>
+                      Salir
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

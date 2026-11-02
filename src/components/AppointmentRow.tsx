@@ -174,22 +174,25 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             <div className="text-sm text-brand-700">Abonó {formatMoney(alreadyPaid)}</div>
           )}
         </div>
-        {/* Estado y ganancia en una columna aparte: el nombre se queda con el ancho sobrante. */}
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className={'rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ' + STATUS_BADGE[appointment.status]}>
-            {statusLabel(appointment.status)}
-          </span>
+        <span className={'shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ' + STATUS_BADGE[appointment.status]}>
+          {statusLabel(appointment.status)}
+        </span>
+      </div>
+
+      {/* El dinero de una cita cobrada va debajo, alineado con el nombre: así el nombre no se recorta. */}
+      {(appointment.status === 'COMPLETED' && appointment.profit !== null) || owes > 0 ? (
+        <div className="-mt-1 ml-[calc(3.75rem+0.75rem)] flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
           {appointment.status === 'COMPLETED' && appointment.profit !== null && (
-            <div className="text-right tabular-nums">
-              <div className="font-semibold text-green-700">+{formatMoney(appointment.profit)}</div>
-              <div className="text-sm text-muted">Cobró {formatMoney(appointment.charged_price ?? 0)}</div>
-            </div>
+            <>
+              <span className="font-semibold text-green-700">+{formatMoney(appointment.profit)}</span>
+              <span className="text-sm text-muted">Cobró {formatMoney(appointment.charged_price ?? 0)}</span>
+            </>
           )}
           {owes > 0 && (
             <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-orange-800">Debe {formatMoney(owes)}</span>
           )}
         </div>
-      </div>
+      ) : null}
 
       {appointment.status === 'COMPLETED' && (
         <div className="flex flex-wrap gap-2">
