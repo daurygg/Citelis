@@ -150,7 +150,7 @@ function modeButtonClass(active: boolean): string {
 /** Pestaña con subrayado de marca: la activa lleva tinta y una barra de 2px. */
 function tabButtonClass(active: boolean): string {
   return (
-    'relative min-h-11 min-w-0 flex-1 whitespace-nowrap px-1 text-sm font-medium transition ' +
+    'relative min-h-11 min-w-0 flex-1 whitespace-nowrap px-1 text-[0.8125rem] font-medium min-[400px]:text-sm transition ' +
     focusRing +
     (active
       ? ' text-ink after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand-700'
