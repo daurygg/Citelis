@@ -1,6 +1,6 @@
 // Raíz de la app. Puerta de autenticación: sin sesión → Login; con sesión → la app.
 // Dos modos separados (INVARIANTE 3): Servicios y Ropa, cada uno con sus pestañas.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './lib/auth/AuthContext';
 import { supabase } from './lib/supabase/client';
 import { StoreProvider, useStore } from './lib/store/StoreContext';
@@ -163,6 +163,28 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
   const isPlatformAdmin = useIsPlatformAdmin();
   const [adminOpen, setAdminOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuWrap = useRef<HTMLDivElement>(null);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
+
+  // Patrón de divulgación: el menú se cierra con Escape (devolviendo el foco a
+  // "Más") y al tocar fuera de él.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      setMenuOpen(false);
+      menuTrigger.current?.focus();
+    }
+    function onPointerDown(event: PointerEvent) {
+      if (!menuWrap.current?.contains(event.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [menuOpen]);
   const { business } = useStore();
   // Si la app se abrió desde el toque de un aviso push (?vista=reservas),
   // arranca directo en la bandeja de reservas en vez de en la agenda.
@@ -216,12 +238,12 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
                 {screen === 'business' ? 'Volver' : 'Mi negocio'}
               </button>
               {/* El resto de acciones, plegadas: el nombre del negocio se queda con el ancho. */}
-              <div className="relative">
+              <div className="relative" ref={menuWrap}>
                 <button
+                  ref={menuTrigger}
                   type="button"
                   className={headerButton}
                   aria-expanded={menuOpen}
-                  aria-haspopup="true"
                   onClick={() => setMenuOpen((v) => !v)}
                 >
                   Más
