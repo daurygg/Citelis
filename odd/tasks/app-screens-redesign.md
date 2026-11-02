@@ -18,14 +18,16 @@ solo producto.
 
 ## Alcance autorizado (por partes, una a una)
 
-- [ ] **S1 Reservas** — `owner/RequestsInbox`, `owner/BookingSettings`.
-- [ ] **S2 Servicios** — `ServicesScreen`, `ServiceEditor`, `SupplyRow`, `AddSupplyForm`.
-- [ ] **S3 Créditos y cobro** — `ServiceCreditsScreen`, `PaymentPanel`.
-- [ ] **S4 Reportes** — `PeriodReport`, `FixedExpenses`, `ClothingReport`.
+- [x] **S1 Reservas** — `owner/RequestsInbox`, `owner/BookingSettings`.
+- [x] **S2 Servicios** — `ServicesScreen`, `ServiceEditor`, `SupplyRow`, `AddSupplyForm`.
+- [x] **S3 Créditos y cobro** — `ServiceCreditsScreen`, `PaymentPanel`.
+- [x] **S4 Reportes** — `PeriodReport`, `FixedExpenses`, `ClothingReport`.
 - [ ] **S5 Ropa** — `SellForm`, `ProductsScreen`, `ProductRow`, `CreditsScreen`.
 - [ ] **S6 Mi negocio** — `owner/{BrandSettings,ReceiptSettings,PublicLinkSettings,EmployeeSettings,PushNotificationSettings}`, `BrandColorPicker`, `QrCode`.
 - [ ] **S7 Recibos y avisos** — `ReceiptDialog`, `ReceiptSheet`, `public/PublicReceipt`, `Toast`, `ClientNotice`, `SubscriptionNotice`, `BlockedScreen`, `CalendarActions` (sin romper la impresión térmica de 80 mm).
 - [ ] **S8 Administración** — `admin/{AdminPanel,AdminBusinessCard,PaymentForm}`.
+- [ ] **S9 Pestañas** — la barra de 5 pestañas de `App.tsx` corta una a 390 px; que quepan
+  todas sin desplazamiento horizontal.
 
 Fuera de alcance: `Login`, `Onboarding`, `LoadingScreen` (los reescribe
 `feat/guided-onboarding`, aún sin fusionar), comportamiento, store, dominio, RPC.
@@ -62,3 +64,11 @@ oscura) de cada parte con Supabase simulado.
 
 - Agenda validada por la dueña ("está todo bien"); "Cobró" se queda como está.
 - Rama `feat/app-screens-redesign` creada desde `feat/owner-agenda-redesign`.
+- S1 `2aafb31`, S2 `04bc146`, S3 `646ee8b`, S4 `83f6711`, ajustes `d4f326f`. `ui.ts` suma
+  `screenTitle`, `surface`, `rowDivider`, `btnQuiet`, `btnQuietDanger`, `segmented`,
+  `segment(active)`, `btnIcon` (sin quitar exports). Sin lógica pura nueva (sin RED/GREEN).
+  taste-skill: `tells.md`, `app-screens.md` §5, §7.1–7.6, §8, §11. test:run 640/640,
+  typecheck y build OK. Capturas `s1-`…`s4-` con Supabase simulado.
+- Notas para S5–S8: reutilizar `surface`/`rowDivider`; `PaymentMethodChips` también vive en
+  `ScheduleForm`; no romper `.receipt-*` de impresión; "Quitar" en horarios borra sin confirmar
+  (comportamiento previo).
