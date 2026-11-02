@@ -98,7 +98,7 @@ export function App() {
 function Root() {
   const { session, loading } = useAuth();
   if (loading) {
-    return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando…</div>;
+    return <div className="grid min-h-dvh place-items-center bg-paper text-muted">Cargando…</div>;
   }
   if (!session) return <Login />;
   return <SubscriptionGate />;
@@ -113,7 +113,7 @@ function SubscriptionGate() {
   const { signOut } = useAuth();
   const { loading, state } = useMySubscription();
   if (loading) {
-    return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando…</div>;
+    return <div className="grid min-h-dvh place-items-center bg-paper text-muted">Cargando…</div>;
   }
   const notice = subscriptionNotice(state);
   if (notice.kind === 'blocked') {
@@ -132,12 +132,27 @@ function businessDisplayName(name: string | undefined): string {
   return name && name.trim() !== '' ? name.trim() : 'Citelis';
 }
 
-const headerButton = 'min-h-11 px-2.5 text-sm text-neutral-500 hover:text-neutral-800';
+const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700';
+const headerButton =
+  'min-h-11 rounded-lg px-2.5 text-sm font-medium text-muted hover:text-ink ' + focusRing;
 
+/** Cambio de modo (Servicios / Ropa): pastilla segmentada pequeña, quieta. */
+function modeButtonClass(active: boolean): string {
+  return (
+    'min-h-11 flex-1 rounded-lg px-3 text-sm font-medium transition ' +
+    focusRing +
+    (active ? ' bg-white text-ink shadow-sm' : ' text-muted hover:text-ink')
+  );
+}
+
+/** Pestaña con subrayado de marca: la activa lleva tinta y una barra de 2px. */
 function tabButtonClass(active: boolean): string {
   return (
-    'min-h-11 flex-1 shrink-0 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition ' +
-    (active ? 'bg-white text-brand-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800')
+    'relative min-h-11 shrink-0 whitespace-nowrap px-3.5 text-sm font-medium transition ' +
+    focusRing +
+    (active
+      ? ' text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand-700'
+      : ' text-muted hover:text-ink')
   );
 }
 
@@ -182,13 +197,13 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
   }
 
   return (
-    <div className="min-h-dvh bg-neutral-50 text-neutral-900">
+    <div className="min-h-dvh bg-paper text-ink">
       {/* Solo la barra de pestañas queda fija: el título y el cambio de modo se
           van con el scroll para no comerse ~150px de pantalla. */}
-      <header className="border-b border-neutral-200 bg-white pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto max-w-xl px-4 py-2">
+      <header className="pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto max-w-xl px-4 pt-3 pb-1">
           <div className="flex items-center justify-between gap-2">
-            <h1 className="min-w-0 truncate text-xl font-bold tracking-tight text-brand-700">{businessName}</h1>
+            <h1 className="display-name min-w-0 truncate text-2xl leading-tight font-extrabold tracking-tight">{businessName}</h1>
             <div className="flex shrink-0 items-center">
               <button
                 type="button"
@@ -212,11 +227,11 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
           </div>
 
           {inviteCode && (
-            <div className="mt-1 flex items-center justify-between gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm">
+            <div className="mt-1 flex items-center justify-between gap-2 rounded-xl bg-brand-50 px-3 py-2 text-sm">
               <span className="min-w-0">
                 Comparte este código: <strong className="tracking-widest">{inviteCode}</strong>
               </span>
-              <button type="button" className="min-h-11 shrink-0 px-2 text-brand-700 hover:underline" onClick={() => setInviteCode(null)}>
+              <button type="button" className={"shrink-0 " + headerButton} onClick={() => setInviteCode(null)}>
                 Cerrar
               </button>
             </div>
@@ -224,11 +239,11 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
 
           {screen === 'work' && (
             /* Cambio de modo: Servicios / Ropa (líneas de negocio separadas) */
-            <div className="mt-1 flex gap-1 rounded-xl bg-neutral-100 p-1">
-              <button type="button" className={tabButtonClass(mode === 'services')} onClick={() => setMode('services')}>
+            <div className="mt-1 flex gap-1 rounded-xl bg-line/60 p-1">
+              <button type="button" className={modeButtonClass(mode === 'services')} aria-pressed={mode === 'services'} onClick={() => setMode('services')}>
                 Servicios
               </button>
-              <button type="button" className={tabButtonClass(mode === 'clothing')} onClick={() => setMode('clothing')}>
+              <button type="button" className={modeButtonClass(mode === 'clothing')} aria-pressed={mode === 'clothing'} onClick={() => setMode('clothing')}>
                 Ropa
               </button>
             </div>
@@ -240,19 +255,19 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
 
       {screen === 'work' && !adminOpen && (
         /* Pestañas del modo activo */
-        <nav className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur">
-          <div className="mx-auto max-w-xl px-4 py-2">
+        <nav className="sticky top-0 z-10 mt-1 border-b border-line bg-paper">
+          <div className="mx-auto max-w-xl px-2">
             {/* Con 5 pestañas no caben en un teléfono angosto: la barra se desplaza
                 sola en vez de ensanchar toda la página. */}
-            <div className="flex gap-1 overflow-x-auto rounded-xl bg-neutral-100 p-1">
+            <div className="flex overflow-x-auto">
               {mode === 'services'
                 ? SERVICE_TABS.map((tab) => (
-                    <button key={tab.id} type="button" className={tabButtonClass(serviceView === tab.id)} onClick={() => setServiceView(tab.id)}>
+                    <button key={tab.id} type="button" className={tabButtonClass(serviceView === tab.id)} aria-current={serviceView === tab.id ? 'page' : undefined} onClick={() => setServiceView(tab.id)}>
                       {tab.label}
                     </button>
                   ))
                 : CLOTHING_TABS.map((tab) => (
-                    <button key={tab.id} type="button" className={tabButtonClass(clothingView === tab.id)} onClick={() => setClothingView(tab.id)}>
+                    <button key={tab.id} type="button" className={tabButtonClass(clothingView === tab.id)} aria-current={clothingView === tab.id ? 'page' : undefined} onClick={() => setClothingView(tab.id)}>
                       {tab.label}
                     </button>
                   ))}
@@ -261,7 +276,7 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
         </nav>
       )}
 
-      <main className="mx-auto max-w-xl px-4 py-6">
+      <main className="mx-auto max-w-xl px-4 py-5">
         {adminOpen && isPlatformAdmin ? (
           <AdminPanel />
         ) : screen === 'business' ? (
