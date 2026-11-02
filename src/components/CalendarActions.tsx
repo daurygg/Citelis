@@ -52,8 +52,8 @@ export function CalendarActions({ appointment }: { appointment: Appointment }) {
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
-      <p className="text-sm text-neutral-600">Agrégala a tu calendario para que te avise.</p>
+    <div className="flex flex-col gap-2 rounded-xl bg-white p-3 ring-1 ring-line">
+      <p className="text-sm text-muted">Agrégala a tu calendario para que te avise.</p>
       <div className="flex flex-wrap gap-2">
         <button type="button" className={btnGhostSm} onClick={handleDownload}>
           Descargar para mi calendario
