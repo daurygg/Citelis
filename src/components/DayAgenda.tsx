@@ -1,85 +1,116 @@
 // Pantalla de inicio: la agenda de un día (por defecto hoy, con navegación a
 // otros días). Solo lee del store y muestra. No calcula dinero en el JSX
 // (INVARIANTE 5): pide los valores ya calculados.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
-import { formatDateShort, formatMoney, shiftISODate, todayISODate } from '../lib/format';
+import { dayHeading } from '../lib/agendaDay';
+import { formatMoney, shiftISODate, todayISODate } from '../lib/format';
 import { AppointmentRow } from './AppointmentRow';
-import { btnGhost, card, kpi } from './ui';
+
+const iconButton =
+  'grid size-11 shrink-0 place-items-center rounded-xl bg-white text-ink ring-1 ring-line transition hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700';
+
+function Chevron({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d={dir === 'left' ? 'm10 3.5-4.5 4.5 4.5 4.5' : 'm6 3.5 4.5 4.5-4.5 4.5'} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export function DayAgenda() {
   const store = useStore();
   const today = todayISODate();
   const [date, setDate] = useState(today);
+  const dateInput = useRef<HTMLInputElement>(null);
 
   const appointments = store.appointmentsForDay(date);
   const projected = store.projectedProfitForDay(date);
   const realized = store.dayReport(date); // lo YA ganado ese día (citas completadas)
   const isToday = date === today;
+  const heading = dayHeading(date, today);
 
   return (
-    <section className="flex flex-col gap-3">
-      {/* Navegador de día */}
+    <section className="flex flex-col gap-4">
+      {/* Encabezado del día: el día y la fecha son el selector de fecha. */}
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className={btnGhost + ' px-3'}
-          onClick={() => setDate((d) => shiftISODate(d, -1))}
-          aria-label="Día anterior"
-        >
-          ‹
+        <button type="button" className={iconButton} onClick={() => setDate((d) => shiftISODate(d, -1))} aria-label="Día anterior">
+          <Chevron dir="left" />
         </button>
-        <div className="flex-1 text-center">
-          <div className="font-semibold">
-            {formatDateShort(date)} {isToday && <span className="text-brand-700">(hoy)</span>}
+        <div className="relative min-h-11 min-w-0 flex-1 rounded-xl px-1 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-700">
+          <div className="pointer-events-none">
+            <h2 className="flex items-baseline gap-2 text-[1.75rem] leading-tight font-semibold tracking-tight capitalize">
+              {heading.weekday}
+              {heading.relative && (
+                <span className="rounded-full bg-brand-100 px-2.5 py-0.5 text-sm font-medium tracking-normal normal-case">
+                  {heading.relative}
+                </span>
+              )}
+            </h2>
+            <p className="text-muted">{heading.date}</p>
           </div>
+          {/* El input cubre el encabezado: tocarlo abre el selector de fecha del teléfono. */}
           <input
+            ref={dateInput}
             type="date"
-            className="mt-1 min-h-11 text-base text-neutral-500 outline-none"
+            aria-label="Elegir otra fecha"
+            className="absolute inset-0 size-full min-h-0 cursor-pointer opacity-0"
             value={date}
             onChange={(e) => setDate(e.target.value || today)}
+            onClick={() => {
+              try {
+                dateInput.current?.showPicker?.();
+              } catch {
+                /* Sin showPicker: el navegador abre su selector por su cuenta. */
+              }
+            }}
           />
         </div>
-        <button
-          type="button"
-          className={btnGhost + ' px-3'}
-          onClick={() => setDate((d) => shiftISODate(d, 1))}
-          aria-label="Día siguiente"
-        >
-          ›
+        <button type="button" className={iconButton} onClick={() => setDate((d) => shiftISODate(d, 1))} aria-label="Día siguiente">
+          <Chevron dir="right" />
         </button>
       </div>
 
       {!isToday && (
-        <button type="button" className="self-center text-sm text-brand-700 hover:underline" onClick={() => setDate(today)}>
+        <button
+          type="button"
+          className="-mt-2 min-h-11 self-start rounded-lg px-1 text-sm font-medium text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-brand-700"
+          onClick={() => setDate(today)}
+        >
           Volver a hoy
         </button>
       )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className={kpi}>
-          <div className="text-xs text-neutral-400">Ganado</div>
-          <div className="text-lg font-bold text-green-700">{formatMoney(realized.gross_profit)}</div>
-          <div className="text-xs text-neutral-500">{realized.completed_count} completada(s)</div>
+      {/* Las tres cifras del día en una sola franja: Ganado manda, las otras dos acompañan. */}
+      <div className="grid grid-cols-[1.15fr_1fr] gap-4 rounded-2xl bg-white p-4 ring-1 ring-line">
+        <div>
+          <p className="text-sm text-muted">Ganado</p>
+          <p className="text-2xl font-bold tabular-nums text-green-700">{formatMoney(realized.gross_profit)}</p>
+          <p className="text-sm text-muted">
+            {realized.completed_count === 1 ? '1 cita completada' : `${realized.completed_count} citas completadas`}
+          </p>
         </div>
-        <div className={kpi}>
-          <div className="text-xs text-neutral-400">Proyectado (pendientes)</div>
-          <div className="text-lg font-bold text-brand-700">{formatMoney(projected)}</div>
-          <div className="text-xs text-neutral-500">aún no realizado</div>
-        </div>
-
-        <div className={kpi + ' col-span-2'}>
-          <div className="text-xs text-neutral-400">Cobrado</div>
-          <div className="text-lg font-bold">{formatMoney(realized.total_income)}</div>
-        </div>
+        <dl className="flex flex-col justify-between gap-2 border-l border-line pl-4">
+          <div>
+            <dt className="text-sm text-muted">Proyectado</dt>
+            <dd className="font-semibold tabular-nums">{formatMoney(projected)}</dd>
+          </div>
+          <div>
+            <dt className="text-sm text-muted">Cobrado</dt>
+            <dd className="font-semibold tabular-nums">{formatMoney(realized.total_income)}</dd>
+          </div>
+        </dl>
       </div>
 
       {appointments.length === 0 ? (
-        <p className={card + ' text-neutral-500'}>
-          {isToday ? 'No hay citas para hoy. Agenda la primera arriba.' : 'No hay citas para este día.'}
-        </p>
+        <div className="rounded-2xl bg-white p-5 ring-1 ring-line">
+          <p className="font-semibold">{isToday ? 'No hay citas para hoy' : 'No hay citas para este día'}</p>
+          <p className="mt-1 text-muted">
+            {isToday ? 'Cuando agendes una, aparece aquí.' : 'Prueba otro día o agenda una cita.'}
+          </p>
+        </div>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col gap-2">
           {appointments.map((appointment) => (
             <AppointmentRow key={appointment.id} appointment={appointment} />
           ))}
