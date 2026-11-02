@@ -98,6 +98,8 @@ Modo: estricto (sesión del usuario). Runner: `npm run test:run` (vitest).
 - T4 `0a8d87d`: capturas 390/360 px con #f5c2d0 y #1e3a5f; corregidos recortes en la barra
   y el margen de la tira de días. Overflow horizontal 0 px.
 - Verificación final: test:run 627/627, typecheck limpio, build OK (aviso de tamaño previo).
+- RDD: `review assess` (base `develop`, solo commits, untracked excluidos) → riesgo medium
+  (cambio de `package-lock.json`), `review_due=false`, `under_budget`. Queda pendiente en el slice.
 
 ## Pendiente / abierto
 
