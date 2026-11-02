@@ -4,15 +4,23 @@
 // la clienta — y una pantalla final. Decisión D1 del ODD de self-booking: la
 // solicitud NO se autoconfirma, así que esa pantalla nunca dice "reservado".
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import '@fontsource-variable/bricolage-grotesque/standard.css';
 import type { Appointment, BookingPolicy, BusinessHours, Service, Slot } from '../../lib/domain/types';
 import { generateSlots } from '../../lib/domain/availability';
 import { toggleServiceId } from '../../lib/domain/selection';
-import { formatTime, shiftISODate, todayISODate } from '../../lib/format';
-import { estimateLabel, servicePriceLabel, summarizePublicSelection } from '../../lib/public/publicSelection';
+import { formatTime, monthLabel, shiftISODate, todayISODate } from '../../lib/format';
+import { longDayLabel } from '../../lib/public/dayLabels';
+import { estimateLabel, summarizePublicSelection } from '../../lib/public/publicSelection';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { useBusinessTheme } from '../../lib/useBusinessTheme';
 import { readRememberedClient, rememberClient } from '../../lib/rememberedClient';
-import { btnGhost, btnPrimary, card, field, fieldLabel, input } from '../ui';
+import { BookingProgress } from './BookingProgress';
+import { DayStrip } from './DayStrip';
+import { RequestReceipt } from './RequestReceipt';
+import { ServiceList } from './ServiceList';
+import { SlotPicker } from './SlotPicker';
+import { SummaryBar } from './SummaryBar';
+import { portalBack, portalInput, stepTitle } from './portalStyles';
 import {
   fetchPublicBusiness,
   fetchPublicBusy,
@@ -44,18 +52,10 @@ type BusyLoad =
   | { status: 'ready'; busy: PublicBusyRow[] };
 
 const DAY_CHIP_CAP = 30;
-const WEEKDAY_SHORT = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 
 /** Nombre del negocio para mostrar, o "Citelis" si viene vacío. */
 function businessDisplayName(name: string | undefined): string {
   return name && name.trim() !== '' ? name.trim() : 'Citelis';
-}
-
-/** "2026-07-02" → "jue 2" (etiqueta compacta para los chips de día). */
-function dayChipLabel(isoDate: string): string {
-  const day = Number(isoDate.slice(8, 10));
-  const weekday = new Date(`${isoDate}T00:00`).getDay();
-  return `${WEEKDAY_SHORT[weekday]} ${day}`;
 }
 
 /**
@@ -299,239 +299,196 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
     return (
       <CenteredMessage>
         No pudimos conectar. Intenta de nuevo en un momento.
-        <span className="mt-1 block text-xs text-neutral-400">{businessLoad.message}</span>
+        <span className="mt-1 block text-xs text-portal-muted">{businessLoad.message}</span>
       </CenteredMessage>
     );
   }
   const readyBusiness = businessLoad.business;
   const readyBusinessName = businessDisplayName(readyBusiness.business_name);
+  const today = todayISODate();
+  const slotChosen = step === 'datetime' || step === 'details' ? selectedSlot : null;
+  const showBar = selection.ready && step !== 'success';
+
+  // Qué muestra la barra fija y qué hace su botón en cada paso.
+  const bar = {
+    service: { cta: 'Elegir hora', disabled: false, onCta: () => setStep('datetime') },
+    datetime: { cta: 'Revisar mis datos', disabled: !selectedSlot, onCta: () => setStep('details') },
+    details: { cta: submitting ? 'Enviando…' : 'Enviar solicitud', disabled: submitting, onCta: handleSubmit },
+    success: { cta: '', disabled: true, onCta: () => {} },
+  }[step];
+  const barDetail = slotChosen
+    ? `${longDayLabel(selectedDate)}, ${formatTime(slotChosen.start)}`
+    : `${selection.duration_min} min`;
 
   return (
-    <div className="min-h-dvh bg-neutral-50 px-4 py-6 text-neutral-900">
-      <div className="mx-auto flex max-w-md flex-col gap-4">
-        <header className="text-center">
-          <h1 className="text-xl font-bold text-brand-700">{readyBusinessName}</h1>
-          <p className="text-sm text-neutral-500">Reserva tu cita en línea</p>
+    <div
+      className={
+        'min-h-dvh bg-portal-paper px-4 pt-8 font-portal text-portal-ink ' + (showBar ? 'pb-40' : 'pb-10')
+      }
+    >
+      <div className="mx-auto flex max-w-md flex-col gap-6">
+        <header>
+          <p className="text-portal-muted">Reserva en</p>
+          <h1
+            className={
+              'portal-display font-extrabold leading-[1.02] tracking-tight text-balance break-words ' +
+              (readyBusinessName.length > 22 ? 'text-[1.875rem]' : 'text-[2.5rem]')
+            }
+          >
+            {readyBusinessName}
+          </h1>
         </header>
 
-        <StepIndicator step={step} />
+        {step !== 'success' && <BookingProgress current={step === 'service' ? 1 : step === 'datetime' ? 2 : 3} />}
 
         {step === 'service' && (
-          <div className={card + ' flex flex-col gap-2'}>
-            <h2 className="text-lg font-semibold">Elige tus servicios</h2>
-            <p className="text-xs text-neutral-500">Puedes elegir más de uno.</p>
+          <section className="flex flex-col gap-4">
+            <div>
+              <h2 className={stepTitle}>¿Qué te vas a hacer?</h2>
+              <p className="mt-1 text-portal-muted">Puedes elegir más de uno.</p>
+            </div>
             {readyBusiness.services.length === 0 && (
-              <p className="text-sm text-neutral-500">
+              <p className="text-portal-muted">
                 Este negocio no tiene servicios disponibles para reservar en línea todavía.
               </p>
             )}
-            {readyBusiness.services.map((s) => (
-              <button
-                key={s.service_id}
-                type="button"
-                aria-pressed={selection.service_ids.includes(s.service_id)}
-                className={
-                  'flex min-h-11 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition ' +
-                  (selection.service_ids.includes(s.service_id)
-                    ? 'border-brand-500 bg-brand-50'
-                    : 'border-neutral-200 hover:bg-neutral-50')
-                }
-                onClick={() => {
-                  setSelectedServiceIds((prev) => toggleServiceId(prev, s.service_id));
-                  // Cambió la duración: el horario que tenía elegido ya no vale.
-                  setSelectedSlot(null);
-                }}
-              >
-                <span className="min-w-0">
-                  <span className="block font-medium">{s.service_name}</span>
-                  <span className="block text-xs text-neutral-500">{s.duration_min} min</span>
-                </span>
-                <span className="shrink-0 text-right font-semibold text-brand-700">{servicePriceLabel(s)}</span>
-              </button>
-            ))}
-            {selection.ready && (
-              <p className="mt-1 text-sm text-neutral-600">
-                Total: {selection.duration_min} min · {estimateLabel(selection)}
-              </p>
-            )}
-            <button
-              type="button"
-              className={btnPrimary + ' mt-2'}
-              disabled={!selection.ready}
-              onClick={() => setStep('datetime')}
-            >
-              Continuar
-            </button>
-          </div>
+            <ServiceList
+              services={readyBusiness.services}
+              selectedIds={selection.service_ids}
+              onToggle={(id) => {
+                setSelectedServiceIds((prev) => toggleServiceId(prev, id));
+                // Cambió la duración: el horario que tenía elegido ya no vale.
+                setSelectedSlot(null);
+              }}
+            />
+          </section>
         )}
 
         {step === 'datetime' && selection.ready && (
-          <div className={card + ' flex flex-col gap-3'}>
-            <h2 className="text-lg font-semibold">Elige día y hora</h2>
-
-            <div className="flex snap-x gap-2 overflow-x-auto pb-1">
-              {dayChips.map((date) => (
-                <button
-                  key={date}
-                  type="button"
-                  className={
-                    'min-h-11 shrink-0 snap-start rounded-lg border px-3 text-sm ' +
-                    (date === selectedDate
-                      ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700'
-                      : 'border-neutral-200 text-neutral-600')
-                  }
-                  onClick={() => {
-                    setSelectedDate(date);
-                    setSelectedSlot(null);
-                  }}
-                >
-                  {dayChipLabel(date)}
-                </button>
-              ))}
+          <section className="flex flex-col gap-4">
+            <div>
+              <button type="button" className={portalBack} onClick={() => setStep('service')}>
+                Cambiar servicios
+              </button>
+              <h2 className={stepTitle}>¿Cuándo te queda bien?</h2>
+              <p className="mt-1 text-portal-muted first-letter:uppercase">{monthLabel(selectedDate)}</p>
             </div>
 
-            {busyLoad.status === 'loading' && <p className="text-sm text-neutral-500">Buscando horarios…</p>}
+            <DayStrip
+              dates={dayChips}
+              today={today}
+              selected={selectedDate}
+              onSelect={(date) => {
+                setSelectedDate(date);
+                setSelectedSlot(null);
+              }}
+            />
+
+            {busyLoad.status === 'loading' && <p className="text-portal-muted">Buscando horarios…</p>}
             {busyLoad.status === 'error' && (
-              <p className="text-sm text-red-600">No pudimos cargar los horarios de este día. Intenta de nuevo.</p>
+              <p className="text-red-700">No pudimos cargar los horarios de este día. Intenta de nuevo.</p>
             )}
             {hoursLoad.status === 'error' && (
-              <p className="text-sm text-red-600">No pudimos cargar el horario de atención. Intenta de nuevo.</p>
+              <p className="text-red-700">No pudimos cargar el horario de atención. Intenta de nuevo.</p>
             )}
             {busyLoad.status === 'ready' && hoursLoad.status === 'ready' && slots.length === 0 && (
-              <p className="text-sm text-neutral-500">No hay horarios disponibles este día. Prueba otro.</p>
+              <p className="text-portal-muted">No hay horarios disponibles este día. Prueba otro.</p>
             )}
             {busyLoad.status === 'ready' && hoursLoad.status === 'ready' && slots.length > 0 && (
-              <div className="grid grid-cols-3 gap-2">
-                {slots.map((slot) => (
-                  <button
-                    key={slot.start}
-                    type="button"
-                    className={
-                      'min-h-11 rounded-lg border px-2 py-3 text-sm ' +
-                      (selectedSlot?.start === slot.start
-                        ? 'border-brand-500 bg-brand-50 font-semibold text-brand-700'
-                        : 'border-neutral-200 text-neutral-700')
-                    }
-                    onClick={() => setSelectedSlot(slot)}
-                  >
-                    {formatTime(slot.start)}
-                  </button>
-                ))}
-              </div>
+              <SlotPicker slots={slots} selected={selectedSlot} onSelect={setSelectedSlot} />
             )}
-
-            <div className="flex gap-2">
-              <button type="button" className={btnGhost} onClick={() => setStep('service')}>
-                Atrás
-              </button>
-              <button
-                type="button"
-                className={btnPrimary + ' flex-1'}
-                disabled={!selectedSlot}
-                onClick={() => setStep('details')}
-              >
-                Continuar
-              </button>
-            </div>
-          </div>
+          </section>
         )}
 
         {step === 'details' && selection.ready && selectedSlot && (
-          <div className={card + ' flex flex-col gap-3'}>
-            <h2 className="text-lg font-semibold">Tus datos</h2>
-            <p className="text-sm text-neutral-500">
-              {selectedNames} · {dayChipLabel(selectedDate)} · {formatTime(selectedSlot.start)}
-            </p>
-            <p className="text-sm text-neutral-500">
-              {selection.duration_min} min · {estimateLabel(selection)}
-            </p>
-
-            <label className={field}>
-              <span className={fieldLabel}>Tu nombre</span>
-              <input
-                className={input}
-                type="text"
-                name="name"
-                autoComplete="name"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                placeholder="Nombre completo"
-              />
-            </label>
-
-            <label className={field}>
-              <span className={fieldLabel}>Tu teléfono</span>
-              <input
-                className={input}
-                type="tel"
-                name="tel"
-                autoComplete="tel"
-                value={clientPhone}
-                onChange={(e) => setClientPhone(e.target.value)}
-                placeholder="Para avisarte si se confirma"
-              />
-            </label>
-
-            {submitError && <p className="text-sm text-red-600">{submitError}</p>}
-
-            <div className="flex gap-2">
-              <button type="button" className={btnGhost} onClick={() => setStep('datetime')} disabled={submitting}>
-                Atrás
+          <section className="flex flex-col gap-4">
+            <div>
+              <button type="button" className={portalBack} onClick={() => setStep('datetime')} disabled={submitting}>
+                Cambiar día u hora
               </button>
-              <button type="button" className={btnPrimary + ' flex-1'} disabled={submitting} onClick={handleSubmit}>
-                {submitting ? 'Enviando…' : 'Solicitar cita'}
-              </button>
+              <h2 className={stepTitle}>¿A nombre de quién va la cita?</h2>
             </div>
-          </div>
+
+            <form
+              className="flex flex-col gap-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleSubmit();
+              }}
+            >
+              <label className="flex flex-col gap-1.5">
+                <span className="font-medium">Tu nombre</span>
+                <input
+                  className={portalInput}
+                  type="text"
+                  name="name"
+                  autoComplete="name"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  placeholder="Nombre completo"
+                />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="font-medium">Tu teléfono</span>
+                <input
+                  className={portalInput}
+                  type="tel"
+                  name="tel"
+                  autoComplete="tel"
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(e.target.value)}
+                  placeholder="Para avisarte si se confirma"
+                />
+              </label>
+
+              {submitError && (
+                <p role="alert" className="text-red-700">
+                  {submitError}
+                </p>
+              )}
+            </form>
+          </section>
         )}
 
         {step === 'success' && selection.ready && selectedSlot && (
-          <div className={card + ' flex flex-col gap-2 text-center'}>
-            <h2 className="text-lg font-semibold text-brand-700">Solicitud enviada — te confirmamos pronto</h2>
-            <p className="text-sm text-neutral-600">
-              Pediste <strong>{selectedNames}</strong> el {dayChipLabel(selectedDate)} a las{' '}
-              {formatTime(selectedSlot.start)}.
-            </p>
-            <p className="text-sm text-neutral-500">
-              Esto todavía no es una cita confirmada: {readyBusinessName} tiene que aceptarla. Te avisamos
-              apenas responda.
-            </p>
+          <>
+            <RequestReceipt
+              businessName={readyBusinessName}
+              serviceNames={selectedServices.map((s) => s.service_name)}
+              dayLabel={longDayLabel(selectedDate)}
+              timeLabel={formatTime(selectedSlot.start)}
+              durationLabel={`${selection.duration_min} min`}
+              estimate={estimateLabel(selection)}
+              clientName={clientName.trim()}
+              folio={confirmedId}
+            />
             {/* El archivo .ics / enlace de Google Calendar (Slice E) es para el
                 calendario de la DUEÑA, no de la clienta, y solo aparece cuando
                 ella ACEPTA la solicitud, no aquí: prometer un evento para una
                 cita que todavía no existe le mentiría a la clienta. */}
-            {confirmedId !== null && <p className="text-xs text-neutral-400">Folio: {confirmedId}</p>}
-          </div>
+          </>
         )}
       </div>
+
+      {showBar && (
+        <SummaryBar
+          title={selectedNames}
+          detail={barDetail}
+          price={estimateLabel(selection)}
+          cta={bar.cta}
+          ctaDisabled={bar.disabled}
+          onCta={bar.onCta}
+        />
+      )}
     </div>
   );
 }
 
 function CenteredMessage({ children }: { children: ReactNode }) {
   return (
-    <div className="grid min-h-dvh place-items-center bg-neutral-50 px-6 text-center text-neutral-600">
+    <div className="grid min-h-dvh place-items-center bg-portal-paper px-6 text-center font-portal text-portal-ink">
       <div>{children}</div>
-    </div>
-  );
-}
-
-function StepIndicator({ step }: { step: Step }) {
-  if (step === 'success') return null;
-  const steps: { id: Step; label: string }[] = [
-    { id: 'service', label: 'Servicio' },
-    { id: 'datetime', label: 'Día y hora' },
-    { id: 'details', label: 'Tus datos' },
-  ];
-  const activeIndex = steps.findIndex((s) => s.id === step);
-  return (
-    <div className="flex items-center justify-center gap-2 text-xs text-neutral-500">
-      {steps.map((s, i) => (
-        <span key={s.id} className={i === activeIndex ? 'font-semibold text-brand-700' : ''}>
-          {i + 1}. {s.label}
-          {i < steps.length - 1 && <span className="mx-1 text-neutral-300">·</span>}
-        </span>
-      ))}
     </div>
   );
 }
