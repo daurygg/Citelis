@@ -22,11 +22,11 @@ solo producto.
 - [x] **S2 Servicios** — `ServicesScreen`, `ServiceEditor`, `SupplyRow`, `AddSupplyForm`.
 - [x] **S3 Créditos y cobro** — `ServiceCreditsScreen`, `PaymentPanel`.
 - [x] **S4 Reportes** — `PeriodReport`, `FixedExpenses`, `ClothingReport`.
-- [ ] **S5 Ropa** — `SellForm`, `ProductsScreen`, `ProductRow`, `CreditsScreen`.
-- [ ] **S6 Mi negocio** — `owner/{BrandSettings,ReceiptSettings,PublicLinkSettings,EmployeeSettings,PushNotificationSettings}`, `BrandColorPicker`, `QrCode`.
-- [ ] **S7 Recibos y avisos** — `ReceiptDialog`, `ReceiptSheet`, `public/PublicReceipt`, `Toast`, `ClientNotice`, `SubscriptionNotice`, `BlockedScreen`, `CalendarActions` (sin romper la impresión térmica de 80 mm).
-- [ ] **S8 Administración** — `admin/{AdminPanel,AdminBusinessCard,PaymentForm}`.
-- [ ] **S9 Pestañas** — la barra de 5 pestañas de `App.tsx` corta una a 390 px; que quepan
+- [x] **S5 Ropa** — `SellForm`, `ProductsScreen`, `ProductRow`, `CreditsScreen`.
+- [x] **S6 Mi negocio** — `owner/{BrandSettings,ReceiptSettings,PublicLinkSettings,EmployeeSettings,PushNotificationSettings}`, `BrandColorPicker`, `QrCode`.
+- [x] **S7 Recibos y avisos** — `ReceiptDialog`, `ReceiptSheet`, `public/PublicReceipt`, `Toast`, `ClientNotice`, `SubscriptionNotice`, `BlockedScreen`, `CalendarActions` (sin romper la impresión térmica de 80 mm).
+- [x] **S8 Administración** — `admin/{AdminPanel,AdminBusinessCard,PaymentForm}`.
+- [x] **S9 Pestañas** — la barra de 5 pestañas de `App.tsx` corta una a 390 px; que quepan
   todas sin desplazamiento horizontal.
 
 Fuera de alcance: `Login`, `Onboarding`, `LoadingScreen` (los reescribe
@@ -72,3 +72,17 @@ oscura) de cada parte con Supabase simulado.
 - Notas para S5–S8: reutilizar `surface`/`rowDivider`; `PaymentMethodChips` también vive en
   `ScheduleForm`; no romper `.receipt-*` de impresión; "Quitar" en horarios borra sin confirmar
   (comportamiento previo).
+- S5 `953c5b5`, S6 `897b4ad`, S7 `4c8e481`, S8 `94a588a`, S9 `b36f5a7` + `d01e517`.
+  Pestañas de igual ancho: caben a 360 y 390 px en ambos modos sin desplazarse.
+  Impresión (S7): con `emulateMedia('print')` solo queda el recibo, negro sobre fondo
+  transparente, 80 mm; verificado por estilos computados (no se renderizó el PDF).
+  test:run 640/640, typecheck y build OK.
+
+## Pendiente / abierto
+
+- Deuda previa (INVARIANTE 5): `SellForm` calcula la ganancia en el componente
+  (`(unitPrice - unitCost) * quantity`); antes estaba dentro del JSX, ahora en un `const`.
+  Debería salir a `src/lib/domain/inventory`.
+- `BrandColorPicker`: etiqueta algo desalineada (lo comparte Onboarding, fuera de alcance).
+- Pestañas a 360 px quedan justas; textos nuevos no revisados por debajo de 360 px.
+- Fusionar `feat/guided-onboarding` exigirá resolver conflictos en `App.tsx` y `DayAgenda.tsx`.
