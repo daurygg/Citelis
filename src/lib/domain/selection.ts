@@ -57,6 +57,10 @@ export interface ScheduleDraft {
   deposit?: number | null;
   /** Cómo pagó el abono. Con abono, el pago nace en la misma transacción que la cita. */
   deposit_method?: PaymentMethod | null;
+  /** Teléfono de la clienta para ESTA cita (el aviso por WhatsApp sale de aquí). */
+  client_phone?: string | null;
+  /** Clienta elegida del registro. Sin ella, el servidor la busca por teléfono o la crea. */
+  client_id?: number | null;
 }
 
 /** Argumentos de la RPC `schedule_appointment`. El negocio va explícito (INVARIANTE 1). */
@@ -70,5 +74,8 @@ export function scheduleRpcArgs(businessId: number, draft: ScheduleDraft) {
     p_deposit: draft.deposit ?? null,
     p_service_ids: [...draft.service_ids],
     p_deposit_method: draft.deposit_method ?? null,
+    // En blanco = sin teléfono: el servidor no debe guardar una cadena vacía.
+    p_client_phone: draft.client_phone?.trim() ? draft.client_phone.trim() : null,
+    p_client_id: draft.client_id ?? null,
   };
 }
