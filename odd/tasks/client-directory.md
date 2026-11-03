@@ -92,6 +92,13 @@ Rama `feat/client-directory` desde `develop`. Estrategia `ask-on-risk`. PR a `de
   `p_client_phone`; la cita de la dueña muestra "Avisar a … por WhatsApp" con enlace wa.me.
   Arreglos: tocar el campo reabre la lista; aviso de duplicada a ancho completo en 360 px.
 
+- RDD: `review assess` → high (`high_risk`). Consentimiento: concedido por la dueña. Revisión
+  4R aprobada sin bloqueos; acuse `review-d9c730b6dc05e816` (autoridad quemada). Avisos no
+  bloqueantes: carrera al crear clienta desde el portal (dos reservas simultáneas con el mismo
+  teléfono → choque con el índice único), clientas sin teléfono duplicadas en cada cita sin
+  teléfono, nombre fijado por la primera reserva pública, lo tecleado en la búsqueda no pasa a
+  "Nueva clienta" en algún caso, recarga completa de clientas tras cada cita.
+
 ## Pendiente / abierto
 
 - Pantalla para editar o fusionar clientas: fuera de alcance.
