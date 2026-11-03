@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { clientInitials, findClientByPhone, phoneDigits, searchClients } from './clients';
+import { clientInitials, findClientByPhone, isValidPhone, phoneDigits, searchClients } from './clients';
 import type { Client } from './types';
 
 function client(partial: Partial<Client> & { id: number; name: string }): Client {
@@ -97,5 +97,39 @@ describe('findClientByPhone', () => {
   });
   it('no compara a medias: faltan dígitos no es la misma clienta', () => {
     expect(findClientByPhone(catalog, '829000')).toBeNull();
+  });
+});
+
+describe('isValidPhone', () => {
+  it('rechaza letras en cualquier posición', () => {
+    for (const p of ['abc', '809abc1234', '8o9-555-1234']) expect(isValidPhone(p)).toBe(false);
+  });
+  it('rechaza un + que no está al inicio', () => {
+    expect(isValidPhone('809+5551234')).toBe(false);
+    expect(isValidPhone('+34 +612345678')).toBe(false);
+  });
+  it('acepta 10 dígitos dominicanos en varios formatos', () => {
+    for (const p of ['8095551234', '809-555-1234', '(809) 555 1234', '809.555.1234']) {
+      expect(isValidPhone(p)).toBe(true);
+    }
+  });
+  it('acepta 11 dígitos si empiezan en 1, y rechaza los demás sin +', () => {
+    expect(isValidPhone('1-809-555-1234')).toBe(true);
+    expect(isValidPhone('2-809-555-1234')).toBe(false);
+    expect(isValidPhone('809555123')).toBe(false);
+    expect(isValidPhone('180955512345')).toBe(false);
+  });
+  it('con + acepta de 8 a 15 dígitos', () => {
+    expect(isValidPhone('+34 612 345 678')).toBe(true);
+    expect(isValidPhone('+1 809 555 1234')).toBe(true);
+    expect(isValidPhone('+12345678')).toBe(true);
+    expect(isValidPhone('+1234567')).toBe(false);
+    expect(isValidPhone('+123')).toBe(false);
+    expect(isValidPhone('+123456789012345')).toBe(true);
+    expect(isValidPhone('+1234567890123456')).toBe(false);
+  });
+  it('vacío o solo espacios es inválido (cada pantalla decide si es opcional)', () => {
+    expect(isValidPhone('')).toBe(false);
+    expect(isValidPhone('   ')).toBe(false);
   });
 });
