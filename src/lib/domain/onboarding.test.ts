@@ -8,6 +8,7 @@ import {
   isSkippable,
   stepProgress,
   PASSWORD_MIN_LENGTH,
+  signUpOutcome,
 } from './onboarding';
 
 describe('validateSignUp', () => {
@@ -84,5 +85,15 @@ describe('pasos del asistente', () => {
     expect(stepProgress('hours')).toEqual({ current: 2, total: 3 });
     expect(stepProgress('service')).toEqual({ current: 3, total: 3 });
     expect(stepProgress('done')).toEqual({ current: 3, total: 3 });
+  });
+});
+
+describe('signUpOutcome', () => {
+  it('entra directo cuando el registro ya trae sesión', () => {
+    expect(signUpOutcome(true)).toBe('signed_in');
+  });
+
+  it('pide confirmar el correo cuando no hay sesión', () => {
+    expect(signUpOutcome(false)).toBe('confirm_email');
   });
 });

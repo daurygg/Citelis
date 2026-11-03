@@ -24,8 +24,13 @@ const RULES: ReadonlyArray<{ test: RegExp; message: string }> = [
     message: 'Todavía falta confirmar tu correo. Revisa tu bandeja de entrada y abre el enlace que te enviamos.',
   },
   {
-    test: /password.*(at least|too short|weak|characters)|weak password/,
+    test: /password.*(at least|too short|characters)/,
     message: 'La contraseña debe tener al menos 8 caracteres.',
+  },
+  {
+    // Supabase puede exigir más que el largo (números, símbolos…): no prometemos de más.
+    test: /weak.?password|password.*weak/,
+    message: 'Esa contraseña es fácil de adivinar. Prueba una más segura, mezclando letras y números.',
   },
   {
     test: /rate limit|too many|over_.*_rate/,
