@@ -5,9 +5,10 @@ import { useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatDateShort, formatMoney, shiftISODate, todayISODate } from '../lib/format';
 import { AppointmentRow } from './AppointmentRow';
-import { btnGhost, card, kpi } from './ui';
+import { pendingSetupSteps, type SetupStepId } from '../lib/domain/onboardingSetup';
+import { btnGhost, btnPrimarySm, card, kpi } from './ui';
 
-export function DayAgenda() {
+export function DayAgenda({ onGoTo }: { onGoTo: (step: SetupStepId) => void }) {
   const store = useStore();
   const today = todayISODate();
   const [date, setDate] = useState(today);
@@ -16,6 +17,12 @@ export function DayAgenda() {
   const projected = store.projectedProfitForDay(date);
   const realized = store.dayReport(date); // lo YA ganado ese día (citas completadas)
   const isToday = date === today;
+  // Qué le falta configurar al negocio (decisión en dominio puro; aquí solo se pinta).
+  const setupSteps = pendingSetupSteps({
+    serviceCount: store.services.length,
+    hoursDays: new Set(store.businessHours.map((h) => h.weekday)).size,
+    bookingOpen: store.bookingPolicy?.enabled ?? false,
+  });
 
   return (
     <section className="flex flex-col gap-3">
@@ -75,9 +82,28 @@ export function DayAgenda() {
       </div>
 
       {appointments.length === 0 ? (
-        <p className={card + ' text-neutral-500'}>
-          {isToday ? 'No hay citas para hoy. Agenda la primera arriba.' : 'No hay citas para este día.'}
-        </p>
+        setupSteps.length > 0 && isToday ? (
+          <div className={card + ' flex flex-col gap-3'}>
+            <div>
+              <h2 className="font-semibold">Para empezar</h2>
+              <p className="text-sm text-neutral-500">Aún no tienes citas hoy. Deja tu negocio listo:</p>
+            </div>
+            <ul className="flex flex-col gap-2">
+              {setupSteps.map((step) => (
+                <li key={step.id} className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 text-sm">{step.label}</span>
+                  <button type="button" className={btnPrimarySm + ' shrink-0'} onClick={() => onGoTo(step.id)}>
+                    Ir
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className={card + ' text-neutral-500'}>
+            {isToday ? 'No hay citas para hoy. Agenda la primera arriba.' : 'No hay citas para este día.'}
+          </p>
+        )
       ) : (
         <ul className="flex flex-col gap-3">
           {appointments.map((appointment) => (

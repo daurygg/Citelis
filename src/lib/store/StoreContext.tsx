@@ -44,6 +44,8 @@ import { dayRange, shiftMonthISODate } from '../format';
 import { supabase } from '../supabase/client';
 import { useAuth } from '../auth/AuthContext';
 import { LOGO_BUCKET, buildLogoPath, validateAddress, validateDisplayName, validateLogoFile, validatePhone } from '../domain/receiptProfile';
+import { LoadingScreen } from '../../components/LoadingScreen';
+import { btnPrimary } from '../../components/ui';
 import { Onboarding } from '../../components/Onboarding';
 import { OnboardingWizard } from '../../components/OnboardingWizard';
 
@@ -264,7 +266,7 @@ interface LoadedData {
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { signOut } = useAuth();
   const [data, setData] = useState<LoadedData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const [noBusiness, setNoBusiness] = useState(false);
   // Se incrementa para volver a cargar la membresía y los datos SIN recargar la
   // página (el asistente guiado crea el negocio y sigue en pantalla).
@@ -275,7 +277,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   function reload(options?: { startWizard?: boolean }) {
     if (options?.startWizard) setWizardActive(true);
-    setError(null);
+    setError(false);
     setNoBusiness(false);
     setData(null);
     setLoadKey((k) => k + 1);
@@ -296,7 +298,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .limit(1);
       if (!active) return;
       if (mErr) {
-        setError('No se pudieron cargar tus datos: ' + mErr.message);
+        console.error('No se pudo leer la membresía', mErr);
+        setError(true);
         return;
       }
       if (!members || members.length === 0) {
@@ -357,9 +360,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   if (error) {
     return (
       <div className="grid min-h-dvh place-items-center bg-neutral-50 px-6 text-center">
-        <div>
-          <p className="mb-4 text-neutral-700">{error}</p>
-          <button type="button" className="text-sm text-brand-700 hover:underline" onClick={() => signOut()}>
+        <div className="flex max-w-sm flex-col items-center gap-3">
+          <p className="text-lg font-semibold text-neutral-800">No pudimos cargar tus datos</p>
+          <p className="text-neutral-600">Revisa tu conexión a internet e inténtalo de nuevo.</p>
+          <button type="button" className={btnPrimary} onClick={() => reload()}>
+            Reintentar
+          </button>
+          <button type="button" className="min-h-11 px-3 text-sm text-brand-700 hover:underline" onClick={() => signOut()}>
             Salir
           </button>
         </div>
@@ -368,7 +375,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
   if (noBusiness) return <Onboarding onCreated={() => reload({ startWizard: true })} onJoined={() => reload()} />;
   if (!data) {
-    return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando tus datos…</div>;
+    return <LoadingScreen message="Cargando tus datos…" />;
   }
   return (
     <StoreReady data={data} wizardActive={wizardActive} onWizardFinish={() => setWizardActive(false)}>
