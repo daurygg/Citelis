@@ -8,7 +8,7 @@ export function BackButton({ onClick, disabled }: { onClick: () => void; disable
       onClick={onClick}
       disabled={disabled}
       className={
-        '-ml-2 inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl py-2 pr-3 pl-1.5 font-medium text-portal-ink transition hover:bg-white disabled:opacity-40 ' +
+        '-ml-2 inline-flex min-h-11 shrink-0 items-center gap-1 rounded-xl py-2 pr-3 pl-1.5 font-medium text-ink transition hover:bg-white disabled:opacity-40 ' +
         focusRing
       }
     >

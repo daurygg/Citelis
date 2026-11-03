@@ -4,7 +4,6 @@
 // la clienta — y una pantalla final. Decisión D1 del ODD de self-booking: la
 // solicitud NO se autoconfirma, así que esa pantalla nunca dice "reservado".
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import '@fontsource-variable/bricolage-grotesque/standard.css';
 import type { Appointment, BookingPolicy, BusinessHours, Service, Slot } from '../../lib/domain/types';
 import { generateSlots } from '../../lib/domain/availability';
 import { toggleServiceId } from '../../lib/domain/selection';
@@ -348,7 +347,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
     return (
       <CenteredMessage>
         No pudimos conectar. Intenta de nuevo en un momento.
-        <span className="mt-1 block text-xs text-portal-muted">{businessLoad.message}</span>
+        <span className="mt-1 block text-xs text-muted">{businessLoad.message}</span>
       </CenteredMessage>
     );
   }
@@ -372,15 +371,15 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
   return (
     <div
       className={
-        'min-h-dvh bg-portal-paper px-4 pt-8 font-portal text-portal-ink ' + (showBar ? 'pb-40' : 'pb-10')
+        'min-h-dvh bg-paper px-4 pt-8 text-ink ' + (showBar ? 'pb-40' : 'pb-10')
       }
     >
       <div className="mx-auto flex max-w-md flex-col gap-6">
         <header>
-          <p className="text-portal-muted">Reserva en</p>
+          <p className="text-muted">Reserva en</p>
           <h1
             className={
-              'portal-display font-extrabold leading-[1.02] tracking-tight text-balance break-words ' +
+              'display-name font-extrabold leading-[1.02] tracking-tight text-balance break-words ' +
               (readyBusinessName.length > 22 ? 'text-[1.875rem]' : 'text-[2.5rem]')
             }
           >
@@ -403,10 +402,10 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
           <section className="flex flex-col gap-4">
             <div>
               <h2 className={stepTitle}>¿Qué te vas a hacer?</h2>
-              <p className="mt-1 text-portal-muted">Puedes elegir más de uno.</p>
+              <p className="mt-1 text-muted">Puedes elegir más de uno.</p>
             </div>
             {readyBusiness.services.length === 0 && (
-              <p className="text-portal-muted">
+              <p className="text-muted">
                 Este negocio no tiene servicios disponibles para reservar en línea todavía.
               </p>
             )}
@@ -426,7 +425,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
           <section className="flex flex-col gap-4">
             <div>
               <h2 className={stepTitle}>¿Cuándo te queda bien?</h2>
-              <p className="mt-1 text-portal-muted first-letter:uppercase">{monthLabel(selectedDate)}</p>
+              <p className="mt-1 text-muted first-letter:uppercase">{monthLabel(selectedDate)}</p>
             </div>
 
             <DayStrip
@@ -439,7 +438,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
               }}
             />
 
-            {busyLoad.status === 'loading' && <p className="text-portal-muted">Buscando horarios…</p>}
+            {busyLoad.status === 'loading' && <p className="text-muted">Buscando horarios…</p>}
             {busyLoad.status === 'error' && (
               <p className="text-red-700">No pudimos cargar los horarios de este día. Intenta de nuevo.</p>
             )}
@@ -447,7 +446,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
               <p className="text-red-700">No pudimos cargar el horario de atención. Intenta de nuevo.</p>
             )}
             {busyLoad.status === 'ready' && hoursLoad.status === 'ready' && slots.length === 0 && (
-              <p className="text-portal-muted">No hay horarios disponibles este día. Prueba otro.</p>
+              <p className="text-muted">No hay horarios disponibles este día. Prueba otro.</p>
             )}
             {busyLoad.status === 'ready' && hoursLoad.status === 'ready' && slots.length > 0 && (
               <SlotPicker slots={slots} selected={selectedSlot} onSelect={setSelectedSlot} />
@@ -539,7 +538,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
 
 function CenteredMessage({ children }: { children: ReactNode }) {
   return (
-    <div className="grid min-h-dvh place-items-center bg-portal-paper px-6 text-center font-portal text-portal-ink">
+    <div className="grid min-h-dvh place-items-center bg-paper px-6 text-center text-ink">
       <div>{children}</div>
     </div>
   );

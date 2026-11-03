@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, statusLabel } from '../lib/format';
+import { splitClock } from '../lib/agendaDay';
 import type { AppointmentStatus, Appointment } from '../lib/domain/types';
 import { appointmentServiceIds, serviceNames } from '../lib/domain/appointments';
 import { canEditServices, servicesChanged } from '../lib/domain/editServices';
@@ -18,7 +19,7 @@ import { CalendarActions } from './CalendarActions';
 import { ClientNotice } from './ClientNotice';
 import { PaymentMethodChips, RegisterPaymentPanel } from './PaymentPanel';
 import { ReceiptDialog } from './ReceiptDialog';
-import { btnGhostSm, btnPrimary, btnPrimarySm, btnText, card, chip, field, fieldLabel, input } from './ui';
+import { btnGhostSm, btnPrimary, btnPrimarySm, btnText, chip, field, fieldLabel, input } from './ui';
 
 const STATUS_BADGE: Record<AppointmentStatus, string> = {
   // Violeta: pide acción de la dueña y no se confunde con el ámbar de Pendiente.
@@ -26,10 +27,13 @@ const STATUS_BADGE: Record<AppointmentStatus, string> = {
   PENDING: 'bg-amber-100 text-amber-800',
   IN_PROGRESS: 'bg-blue-100 text-blue-800',
   COMPLETED: 'bg-green-100 text-green-800',
-  CANCELED: 'bg-neutral-100 text-neutral-500',
+  CANCELED: 'bg-neutral-100 text-muted',
   NO_SHOW: 'bg-red-100 text-red-700',
-  REJECTED: 'bg-neutral-200 text-neutral-600',
+  REJECTED: 'bg-neutral-200 text-muted',
 };
+
+const quietAction =
+  'min-h-11 rounded-lg px-3 text-sm font-medium text-muted transition hover:bg-paper hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700';
 
 export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const store = useStore();
@@ -152,33 +156,43 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
     notify('✓ Cita reprogramada');
   }
 
+  const clock = splitClock(appointment.datetime);
+  // Las citas abiertas (las que piden acción) van en blanco; las cerradas, en el tono del papel.
+  const surface = isOpen || appointment.status === 'REQUESTED' ? 'bg-white ring-1 ring-line' : 'bg-paper ring-1 ring-line/70';
+
   return (
-    <li className={card + ' flex flex-col gap-3'}>
+    <li className={'flex flex-col gap-3 rounded-2xl p-3 ' + surface}>
       <div className="flex items-start gap-3">
-        <span className="w-14 shrink-0 font-semibold tabular-nums">{formatTime(appointment.datetime)}</span>
+        <div className="w-[3.75rem] shrink-0 tabular-nums">
+          <div className="text-lg leading-tight font-semibold">{clock.time}</div>
+          <div className="text-sm text-muted">{clock.period}</div>
+        </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium">{appointment.client}</div>
-          <div className="truncate text-sm text-neutral-500">{serviceNames(appointment, store.services) || 'Servicio desconocido'}</div>
+          <div className="truncate font-semibold">{appointment.client}</div>
+          <div className="text-sm text-muted break-words">{serviceNames(appointment, store.services) || 'Servicio desconocido'}</div>
           {alreadyPaid > 0 && appointment.status !== 'COMPLETED' && (
-            <div className="text-xs text-brand-700">Abonó {formatMoney(alreadyPaid)}</div>
+            <div className="text-sm text-brand-700">Abonó {formatMoney(alreadyPaid)}</div>
           )}
         </div>
-        {/* Estado y ganancia en una columna aparte: el nombre se queda con el ancho sobrante. */}
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className={'rounded-full px-2.5 py-1 text-xs font-medium ' + STATUS_BADGE[appointment.status]}>
-            {statusLabel(appointment.status)}
-          </span>
+        <span className={'shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ' + STATUS_BADGE[appointment.status]}>
+          {statusLabel(appointment.status)}
+        </span>
+      </div>
+
+      {/* El dinero de una cita cobrada va debajo, alineado con el nombre: así el nombre no se recorta. */}
+      {(appointment.status === 'COMPLETED' && appointment.profit !== null) || owes > 0 ? (
+        <div className="-mt-1 ml-[calc(3.75rem+0.75rem)] flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
           {appointment.status === 'COMPLETED' && appointment.profit !== null && (
-            <div className="text-right">
-              <div className="font-semibold text-green-700">+{formatMoney(appointment.profit)}</div>
-              <div className="text-xs text-neutral-500">Cobró {formatMoney(appointment.charged_price ?? 0)}</div>
-            </div>
+            <>
+              <span className="font-semibold text-green-700">+{formatMoney(appointment.profit)}</span>
+              <span className="text-sm text-muted">Cobró {formatMoney(appointment.charged_price ?? 0)}</span>
+            </>
           )}
           {owes > 0 && (
-            <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-800">Debe {formatMoney(owes)}</span>
+            <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-orange-800">Debe {formatMoney(owes)}</span>
           )}
         </div>
-      </div>
+      ) : null}
 
       {appointment.status === 'COMPLETED' && (
         <div className="flex flex-wrap gap-2">
@@ -198,15 +212,15 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
       )}
 
       {(isOpen || editable) && (
-        <div className="flex flex-wrap gap-2">
+        <div className="-mx-1 flex flex-wrap items-center gap-x-1">
           {isOpen && (
             <>
-              <button type="button" className={btnPrimarySm} onClick={() => setCharging((v) => !v)}>
+              <button type="button" className={btnPrimarySm + ' mx-1'} onClick={() => setCharging((v) => !v)}>
                 {charging ? 'Cerrar' : 'Cobrar'}
               </button>
               <button
                 type="button"
-                className={btnGhostSm}
+                className={quietAction}
                 onClick={() => setRescheduling((v) => !v)}
               >
                 {rescheduling ? 'Cerrar' : 'Reprogramar'}
@@ -214,7 +228,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             </>
           )}
           {editable && (
-            <button type="button" className={btnGhostSm} onClick={toggleEditServices}>
+            <button type="button" className={quietAction} onClick={toggleEditServices}>
               {editingServices ? 'Cerrar' : 'Editar servicios'}
             </button>
           )}
@@ -222,14 +236,14 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             <>
               <button
                 type="button"
-                className={btnGhostSm}
+                className={quietAction}
                 onClick={() => setSharingCalendar((v) => !v)}
               >
                 {sharingCalendar ? 'Cerrar' : 'Calendario'}
               </button>
               <button
                 type="button"
-                className={btnGhostSm}
+                className={quietAction}
                 onClick={() => {
                   store.markNoShow(appointment.id);
                   notify('Marcada como “no llegó”');
@@ -239,7 +253,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
               </button>
               <button
                 type="button"
-                className={btnText + ' text-red-600'}
+                className={quietAction + ' text-red-700 hover:text-red-800'}
                 onClick={() => {
                   if (window.confirm('¿Cancelar esta cita?')) {
                     store.cancel(appointment.id);
@@ -261,7 +275,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
       <ClientNotice appointment={appointment} />
 
       {rescheduling && (
-        <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
+        <div className="flex flex-col gap-2 rounded-xl bg-paper p-3">
           <label className={field}>
             <span className={fieldLabel}>Nueva fecha y hora</span>
             <input
@@ -278,7 +292,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
       )}
 
       {editingServices && editable && (
-        <div className="flex flex-col gap-3 rounded-xl bg-neutral-50 p-3">
+        <div className="flex flex-col gap-3 rounded-xl bg-paper p-3">
           <fieldset className={field}>
             <legend className={fieldLabel}>Servicios de esta cita</legend>
             <div className="flex flex-wrap gap-2">
@@ -293,7 +307,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
                     onClick={() => setEditIds((ids) => toggleServiceId(ids, service.id))}
                     className={
                       chip + ' ' +
-                      (on ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white text-neutral-700')
+                      (on ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink')
                     }
                   >
                     {service.name}
@@ -303,8 +317,8 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             </div>
           </fieldset>
           {editSummary.service_ids.length > 0 && (
-            <p className="text-sm text-neutral-600">
-              Duran {editSummary.duration_min} min · Precio estimado:{' '}
+            <p className="text-sm text-muted">
+              Duran {editSummary.duration_min} min. Precio estimado:{' '}
               {editSummary.estimate.hasVariable
                 ? editSummary.estimate.total > 0
                   ? `${formatMoney(editSummary.estimate.total)} + a convenir`
@@ -313,9 +327,9 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             </p>
           )}
           {/* Sin esto el botón quedaría apagado sin explicar por qué. */}
-          {editCheck !== null && !editCheck.ok && <p className="text-sm text-red-600">{editCheck.reason}</p>}
+          {editCheck !== null && !editCheck.ok && <p className="text-sm text-red-700">{editCheck.reason}</p>}
           {editCheck !== null && editCheck.ok && !editChanged && (
-            <p className="text-sm text-neutral-500">Aún no cambiaste nada.</p>
+            <p className="text-sm text-muted">Aún no cambiaste nada.</p>
           )}
           <button type="button" className={btnPrimary} onClick={handleSaveServices} disabled={!canSaveServices}>
             {savingServices ? 'Guardando…' : 'Guardar servicios'}
@@ -324,7 +338,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
       )}
 
       {charging && (
-        <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
+        <div className="flex flex-col gap-2 rounded-xl bg-paper p-3">
           {/* Un precio por cada servicio de precio variable, con su nombre. */}
           {form.variableServices.map((service) => (
             <label key={service.id} className={field}>
@@ -395,7 +409,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
                         onClick={() => setDiscount({ mode, value: text.value })}
                         className={
                           chip + ' ' +
-                          (text.mode === mode ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white text-neutral-700')
+                          (text.mode === mode ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink')
                         }
                       >
                         {mode === 'amount' ? 'RD$' : '%'}
@@ -403,7 +417,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
                     ))}
                   </div>
                 </div>
-                {error !== null && <p className="text-sm text-red-600">{error}</p>}
+                {error !== null && <p className="text-sm text-red-700">{error}</p>}
               </div>
             );
           })}
@@ -416,36 +430,36 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
               {totals !== null && totals.discounts > 0 && (
                 <>
                   <div className="flex justify-between">
-                    <span className="text-neutral-600">Subtotal</span>
+                    <span className="text-muted">Subtotal</span>
                     <span>{formatMoney(totals.gross)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-neutral-600">Descuentos</span>
+                    <span className="text-muted">Descuentos</span>
                     <span>−{formatMoney(totals.discounts)}</span>
                   </div>
                 </>
               )}
               <div className="flex justify-between">
-                <span className="text-neutral-600">{totals !== null && totals.discounts > 0 ? 'Total' : 'Precio'}</span>
+                <span className="text-muted">{totals !== null && totals.discounts > 0 ? 'Total' : 'Precio'}</span>
                 <strong>{formatMoney(preview.charged_price)}</strong>
               </div>
               <div className="flex justify-between">
-                <span className="text-neutral-600">Costo</span>
+                <span className="text-muted">Costo</span>
                 <span>{formatMoney(preview.actual_cost)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-neutral-600">Ganancia</span>
+                <span className="text-muted">Ganancia</span>
                 <strong className="text-green-700">{formatMoney(preview.profit)}</strong>
               </div>
 
               {alreadyPaid > 0 && (
                 <>
-                  <div className="flex justify-between border-t border-neutral-200 pt-2">
-                    <span className="text-neutral-600">Abono ya pagado</span>
+                  <div className="flex justify-between border-t border-line pt-2">
+                    <span className="text-muted">Abono ya pagado</span>
                     <span>−{formatMoney(alreadyPaid)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-neutral-600">Resto por cobrar</span>
+                    <span className="text-muted">Resto por cobrar</span>
                     <strong>{formatMoney(Math.max(0, total - alreadyPaid))}</strong>
                   </div>
                 </>
@@ -453,10 +467,10 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
 
               {/* ¿Cómo te pagó?: una o varias filas. Pagar de menos NO bloquea: el
                   resto queda a crédito. Solo el sobrepago impide cobrar. */}
-              <div className={field + ' border-t border-neutral-200 pt-2'}>
+              <div className={field + ' border-t border-line pt-2'}>
                 <span className={fieldLabel}>¿Cómo te pagó?</span>
                 {rows.map((row, index) => (
-                  <div key={index} className="flex flex-col gap-2 rounded-lg border border-neutral-200 bg-white p-2">
+                  <div key={index} className="flex flex-col gap-2 rounded-lg border border-line bg-white p-2">
                     <div className="flex items-center gap-2">
                       <input
                         className={input}
@@ -479,8 +493,8 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
                 <button type="button" className={btnGhostSm + ' self-start'} onClick={() => setPayRows([...rows, { amount: '', method: 'cash' }])}>
                   + Otro pago
                 </button>
-                {paymentPlan.invalid && <p className="text-sm text-red-600">Revisa los montos: escribe un número mayor que cero.</p>}
-                {paymentPlan.overpaid && <p className="text-sm text-red-600">Eso es más de lo que se cobra.</p>}
+                {paymentPlan.invalid && <p className="text-sm text-red-700">Revisa los montos: escribe un número mayor que cero.</p>}
+                {paymentPlan.overpaid && <p className="text-sm text-red-700">Eso es más de lo que se cobra.</p>}
                 {!paymentPlan.overpaid && paymentPlan.credit > 0 && (
                   <p className="text-sm font-medium text-orange-700">Queda a crédito: {formatMoney(paymentPlan.credit)}</p>
                 )}

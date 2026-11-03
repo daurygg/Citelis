@@ -36,7 +36,7 @@ export function SlotPicker({ slots, selected, onSelect }: Props) {
                     focusRing +
                     (isSelected
                       ? ' bg-brand-600 font-semibold text-brand-fg'
-                      : ' bg-white ring-1 ring-portal-line hover:bg-portal-paper')
+                      : ' bg-white ring-1 ring-line hover:bg-paper')
                   }
                 >
                   {formatTime(slot.start)}
