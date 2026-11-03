@@ -93,7 +93,33 @@ describe('scheduleRpcArgs', () => {
       p_deposit: null,
       p_service_ids: [2, 1],
       p_deposit_method: null,
+      p_client_phone: null,
+      p_client_id: null,
     });
+  });
+
+  it('lleva el teléfono y la clienta elegida para que el servidor la enlace', () => {
+    const args = scheduleRpcArgs(1, {
+      id: 55,
+      client: 'Ana',
+      datetime: '2026-10-12T10:00',
+      service_ids: [1],
+      client_phone: '829-000-0001',
+      client_id: 9,
+    });
+    expect(args.p_client_phone).toBe('829-000-0001');
+    expect(args.p_client_id).toBe(9);
+  });
+
+  it('un teléfono en blanco viaja como null (el servidor crea la clienta sin teléfono)', () => {
+    const args = scheduleRpcArgs(1, {
+      id: 55,
+      client: 'Ana',
+      datetime: '2026-10-12T10:00',
+      service_ids: [1],
+      client_phone: '   ',
+    });
+    expect(args.p_client_phone).toBeNull();
   });
 
   it('lleva el precio acordado y el abono si existen', () => {

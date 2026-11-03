@@ -8,6 +8,7 @@ import type {
   AppointmentPayment,
   BookingPolicyRow,
   Business,
+  Client,
   BusinessHours,
   Employee,
   FixedExpense,
@@ -60,6 +61,8 @@ export interface ScheduleInput {
   quoted_price?: number; // precio acordado (servicios variables), opcional
   deposit?: number; // abono/adelanto pagado al reservar, opcional
   deposit_method?: PaymentMethod; // cómo pagó el abono (el pago nace con la cita)
+  client_id?: number; // clienta elegida del registro; sin ella el servidor busca por teléfono o la crea
+  client_phone?: string; // teléfono para ESTA cita (de ahí sale el aviso por WhatsApp)
 }
 export interface WalkInInput {
   /** Id fijo entre reintentos (ver `newId`): un reintento no duplica la cita. */
@@ -68,6 +71,8 @@ export interface WalkInInput {
   service_ids: number[];
   client: string;
   datetime: string;
+  client_id?: number;
+  client_phone?: string;
   /** Precio de cada servicio de precio variable, por id (de `buildChargeForm`). */
   priceOverrides?: ReadonlyMap<number, number>;
   /** Total pactado, si lo hay: manda sobre la suma. */
@@ -147,6 +152,8 @@ export interface Store {
   completionPreview: (appointmentId: number, options?: CompleteOptions) => CompletionPreview | null;
   completionBreakdown: (appointmentId: number, options?: CompleteOptions) => CompletionBreakdown | null;
   scheduleConflict: (datetime: string, serviceIds: readonly number[], excludeId?: number) => Appointment | null;
+  /** Clientas del negocio (registro propio). Alimenta el selector al agendar. */
+  clients: readonly Client[];
   schedule: (input: ScheduleInput) => Promise<ActionResult>;
   checkServicesEdit: (appointmentId: number, serviceIds: readonly number[]) => ServicesEditCheck;
   updateAppointmentServices: (appointmentId: number, serviceIds: readonly number[]) => Promise<ActionResult>;
@@ -251,6 +258,7 @@ interface LoadedData {
   employees: Employee[];
   payments: AppointmentPayment[];
   appointments: Appointment[];
+  clients: Client[];
   /** Líneas de `appointment_service` con su ganancia congelada (reportes por servicio). */
   serviceLines: ServiceProfitLine[];
   fixedExpenses: FixedExpense[];
@@ -310,7 +318,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // INVARIANTE 1: cada consulta filtra por business_id de forma explícita,
       // además de la RLS. Con varias membresías, la RLS deja ver las filas de
       // todos los negocios del usuario; sin este filtro se mezclarían.
-      const [biz, svc, sup, ss, emp, apt, aptSvc, fx, bh, tb, bp, pay, names, sess] = await Promise.all([
+      const [biz, svc, sup, ss, emp, apt, aptSvc, fx, bh, tb, bp, pay, names, cli, sess] = await Promise.all([
         // El nombre del negocio sale en el .ics y en el link de Google Calendar.
         supabase.from('business').select('*').eq('id', businessId),
         supabase.from('service').select('*').eq('business_id', businessId),
@@ -330,6 +338,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('appointment_payment').select('*').eq('business_id', businessId),
         // Nombres visibles de quienes cobran (RPC acotada a mi negocio). Si falla, sin nombres.
         supabase.rpc('business_member_names', { p_business_id: businessId }),
+        // Registro de clientas. Si falla, el selector arranca vacío y la dueña puede escribir una nueva.
+        supabase.from('client').select('*').eq('business_id', businessId).order('name', { ascending: true }),
         supabase.auth.getSession(),
       ]);
       if (!active) return;
@@ -344,6 +354,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Si la consulta de líneas falla, cada cita cae a su `service_id`.
         appointments: foldServiceIds((apt.data ?? []) as Appointment[], (aptSvc.data ?? []) as AppointmentServiceRow[], businessId),
         serviceLines: ((aptSvc.data ?? []) as ServiceProfitLine[]).filter((l) => l.business_id === businessId),
+        clients: ((cli.data ?? []) as Client[]).filter((c) => c.business_id === businessId),
         fixedExpenses: (fx.data ?? []) as FixedExpense[],
         businessHours: (bh.data ?? []) as BusinessHours[],
         timeBlocks: (tb.data ?? []) as TimeBlock[],
@@ -404,6 +415,7 @@ function StoreReady({
   const [employees, setEmployees] = useState<readonly Employee[]>(data.employees);
   const [payments, setPayments] = useState<readonly AppointmentPayment[]>(data.payments);
   const [appointments, setAppointments] = useState<readonly Appointment[]>(data.appointments);
+  const [clients, setClients] = useState<readonly Client[]>(data.clients);
   const [serviceLines, setServiceLines] = useState<readonly ServiceProfitLine[]>(data.serviceLines);
   const [fixedExpenses, setFixedExpenses] = useState<readonly FixedExpense[]>(data.fixedExpenses);
   const [businessHours, setBusinessHoursState] = useState<readonly BusinessHours[]>(data.businessHours);
@@ -615,6 +627,24 @@ function StoreReady({
     setPayments((prev) => [...prev, ...added]);
   }
 
+  // Vuelve a leer el registro tras agendar: el servidor pudo crear una clienta
+  // nueva (id real, teléfono normalizado) y es la única fuente de verdad. Si la
+  // lectura falla, se queda la lista anterior: la cita ya está guardada y la
+  // clienta aparecerá en la próxima carga.
+  async function refreshClients(): Promise<void> {
+    try {
+      // INVARIANTE 1: filtro explícito por negocio, además de la RLS.
+      const { data: rows, error } = await supabase
+        .from('client')
+        .select('*')
+        .eq('business_id', businessId)
+        .order('name', { ascending: true });
+      if (!error && rows) setClients((rows as Client[]).filter((c) => c.business_id === businessId));
+    } catch {
+      // se conserva la lista actual
+    }
+  }
+
   async function schedule(input: ScheduleInput): Promise<ActionResult> {
     if (input.service_ids.length === 0) return { ok: false, message: 'Elige al menos un servicio.' };
     const appointment: Appointment = {
@@ -623,6 +653,8 @@ function StoreReady({
       service_id: input.service_ids[0],
       service_ids: input.service_ids,
       client: input.client,
+      client_phone: input.client_phone?.trim() || null,
+      client_id: input.client_id ?? null,
       datetime: input.datetime,
       status: 'PENDING',
       quoted_price: input.quoted_price ?? null,
@@ -634,6 +666,7 @@ function StoreReady({
     const error = await insertScheduled(appointment, input.deposit_method);
     if (error) return { ok: false, message: error.message };
     putAppointment(appointment);
+    void refreshClients();
     // El abono es un pago: el servidor lo creó con la cita, aquí se refleja.
     if (appointment.deposit != null && appointment.deposit > 0) {
       await syncPayments(appointment.id, [newPayment(appointment.id, appointment.deposit, input.deposit_method ?? null, 'deposit')]);
@@ -803,6 +836,8 @@ function StoreReady({
       service_id: input.service_ids[0],
       service_ids: input.service_ids,
       client: input.client,
+      client_phone: input.client_phone?.trim() || null,
+      client_id: input.client_id ?? null,
       datetime: input.datetime,
       status: 'PENDING',
       quoted_price: null,
@@ -821,6 +856,7 @@ function StoreReady({
     const insertError = await insertScheduled(pending);
     if (insertError) return { ok: false, message: insertError.message };
     putAppointment(pending);
+    void refreshClients();
     // Con vía, la clienta pagó TODO el cobro por ella; sin vía queda a crédito.
     const total = plan.completed.charged_price as number;
     const walkInPayments: ChargePayment[] = input.payment_method && total > 0 ? [{ amount: total, method: input.payment_method }] : [];
@@ -1249,6 +1285,7 @@ function StoreReady({
     completionPreview,
     completionBreakdown,
     scheduleConflict,
+    clients,
     schedule,
     checkServicesEdit: servicesEditCheck,
     updateAppointmentServices,
