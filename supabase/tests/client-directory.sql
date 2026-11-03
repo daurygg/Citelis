@@ -223,6 +223,10 @@ begin
   if (select count(*) from client) <> v_n then
     raise exception 'FALLÓ 8f: el relleno no es idempotente';
   end if;
+  -- Se borran las citas del relleno: no tienen líneas de servicio, y el portal
+  -- trata una cita de duración desconocida como ocupada sin límite (fallo seguro
+  -- de `public_request_booking`), así que bloquearían las reservas de la prueba 10.
+  delete from appointment where id between 999961 and 999965;
 
   -- 9 · Permisos y compatibilidad de firmas.
   if has_function_privilege('anon', 'public.schedule_appointment(bigint,bigint,text,text,bigint,bigint,bigint[],text,text,bigint)', 'execute') then
