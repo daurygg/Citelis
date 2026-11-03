@@ -138,7 +138,7 @@ export function ClientPicker({
         {duplicate && (
           // Dos clientas con el mismo teléfono no caben en el registro: se ofrece la que ya existe.
           <div role="status" className="flex flex-wrap items-center gap-2 rounded-xl bg-paper p-2 text-sm text-ink ring-1 ring-line">
-            <span className="min-w-0 flex-1">
+            <span className="w-full">
               Ya tienes a <strong className="font-semibold">{duplicate.name}</strong> con ese teléfono.
             </span>
             <button
@@ -192,6 +192,8 @@ export function ClientPicker({
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
+        // Tras Escape el foco sigue en el campo: tocarlo de nuevo no dispara onFocus.
+        onClick={() => setOpen(true)}
         placeholder="Buscar por nombre o teléfono"
       />
       {showList && (
