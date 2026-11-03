@@ -11,9 +11,14 @@
 // absoluto se sale de la pantalla o queda tapado por el teclado. Toda decisión
 // (búsqueda, iniciales, duplicados) vive en `lib/domain/clients.ts` (INVARIANTE 5).
 import { useId, useRef, useState } from 'react';
-import { clientInitials, findClientByPhone, searchClients } from '../lib/domain/clients';
+import { PHONE_INVALID_MESSAGE, clientInitials, findClientByPhone, isValidPhone, searchClients } from '../lib/domain/clients';
 import type { Client } from '../lib/domain/types';
 import { btnQuiet, field, fieldLabel, input } from './ui';
+
+/** Una clienta nueva con teléfono escrito que no es válido: no se puede agendar así. */
+export function hasInvalidNewPhone(selection: ClientSelection): boolean {
+  return selection.client_id === null && selection.phone.trim() !== '' && !isValidPhone(selection.phone);
+}
 
 /** Lo elegido o tecleado. `client_id` null = clienta nueva (o aún sin elegir). */
 export interface ClientSelection {
@@ -102,6 +107,7 @@ export function ClientPicker({
 
   if (mode === 'new') {
     const duplicate = findClientByPhone(clients, value.phone);
+    const phoneInvalid = hasInvalidNewPhone(value);
     return (
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
@@ -132,8 +138,16 @@ export function ClientPicker({
             value={value.phone}
             onChange={(e) => onChange({ ...value, phone: e.target.value })}
             placeholder="Para avisarle por WhatsApp"
+            aria-invalid={phoneInvalid}
+            aria-describedby={phoneInvalid ? listId + '-phone-error' : undefined}
           />
-          <span className="text-xs text-muted">Se guarda con la cita</span>
+          {phoneInvalid ? (
+            <span id={listId + '-phone-error'} role="alert" className="text-sm text-red-700">
+              {PHONE_INVALID_MESSAGE}
+            </span>
+          ) : (
+            <span className="text-xs text-muted">Se guarda con la cita</span>
+          )}
         </label>
         {duplicate && (
           // Dos clientas con el mismo teléfono no caben en el registro: se ofrece la que ya existe.

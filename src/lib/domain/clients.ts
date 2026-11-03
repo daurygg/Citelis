@@ -26,6 +26,25 @@ export function phoneDigits(phone: string | null | undefined): string | null {
   return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
 }
 
+/** Lo que se le dice a la dueña (o a la clienta) cuando el teléfono no pasa `isValidPhone`. */
+export const PHONE_INVALID_MESSAGE =
+  'Escribe un teléfono válido: 10 dígitos, o con + y el código del país si es de otro país.';
+
+/**
+ * ¿Es un teléfono aceptable? Solo caracteres de teléfono (dígitos, espacios, "-", ".",
+ * "(", ")" y un "+" al inicio). Sin "+": dominicano, 10 dígitos u 11 empezando en 1.
+ * Con "+": internacional, de 8 a 15 dígitos. Vacío es inválido: cada pantalla decide si
+ * el teléfono es opcional. Es la MISMA regla que la función SQL `client_phone_is_valid`:
+ * si una cambia, cambia la otra. (Solo se recortan espacios, como `btrim` en SQL.)
+ */
+export function isValidPhone(raw: string): boolean {
+  const text = raw.replace(/^ +| +$/g, '');
+  if (!/^\+?[0-9 ().-]+$/.test(text)) return false;
+  const digits = text.replace(/\D/g, '');
+  if (text.startsWith('+')) return digits.length >= 8 && digits.length <= 15;
+  return digits.length === 10 || (digits.length === 11 && digits.startsWith('1'));
+}
+
 /**
  * Filtra y ordena las clientas para el selector. El texto busca por nombre (sin
  * tildes ni mayúsculas) y, si trae dígitos, también por teléfono. Primero van las

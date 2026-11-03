@@ -10,7 +10,7 @@ import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
 import type { PaymentMethod } from '../lib/domain/types';
 import { useToast } from './Toast';
 import { PaymentMethodChips } from './PaymentPanel';
-import { ClientPicker, EMPTY_CLIENT_SELECTION, type ClientSelection } from './ClientPicker';
+import { ClientPicker, EMPTY_CLIENT_SELECTION, hasInvalidNewPhone, type ClientSelection } from './ClientPicker';
 import { btnGhost, btnPrimary, btnText, card, chip, field, fieldLabel, input } from './ui';
 
 export function ScheduleForm() {
@@ -52,7 +52,7 @@ export function ScheduleForm() {
   const quotedCents = quotedText.trim() === '' ? undefined : (parseMoneyToCents(quotedText) ?? undefined);
   const depositCents = depositText.trim() === '' ? undefined : (parseMoneyToCents(depositText) ?? undefined);
 
-  const baseValid = client.trim() !== '' && selection.ready;
+  const baseValid = client.trim() !== '' && selection.ready && !hasInvalidNewPhone(person);
   // Al cobrar (walk-in), cada servicio de precio variable necesita su precio.
   const canSubmit = walkIn ? baseValid && charge.ready : baseValid && datetime !== '';
 
