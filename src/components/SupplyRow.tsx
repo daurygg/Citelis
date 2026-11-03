@@ -6,7 +6,7 @@ import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, parseMoneyToCents } from '../lib/format';
 import { unitCost } from '../lib/domain/costs';
 import type { Supply } from '../lib/domain/types';
-import { field, fieldLabel, input } from './ui';
+import { btnQuietDanger, field, fieldLabel, input } from './ui';
 
 export function SupplyRow({ supply, serviceId }: { supply: Supply; serviceId: number }) {
   const store = useStore();
@@ -21,8 +21,8 @@ export function SupplyRow({ supply, serviceId }: { supply: Supply; serviceId: nu
   }
 
   return (
-    <div className="flex flex-wrap items-end gap-3 border-t border-neutral-100 py-3">
-      <label className={field + ' min-w-[8rem] flex-[2]'}>
+    <div className="grid grid-cols-2 items-end gap-3 p-4">
+      <label className={field + ' col-span-2'}>
         <span className={fieldLabel}>Insumo</span>
         <input
           className={input}
@@ -32,12 +32,12 @@ export function SupplyRow({ supply, serviceId }: { supply: Supply; serviceId: nu
         />
       </label>
 
-      <label className={field + ' flex-1'}>
+      <label className={field}>
         <span className={fieldLabel}>¿Cuánto pagaste?</span>
         <input className={input} type="text" inputMode="decimal" value={paidText} onChange={(e) => handlePaid(e.target.value)} />
       </label>
 
-      <label className={field + ' flex-1'}>
+      <label className={field}>
         <span className={fieldLabel}>¿Para cuántas alcanza?</span>
         <input
           className={input}
@@ -48,13 +48,9 @@ export function SupplyRow({ supply, serviceId }: { supply: Supply; serviceId: nu
         />
       </label>
 
-      <div className="flex items-center gap-2 pb-2">
-        <span className="text-sm text-neutral-500">c/u {formatMoney(unitCost(supply))}</span>
-        <button
-          type="button"
-          className="text-sm text-red-600 hover:underline"
-          onClick={() => store.unlinkSupply(serviceId, supply.id)}
-        >
+      <div className="col-span-2 flex items-center justify-between gap-2">
+        <span className="text-sm text-muted tabular-nums">Cada clienta: {formatMoney(unitCost(supply))}</span>
+        <button type="button" className={btnQuietDanger + ' -mr-3'} onClick={() => store.unlinkSupply(serviceId, supply.id)}>
           Quitar
         </button>
       </div>

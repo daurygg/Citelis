@@ -2,7 +2,7 @@
 import { formatDateShort, formatMoney } from '../../lib/format';
 import { subscriptionStatusLabel, type PaymentArgs } from '../../lib/domain/subscriptionAdmin';
 import type { AdminBusiness } from '../../lib/domain/types';
-import { btnGhostSm, btnPrimarySm, card } from '../ui';
+import { btnGhostSm, btnPrimarySm } from '../ui';
 import { PaymentForm } from './PaymentForm';
 
 interface Props {
@@ -18,16 +18,16 @@ interface Props {
 export function AdminBusinessCard({ business, paying, busy, onStartPayment, onCancelPayment, onSubmitPayment, onToggleExempt }: Props) {
   const b = business;
   return (
-    <li className={card}>
+    <li className="p-4">
       <div className="flex items-start justify-between gap-2">
         <h3 className="min-w-0 break-words font-semibold">{b.name}</h3>
-        <span className="shrink-0 rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-medium">{subscriptionStatusLabel(b.status)}</span>
+        <span className="shrink-0 rounded-full bg-line/60 px-2.5 py-1 text-xs font-medium whitespace-nowrap">{subscriptionStatusLabel(b.status)}</span>
       </div>
-      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-neutral-600">
+      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-muted">
         <dt>Pagado hasta</dt>
-        <dd>{b.paid_until ? formatDateShort(b.paid_until) : 'Nunca ha pagado'}</dd>
+        <dd className="text-ink tabular-nums">{b.paid_until ? formatDateShort(b.paid_until) : 'Nunca ha pagado'}</dd>
         <dt>Último pago</dt>
-        <dd>
+        <dd className="text-ink tabular-nums">
           {b.last_payment_at && b.last_payment_cents !== null
             ? `${formatMoney(b.last_payment_cents)} el ${formatDateShort(b.last_payment_at)}`
             : 'Ninguno'}

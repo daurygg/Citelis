@@ -6,7 +6,7 @@ import type { AdminBusiness } from '../../lib/domain/types';
 import type { PaymentArgs } from '../../lib/domain/subscriptionAdmin';
 import { fetchAdminBusinesses, registerSubscriptionPayment, setBusinessExempt } from '../../lib/subscription/subscriptionApi';
 import { useToast } from '../Toast';
-import { btnGhost } from '../ui';
+import { btnGhost, rowDivider, screenTitle, surface } from '../ui';
 import { AdminBusinessCard } from './AdminBusinessCard';
 
 export function AdminPanel() {
@@ -53,19 +53,19 @@ export function AdminPanel() {
   }
 
   return (
-    <section className="flex flex-col gap-3">
-      <h2 className="text-lg font-bold">Negocios y pagos</h2>
+    <section className="flex flex-col gap-4">
+      <h2 className={screenTitle}>Negocios y pagos</h2>
       {loadError && (
-        <div role="alert" className="flex flex-col gap-2 text-sm text-red-600">
+        <div role="alert" className="flex flex-col gap-2 text-sm text-red-700">
           <p>{loadError}</p>
           <button type="button" className={btnGhost} onClick={() => void load()}>
             Reintentar
           </button>
         </div>
       )}
-      {businesses === null && !loadError && <p className="text-neutral-500">Cargando…</p>}
-      {businesses?.length === 0 && <p className="text-neutral-500">Todavía no hay negocios.</p>}
-      <ul className="flex flex-col gap-3">
+      {businesses === null && !loadError && <p className="text-muted">Cargando…</p>}
+      {businesses?.length === 0 && <p className="text-muted">Todavía no hay negocios.</p>}
+      <ul className={(businesses && businesses.length > 0 ? surface + ' ' : '') + rowDivider}>
         {businesses?.map((b) => (
           <AdminBusinessCard
             key={b.business_id}

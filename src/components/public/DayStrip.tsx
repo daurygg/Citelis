@@ -25,10 +25,10 @@ export function DayStrip({ dates, today, selected, onSelect }: Props) {
               focusRing +
               (isSelected
                 ? ' bg-brand-600 text-brand-fg'
-                : ' bg-white ring-1 ring-portal-line hover:bg-portal-paper')
+                : ' bg-white ring-1 ring-line hover:bg-paper')
             }
           >
-            <span className={'text-sm ' + (isSelected ? '' : 'text-portal-muted')}>
+            <span className={'text-sm ' + (isSelected ? '' : 'text-muted')}>
               {date === today ? 'hoy' : weekdayShort(date)}
             </span>
             <span className="text-xl leading-tight font-semibold tabular-nums">{dayNumber(date)}</span>

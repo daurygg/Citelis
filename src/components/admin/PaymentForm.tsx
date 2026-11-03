@@ -43,16 +43,16 @@ export function PaymentForm({ currentPaidUntil, onSubmit, onCancel }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-3" noValidate>
+    <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-3 rounded-xl bg-paper p-3" noValidate>
       <label className={field}>
         <span className={fieldLabel}>¿Cuánto pagó? (RD$)</span>
         <input className={input} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="1500" />
-        {errors.amount && <span className="text-red-600">{errors.amount}</span>}
+        {errors.amount && <span className="text-red-700">{errors.amount}</span>}
       </label>
       <label className={field}>
         <span className={fieldLabel}>Queda pagado hasta</span>
         <input className={input} type="date" value={paidUntil} onChange={(e) => setPaidUntil(e.target.value)} />
-        {errors.paid_until && <span className="text-red-600">{errors.paid_until}</span>}
+        {errors.paid_until && <span className="text-red-700">{errors.paid_until}</span>}
       </label>
       <label className={field}>
         <span className={fieldLabel}>¿Cómo pagó?</span>
@@ -63,14 +63,14 @@ export function PaymentForm({ currentPaidUntil, onSubmit, onCancel }: Props) {
             </option>
           ))}
         </select>
-        {errors.method && <span className="text-red-600">{errors.method}</span>}
+        {errors.method && <span className="text-red-700">{errors.method}</span>}
       </label>
       <label className={field}>
         <span className={fieldLabel}>Nota (opcional)</span>
         <input className={input} value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
       {serverError && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-red-700">
           {serverError}
         </p>
       )}

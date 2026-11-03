@@ -10,7 +10,7 @@ import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
 import type { PaymentMethod } from '../lib/domain/types';
 import { useToast } from './Toast';
 import { PaymentMethodChips } from './PaymentPanel';
-import { btnPrimary, card, chip, field, fieldLabel, input } from './ui';
+import { btnGhost, btnPrimary, btnText, card, chip, field, fieldLabel, input } from './ui';
 
 export function ScheduleForm() {
   const store = useStore();
@@ -24,6 +24,8 @@ export function ScheduleForm() {
   const [draftId, setDraftId] = useState<number | null>(null);
   const [datetime, setDatetime] = useState('');
   const [walkIn, setWalkIn] = useState(false);
+  // Cerrado por defecto: la agenda es lo que se abre todos los días. Lo escrito se conserva al cerrar.
+  const [open, setOpen] = useState(false);
   // Cobro al paso: un precio por cada servicio variable + total opcional (igual que cobrar una cita).
   const [chargeTexts, setChargeTexts] = useState<{ prices: Record<number, string>; total: string }>({ prices: {}, total: '' });
   const [quotedText, setQuotedText] = useState(''); // precio acordado (al agendar)
@@ -117,11 +119,26 @@ export function ScheduleForm() {
     setDepositText('');
     setDepositMethod('cash');
     setWalkInPay('cash');
+    // Ya quedó registrada: se cierra el formulario para ver la agenda.
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className={btnGhost + ' w-full font-semibold'} onClick={() => setOpen(true)}>
+        Agendar una cita
+      </button>
+    );
   }
 
   return (
     <form onSubmit={handleSubmit} className={card + ' flex flex-col gap-3'}>
-      <h2 className="text-lg font-semibold">{walkIn ? 'Registrar atención' : 'Agendar cita'}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-xl font-semibold tracking-tight">{walkIn ? 'Registrar atención' : 'Agendar cita'}</h2>
+        <button type="button" className={btnText + ' -mr-2 text-muted'} onClick={() => setOpen(false)}>
+          Cerrar
+        </button>
+      </div>
 
       <label className={field}>
         <span className={fieldLabel}>Clienta</span>
@@ -147,7 +164,7 @@ export function ScheduleForm() {
                 onClick={() => setSelectedIds((ids) => toggleServiceId(ids, service.id))}
                 className={
                   chip + ' ' +
-                  (on ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white text-neutral-700')
+                  (on ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink')
                 }
               >
                 {service.name}
@@ -156,8 +173,8 @@ export function ScheduleForm() {
           })}
         </div>
         {selection.service_ids.length > 0 && (
-          <p className="text-sm text-neutral-600">
-            Duran {selection.duration_min} min · Precio estimado:{' '}
+          <p className="text-sm text-muted">
+            Duran {selection.duration_min} min. Precio estimado:{' '}
             {hasVariable
               ? selection.estimate.total > 0
                 ? `${formatMoney(selection.estimate.total)} + a convenir`
@@ -167,7 +184,7 @@ export function ScheduleForm() {
         )}
         {selectedServices.some((service) => service.duration_min <= 0) && (
           // Sin esto el botón quedaría apagado sin explicar por qué.
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-red-700">
             {selectedServices
               .filter((service) => service.duration_min <= 0)
               .map((service) => service.name)
@@ -263,7 +280,7 @@ export function ScheduleForm() {
         </div>
       )}
 
-      <label className="flex min-h-11 items-center gap-2 text-sm text-neutral-700">
+      <label className="flex min-h-11 items-center gap-2 text-sm text-ink">
         <input className="size-5" type="checkbox" checked={walkIn} onChange={(e) => setWalkIn(e.target.checked)} />
         Ya la atendí (cobrar ahora)
       </label>

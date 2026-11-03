@@ -1,6 +1,6 @@
 // Pantalla que reemplaza la app cuando el plan venció y se acabó el plazo (S5).
 // Presentacional: el enlace de WhatsApp llega por props (lo arma `whatsappPaymentLink`).
-import { btnGhost, btnPrimary, card } from './ui';
+import { btnGhost, btnPrimary, screenTitle, surface } from './ui';
 
 interface Props {
   whatsappUrl: string;
@@ -9,9 +9,9 @@ interface Props {
 
 export function BlockedScreen({ whatsappUrl, onSignOut }: Props) {
   return (
-    <div className="grid min-h-dvh place-items-center bg-neutral-50 px-4 py-8 text-neutral-900">
-      <div className={`${card} flex w-full max-w-md flex-col gap-4`}>
-        <h1 className="text-xl font-bold text-brand-700">Tu plan venció</h1>
+    <div className="grid min-h-dvh place-items-center bg-paper px-4 py-8 text-ink">
+      <div className={`${surface} flex w-full max-w-md flex-col gap-4 p-6`}>
+        <h1 className={screenTitle}>Tu plan venció</h1>
         <p>
           Para seguir usando Citelis, escríbenos por WhatsApp y te decimos cómo pagar. En cuanto confirmemos tu pago, tu
           cuenta se activa de nuevo.

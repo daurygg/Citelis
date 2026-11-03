@@ -6,7 +6,7 @@ import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, parseMoneyToCents } from '../lib/format';
 import { SupplyRow } from './SupplyRow';
 import { AddSupplyForm } from './AddSupplyForm';
-import { btnGhost, card, field, fieldLabel, input } from './ui';
+import { btnGhost, btnQuietDanger, field, fieldLabel, input, rowDivider, surface } from './ui';
 
 export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack: () => void }) {
   const store = useStore();
@@ -26,7 +26,7 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
   if (!service || !economics) {
     return (
       <button type="button" className={btnGhost} onClick={onBack}>
-        ← Volver
+        Volver
       </button>
     );
   }
@@ -56,12 +56,19 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
 
   return (
     <section className="flex flex-col gap-4">
-      <button type="button" className="self-start text-sm text-brand-700 hover:underline" onClick={onBack}>
-        ← Volver a servicios
+      <button
+        type="button"
+        className="-ml-1 inline-flex min-h-11 items-center gap-1 self-start rounded-lg px-1 text-sm font-medium text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700"
+        onClick={onBack}
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true" className="size-4" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="m10 3.5-4.5 4.5 4.5 4.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        Volver a servicios
       </button>
 
-      <div className={card + ' flex flex-col gap-4'}>
-        <label className={field}>          
+      <div className={surface + ' grid grid-cols-2 gap-3 p-4'}>
+        <label className={field + ' col-span-2'}>
           <span className={fieldLabel}>Nombre del servicio</span>
           <input
             className={input}
@@ -71,46 +78,60 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
           />
         </label>
 
-        <div className="flex gap-3">
-          <label className={field + ' flex-1'}>
-            <span className={fieldLabel}>Precio de venta</span>
-            <input className={input} type="text" inputMode="decimal" value={priceText} onChange={(e) => handlePrice(e.target.value)} />
-          </label>
-          <label className={field + ' flex-1'}>
-            <span className={fieldLabel}>Duración (min)</span>
-            <input
-              className={input}
-              type="number"
-              min={0}
-              value={service.duration_min}
-              onChange={(e) => store.updateService(serviceId, { duration_min: Number(e.target.value) })}
-            />
-          </label>
-        </div>
+        <label className={field}>
+          <span className={fieldLabel}>Precio de venta</span>
+          <input className={input} type="text" inputMode="decimal" value={priceText} onChange={(e) => handlePrice(e.target.value)} />
+        </label>
+        <label className={field}>
+          <span className={fieldLabel}>Duración (min)</span>
+          <input
+            className={input}
+            type="number"
+            min={0}
+            value={service.duration_min}
+            onChange={(e) => store.updateService(serviceId, { duration_min: Number(e.target.value) })}
+          />
+        </label>
       </div>
 
-      <div className={card + ' flex flex-col gap-2'}>
+      <div className={surface + ' flex flex-col'}>
         <button
           type="button"
-          className="flex items-center justify-between text-left font-medium"
+          aria-expanded={showSupplies}
+          className="flex min-h-14 w-full items-center justify-between gap-3 rounded-2xl px-4 text-left font-semibold focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-700"
           onClick={() => setShowSupplies((v) => !v)}
         >
-          <span>Insumos ({supplies.length})</span>
-          <span className="text-neutral-400">{showSupplies ? '▾' : '▸'}</span>
+          <span>
+            Insumos <span className="font-normal text-muted tabular-nums">({supplies.length})</span>
+          </span>
+          <svg
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+            className={'size-4 text-muted transition-transform motion-reduce:transition-none ' + (showSupplies ? 'rotate-180' : '')}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="m3.5 6 4.5 4.5L12.5 6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </button>
 
         {showSupplies && (
-          <div className="flex flex-col">
+          <div className="flex flex-col border-t border-line">
             {supplies.length === 0 ? (
-              <p className="text-sm text-neutral-500">Aún no hay insumos. Añade el primero abajo.</p>
+              <p className="p-4 text-muted">Aún no hay insumos. Añade el primero abajo.</p>
             ) : (
-              supplies.map((supply) => <SupplyRow key={supply.id} supply={supply} serviceId={serviceId} />)
+              <div className={rowDivider}>
+                {supplies.map((supply) => (
+                  <SupplyRow key={supply.id} supply={supply} serviceId={serviceId} />
+                ))}
+              </div>
             )}
             <AddSupplyForm serviceId={serviceId} />
 
             {availableToLink.length > 0 && (
-              <div className="mt-3 flex items-end gap-2 rounded-xl bg-neutral-50 p-3">
-                <label className={field + ' flex-1'}>
+              <div className="flex items-end gap-2 border-t border-line p-4">
+                <label className={field + ' min-w-0 flex-1'}>
                   <span className={fieldLabel}>…o usa un insumo que ya tienes (compartido)</span>
                   <select className={input} value={linkId} onChange={(e) => setLinkId(Number(e.target.value))}>
                     <option value={0}>Elegir…</option>
@@ -137,7 +158,7 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
           </div>
         )}
 
-        <label className={field + ' mt-2'}>
+        <label className={field + ' border-t border-line p-4'}>
           <span className={fieldLabel}>O escribe un costo estimado (opcional; manda sobre los insumos)</span>
           <input
             className={input}
@@ -150,27 +171,24 @@ export function ServiceEditor({ serviceId, onBack }: { serviceId: number; onBack
         </label>
       </div>
 
-      <div className={card + ' flex items-center justify-between'}>
+      {/* Costo y margen en una sola franja, como las cifras del día en la agenda: el margen manda. */}
+      <div className={surface + ' grid grid-cols-2 gap-4 p-4 tabular-nums'}>
         <div>
-          <div className={fieldLabel + ' text-sm'}>Costo</div>
-          <div className="text-lg font-semibold">
-            {formatMoney(economics.effective_cost)}
-            {service.cost_override != null && (
-              <span className="ml-1 text-xs font-normal text-neutral-500">
-                (estimado; insumos {formatMoney(economics.supply_cost)})
-              </span>
-            )}
-          </div>
+          <div className="text-sm text-muted">Costo</div>
+          <div className="text-lg font-semibold">{formatMoney(economics.effective_cost)}</div>
+          {service.cost_override != null && (
+            <div className="text-sm text-muted">Estimado; los insumos suman {formatMoney(economics.supply_cost)}</div>
+          )}
         </div>
-        <div className="text-right">
-          <div className={fieldLabel + ' text-sm'}>Margen</div>
-          <div className={'text-lg font-semibold ' + (economics.margin >= 0 ? 'text-green-700' : 'text-red-700')}>
+        <div className="border-l border-line pl-4">
+          <div className="text-sm text-muted">Margen</div>
+          <div className={'text-xl font-bold ' + (economics.margin >= 0 ? 'text-green-700' : 'text-red-700')}>
             {formatMoney(economics.margin)}
           </div>
         </div>
       </div>
 
-      <button type="button" className="self-start text-sm text-red-600 hover:underline" onClick={handleDelete}>
+      <button type="button" className={btnQuietDanger + ' self-start'} onClick={handleDelete}>
         Eliminar servicio
       </button>
     </section>

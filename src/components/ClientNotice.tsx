@@ -49,7 +49,7 @@ export function ClientNotice({
     // Sin teléfono no hay a quién escribirle, y callarlo sería peor: la dueña
     // tiene que saber que esta clienta se queda sin enterarse.
     return (
-      <p className="text-sm text-neutral-600">
+      <p className="text-sm text-muted">
         {appointment.client} no dejó un teléfono al que escribirle.
       </p>
     );

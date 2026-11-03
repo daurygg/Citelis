@@ -25,21 +25,21 @@ export function AddSupplyForm({ serviceId }: { serviceId: number }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="mt-3 flex flex-wrap items-end gap-3 rounded-xl bg-neutral-50 p-3">
-      <label className={field + ' min-w-[8rem] flex-[2]'}>
+    <form onSubmit={handleSubmit} className="grid grid-cols-2 items-end gap-3 border-t border-line bg-paper p-4">
+      <label className={field + ' col-span-2'}>
         <span className={fieldLabel}>Nuevo insumo</span>
         <input className={input} type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Pigmento" />
       </label>
-      <label className={field + ' flex-1'}>
+      <label className={field}>
         <span className={fieldLabel}>¿Cuánto pagaste?</span>
         <input className={input} type="text" inputMode="decimal" value={paidText} onChange={(e) => setPaidText(e.target.value)} />
       </label>
-      <label className={field + ' flex-1'}>
+      <label className={field}>
         <span className={fieldLabel}>¿Para cuántas alcanza?</span>
         <input className={input} type="number" min={1} value={servingsText} onChange={(e) => setServingsText(e.target.value)} />
       </label>
-      <button type="submit" className={btnGhost} disabled={!canAdd}>
-        Añadir
+      <button type="submit" className={btnGhost + ' col-span-2'} disabled={!canAdd}>
+        Añadir insumo
       </button>
     </form>
   );
