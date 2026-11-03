@@ -68,6 +68,10 @@ Rama `feat/client-directory` desde `develop`. Estrategia `ask-on-risk`. PR a `de
 - [x] **T4** — UI: selector de clientas en "Agendar una cita" con "+ Nueva clienta".
 - [x] **T5** — Capturas a 390 px con Supabase simulado; aviso de WhatsApp en cita de la dueña.
 
+- [x] **T6** — Avisos de la revisión aceptados por la dueña: (a) carrera al crear clienta por
+  teléfono (reusar la que ganó); (b) `+1` y 10 dígitos son el mismo teléfono; (c) cita sin
+  teléfono reutiliza la clienta sin teléfono del mismo nombre. Ruta: delegada (SQL + dominio).
+
 ## Checks
 
 `npm run test:run`, `npm run typecheck`, `npm run build`, suite SQL en CI, capturas de T5.
@@ -98,9 +102,13 @@ Rama `feat/client-directory` desde `develop`. Estrategia `ask-on-risk`. PR a `de
   teléfono → choque con el índice único), clientas sin teléfono duplicadas en cada cita sin
   teléfono, nombre fijado por la primera reserva pública, lo tecleado en la búsqueda no pasa a
   "Nueva clienta" en algún caso, recarga completa de clientas tras cada cita.
+- T6 `0aec4c5` + `f61fdc1`: `client_phone_digits(text)` única regla (quita el `1` de 11 dígitos)
+  en columna generada, búsquedas y relleno; alta por teléfono con `on conflict do nothing` y
+  relectura en ambas RPC; cita sin teléfono reutiliza clienta sin teléfono del mismo nombre
+  (mayúsculas/espacios). TS `phoneDigits` espejo (RED 3 tests, GREEN 19/19). test:run 701/701.
+  SQL sin ejecutar localmente.
 
 ## Pendiente / abierto
 
 - Pantalla para editar o fusionar clientas: fuera de alcance.
-- `+1 809…` y `809…` cuentan como teléfonos distintos (dígitos exactos, igual que el servidor):
-  posible duplicado. Decidir si normalizar el código de país en `phone_digits`.
+- Resuelto en T6: `+1 809…` y `809…` son el mismo teléfono.
