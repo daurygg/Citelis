@@ -107,6 +107,9 @@ Rama `feat/client-directory` desde `develop`. Estrategia `ask-on-risk`. PR a `de
   relectura en ambas RPC; cita sin teléfono reutiliza clienta sin teléfono del mismo nombre
   (mayúsculas/espacios). TS `phoneDigits` espejo (RED 3 tests, GREEN 19/19). test:run 701/701.
   SQL sin ejecutar localmente.
+- PR #73 a `develop`. Primera ejecución de `sql-regression` falló en la prueba 10d: las citas
+  del relleno (sin líneas de servicio) bloqueaban el portal por el fallo seguro de duración
+  desconocida. Arreglo en la suite (se borran tras la prueba 8). CI verde: test + sql-regression.
 
 ## Pendiente / abierto
 
