@@ -19,7 +19,7 @@ import {
   weekRange,
 } from '../lib/format';
 import { FixedExpenses } from './FixedExpenses';
-import { btnGhost, card, field, fieldLabel, input, kpi } from './ui';
+import { btnIcon, field, fieldLabel, input, screenTitle, segment, segmented, surface } from './ui';
 
 type Mode = 'day' | 'week' | 'month' | 'range';
 
@@ -29,6 +29,14 @@ const MODES: { id: Mode; label: string }[] = [
   { id: 'month', label: 'Mes' },
   { id: 'range', label: 'Rango' },
 ];
+
+function Chevron({ dir }: { dir: 'left' | 'right' }) {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" className="size-5" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d={dir === 'left' ? 'm10 3.5-4.5 4.5 4.5 4.5' : 'm6 3.5 4.5 4.5-4.5 4.5'} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export function PeriodReport() {
   const store = useStore();
@@ -79,20 +87,12 @@ export function PeriodReport() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Reporte de ganancias</h2>
+      <h2 className={screenTitle}>Reporte de ganancias</h2>
 
       {/* Selector de modo */}
-      <div className="flex gap-1 rounded-xl bg-neutral-100 p-1">
+      <div className={segmented} role="group" aria-label="Periodo">
         {MODES.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => setMode(m.id)}
-            className={
-              'min-h-11 flex-1 rounded-lg px-3 text-sm font-medium transition ' +
-              (mode === m.id ? 'bg-white text-brand-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800')
-            }
-          >
+          <button key={m.id} type="button" aria-pressed={mode === m.id} onClick={() => setMode(m.id)} className={segment(mode === m.id)}>
             {m.label}
           </button>
         ))}
@@ -100,94 +100,103 @@ export function PeriodReport() {
 
       {/* Navegación (día/semana/mes) o selector de rango */}
       {mode === 'range' ? (
-        <div className="flex flex-wrap gap-3">
-          <label className={field + ' min-w-40 flex-1'}>
+        <div className="grid grid-cols-2 gap-3">
+          <label className={field}>
             <span className={fieldLabel}>Desde</span>
             <input className={input} type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value || today)} />
           </label>
-          <label className={field + ' min-w-40 flex-1'}>
+          <label className={field}>
             <span className={fieldLabel}>Hasta</span>
             <input className={input} type="date" value={rangeTo} onChange={(e) => setRangeTo(e.target.value || today)} />
           </label>
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <button type="button" className={btnGhost + ' px-3'} onClick={() => navigate(-1)} aria-label="Anterior">
-            ‹
+          <button type="button" className={btnIcon} onClick={() => navigate(-1)} aria-label="Anterior">
+            <Chevron dir="left" />
           </button>
-          <div className="flex-1 text-center font-semibold capitalize">{label}</div>
-          <button type="button" className={btnGhost + ' px-3'} onClick={() => navigate(1)} aria-label="Siguiente">
-            ›
+          <div className="min-w-0 flex-1 text-center font-semibold capitalize">{label}</div>
+          <button type="button" className={btnIcon} onClick={() => navigate(1)} aria-label="Siguiente">
+            <Chevron dir="right" />
           </button>
         </div>
       )}
 
-      <p className="text-center text-sm text-neutral-500">{summary.completed_count} cita(s) completada(s)</p>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className={kpi}>
-          <div className="text-sm text-neutral-500">Ingresos</div>
-          <div className="text-lg font-bold">{formatMoney(summary.total_income)}</div>
+      {/* Las cifras del periodo en una sola franja: la ganancia neta manda y las cuatro de abajo la explican. */}
+      <div className={surface + ' overflow-hidden'}>
+        <div className="p-4">
+          <p className="text-sm text-muted">Ganancia neta</p>
+          <p className={'text-2xl font-bold tabular-nums ' + (net >= 0 ? 'text-green-700' : 'text-red-700')}>{formatMoney(net)}</p>
+          <p className="text-sm text-muted">
+            {summary.completed_count === 1 ? '1 cita completada' : `${summary.completed_count} citas completadas`}
+          </p>
         </div>
-        <div className={kpi}>
-          <div className="text-sm text-neutral-500">Costo de insumos</div>
-          <div className="text-lg font-bold">{formatMoney(summary.total_cost)}</div>
-        </div>
-        <div className={kpi}>
-          <div className="text-sm text-neutral-500">Ganancia de servicios</div>
-          <div className="text-lg font-bold text-green-700">{formatMoney(summary.gross_profit)}</div>
-        </div>
-        <div className={kpi}>
-          <div className="text-sm text-neutral-500">Gastos fijos (del periodo)</div>
-          <div className="text-lg font-bold text-neutral-700">−{formatMoney(periodFixed)}</div>
-        </div>
-        <div className={kpi + ' col-span-2'}>
-          <div className="text-sm text-neutral-500">Ganancia neta</div>
-          <div className={'text-2xl font-bold ' + (net >= 0 ? 'text-green-700' : 'text-red-700')}>{formatMoney(net)}</div>
-        </div>
+        <dl className="grid grid-cols-2 gap-px border-t border-line bg-line tabular-nums">
+          <div className="bg-white p-4">
+            <dt className="text-sm text-muted">Ingresos</dt>
+            <dd className="font-semibold">{formatMoney(summary.total_income)}</dd>
+          </div>
+          <div className="bg-white p-4">
+            <dt className="text-sm text-muted">Costo de insumos</dt>
+            <dd className="font-semibold">{formatMoney(summary.total_cost)}</dd>
+          </div>
+          <div className="bg-white p-4">
+            <dt className="text-sm text-muted">Ganancia de servicios</dt>
+            <dd className="font-semibold text-green-700">{formatMoney(summary.gross_profit)}</dd>
+          </div>
+          <div className="bg-white p-4">
+            <dt className="text-sm text-muted">Gastos fijos del periodo</dt>
+            <dd className="font-semibold">−{formatMoney(periodFixed)}</dd>
+          </div>
+        </dl>
       </div>
 
-      <div className={card}>
-        <div className="text-sm text-neutral-500">Servicio más rentable</div>
+      <div className={surface + ' p-4'}>
+        <p className="text-sm text-muted">Servicio más rentable</p>
         {summary.most_profitable_service ? (
-          <div className="font-semibold">
-            {topService?.name ?? `Servicio ${summary.most_profitable_service.service_id}`}{' '}
-            <span className="text-green-700">({formatMoney(summary.most_profitable_service.profit)})</span>
-          </div>
+          <p className="flex flex-wrap items-baseline justify-between gap-x-3 font-semibold">
+            <span className="min-w-0 break-words">
+              {topService?.name ?? `Servicio ${summary.most_profitable_service.service_id}`}
+            </span>
+            <span className="tabular-nums text-green-700">{formatMoney(summary.most_profitable_service.profit)}</span>
+          </p>
         ) : (
-          <div className="text-neutral-500">Sin citas completadas en este periodo.</div>
+          <p className="text-muted">Sin citas completadas en este periodo.</p>
         )}
       </div>
 
       {/* Lo pagado por vía NO es lo mismo que lo cobrado cuando hay crédito: se ven
           las dos cifras y la diferencia. Cada pago cuenta en el periodo de su cita. */}
       {summary.completed_count > 0 && (
-        <div className={card + ' flex flex-col gap-2'}>
-          <div className="text-sm text-neutral-500">¿Cómo te pagaron? (citas de este periodo)</div>
-          {PAYMENT_METHODS.map((method) => (
-            <div key={method} className="flex justify-between">
-              <span className="text-neutral-600">{paymentMethodLabel(method)}</span>
-              <span>{formatMoney(income.by_method[method])}</span>
+        <div className={surface + ' p-4'}>
+          <h3 className="font-semibold">¿Cómo te pagaron?</h3>
+          <p className="text-sm text-muted">Citas de este periodo</p>
+          <dl className="mt-2 flex flex-col tabular-nums">
+            {PAYMENT_METHODS.map((method) => (
+              <div key={method} className="flex justify-between gap-3 py-1">
+                <dt className="text-muted">{paymentMethodLabel(method)}</dt>
+                <dd>{formatMoney(income.by_method[method])}</dd>
+              </div>
+            ))}
+            {income.by_method.unknown > 0 && (
+              <div className="flex justify-between gap-3 py-1">
+                <dt className="text-muted">{paymentMethodLabel(null)}</dt>
+                <dd>{formatMoney(income.by_method.unknown)}</dd>
+              </div>
+            )}
+            <div className="mt-1 flex justify-between gap-3 border-t border-line pt-2">
+              <dt className="text-muted">Ya pagado</dt>
+              <dd className="font-semibold">{formatMoney(income.total_paid)}</dd>
             </div>
-          ))}
-          {income.by_method.unknown > 0 && (
-            <div className="flex justify-between">
-              <span className="text-neutral-600">{paymentMethodLabel(null)}</span>
-              <span>{formatMoney(income.by_method.unknown)}</span>
+            <div className="flex justify-between gap-3 py-1">
+              <dt className="text-muted">Cobrado en total</dt>
+              <dd>{formatMoney(income.total_charged)}</dd>
             </div>
-          )}
-          <div className="flex justify-between border-t border-neutral-200 pt-2">
-            <span className="text-neutral-600">Ya pagado</span>
-            <strong>{formatMoney(income.total_paid)}</strong>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-neutral-600">Cobrado (ingresos de arriba)</span>
-            <span>{formatMoney(income.total_charged)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-neutral-600">Quedó a crédito</span>
-            <strong className={income.pending_credit > 0 ? 'text-orange-700' : ''}>{formatMoney(income.pending_credit)}</strong>
-          </div>
+            <div className="flex justify-between gap-3 py-1">
+              <dt className="text-muted">Quedó a crédito</dt>
+              <dd className={'font-semibold ' + (income.pending_credit > 0 ? 'text-orange-700' : '')}>{formatMoney(income.pending_credit)}</dd>
+            </div>
+          </dl>
         </div>
       )}
 

@@ -35,8 +35,8 @@ export function PublicReceipt({ token }: { token: string }) {
             : null;
 
   return createPortal(
-    <div className="receipt-portal fixed inset-0 z-50 overflow-y-auto bg-neutral-100 px-3 py-6">
-      {message !== null && <p className="receipt-actions mx-auto mt-20 max-w-sm text-center text-neutral-700">{message}</p>}
+    <div className="receipt-portal fixed inset-0 z-50 overflow-y-auto bg-paper px-3 py-6">
+      {message !== null && <p className="receipt-actions mx-auto mt-20 max-w-sm text-center">{message}</p>}
       {load?.status === 'found' && load.result.ok && (
         <div className="mx-auto flex max-w-[22rem] flex-col gap-4">
           <ReceiptSheet data={load.result.data} />

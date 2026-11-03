@@ -13,8 +13,8 @@ export function centsToText(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
-const chipOn = 'border-neutral-900 bg-neutral-900 text-white';
-const chipOff = 'border-neutral-300 bg-white text-neutral-700';
+const chipOn = 'border-ink bg-ink text-white';
+const chipOff = 'border-line bg-white text-ink';
 
 /**
  * Efectivo / Transferencia / Tarjeta. `extra` añade una opción más aparte (p. ej.
@@ -98,10 +98,10 @@ export function RegisterPaymentPanel({ appointment, onDone }: { appointment: App
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
-      <div className="flex justify-between text-sm">
-        <span className="text-neutral-600">Debe</span>
-        <strong>{formatMoney(balance)}</strong>
+    <div className="flex flex-col gap-3 rounded-xl bg-paper p-3">
+      <div className="flex items-baseline justify-between gap-3 tabular-nums">
+        <span className="text-muted">Debe</span>
+        <strong className="text-lg">{formatMoney(balance)}</strong>
       </div>
       <label className={field}>
         <span className={fieldLabel}>¿Cuánto pagó?</span>
@@ -116,7 +116,7 @@ export function RegisterPaymentPanel({ appointment, onDone }: { appointment: App
           }}
         />
       </label>
-      {!check.ok && cents !== null && <p className="text-sm text-red-600">{check.reason}</p>}
+      {!check.ok && cents !== null && <p className="text-sm text-red-700">{check.reason}</p>}
       <div className={field}>
         <span className={fieldLabel}>¿Cómo pagó?</span>
         <PaymentMethodChips

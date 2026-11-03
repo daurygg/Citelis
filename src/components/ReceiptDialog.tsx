@@ -40,7 +40,7 @@ export function ReceiptDialog({ appointmentId, onClose }: { appointmentId: numbe
 
   return createPortal(
     <div
-      className="receipt-portal fixed inset-0 z-50 overflow-y-auto bg-neutral-900/60 px-3 py-6"
+      className="receipt-portal fixed inset-0 z-50 overflow-y-auto bg-ink/60 px-3 py-6"
       role="dialog"
       aria-modal="true"
       aria-label="Recibo"
@@ -55,8 +55,8 @@ export function ReceiptDialog({ appointmentId, onClose }: { appointmentId: numbe
         </div>
       )}
       {result && !result.ok && (
-        <div className="receipt-actions mx-auto mt-20 flex max-w-sm flex-col gap-3 rounded-2xl bg-white p-4 text-center">
-          <p className="text-neutral-700">{result.message}</p>
+        <div className="receipt-actions mx-auto mt-20 flex max-w-sm flex-col gap-3 rounded-2xl bg-white p-5 text-center ring-1 ring-line">
+          <p>{result.message}</p>
           <button type="button" className={btnGhost} onClick={onClose}>
             Cerrar
           </button>

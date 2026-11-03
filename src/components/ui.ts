@@ -42,3 +42,35 @@ export const input =
 export const field = 'flex flex-col gap-1 text-sm';
 
 export const fieldLabel = 'text-muted';
+
+// Lo que sigue lo comparten las pantallas de la app de la dueña (reservas, servicios, créditos, reportes).
+
+// Título de pantalla: un escalón sobre el cuerpo, sin gritar.
+export const screenTitle = 'text-2xl leading-tight font-semibold tracking-tight';
+
+// Superficie blanca SIN relleno propio: contiene filas separadas por líneas finas en vez de una pila de tarjetas.
+export const surface = 'rounded-2xl bg-white ring-1 ring-line';
+
+// Separador fino entre filas de una misma superficie.
+export const rowDivider = 'divide-y divide-line';
+
+// Acción discreta dentro de una fila (Quitar, Cerrar...): texto, 44px de alto, sin caja.
+export const btnQuiet =
+  'min-h-11 shrink-0 rounded-lg px-3 text-sm font-medium text-muted transition hover:bg-paper hover:text-ink ' + focus;
+
+// La misma acción cuando borra algo: el rojo solo sale en el texto.
+export const btnQuietDanger =
+  'min-h-11 shrink-0 rounded-lg px-3 text-sm font-medium text-red-700 transition hover:bg-red-50 ' + focus;
+
+// Selector segmentado (Día / Semana / Mes...): el activo se marca con tono y tinta, no con color de marca.
+export const segmented = 'flex gap-1 rounded-xl bg-line/60 p-1';
+export const segment = (active: boolean) =>
+  'min-h-11 flex-1 rounded-lg px-3 text-sm font-medium transition ' +
+  focus +
+  ' ' +
+  (active ? 'bg-white text-ink ring-1 ring-line' : 'text-muted hover:text-ink');
+
+// Botón de ícono cuadrado de 44px (flechas de periodo).
+export const btnIcon =
+  'grid size-11 shrink-0 place-items-center rounded-xl bg-white text-ink ring-1 ring-line transition hover:bg-paper ' +
+  focus;

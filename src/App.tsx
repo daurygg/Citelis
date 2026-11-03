@@ -150,10 +150,10 @@ function modeButtonClass(active: boolean): string {
 /** Pestaña con subrayado de marca: la activa lleva tinta y una barra de 2px. */
 function tabButtonClass(active: boolean): string {
   return (
-    'relative min-h-11 shrink-0 whitespace-nowrap px-3.5 text-sm font-medium transition ' +
+    'relative min-h-11 min-w-0 flex-1 whitespace-nowrap px-1 text-[0.8125rem] font-medium min-[400px]:text-sm transition ' +
     focusRing +
     (active
-      ? ' text-ink after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand-700'
+      ? ' text-ink after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand-700'
       : ' text-muted hover:text-ink')
   );
 }
@@ -312,9 +312,8 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
         /* Pestañas del modo activo */
         <nav className="sticky top-0 z-10 mt-1 border-b border-line bg-paper">
           <div className="mx-auto max-w-xl px-2">
-            {/* Con 5 pestañas no caben en un teléfono angosto: la barra se desplaza
-                sola en vez de ensanchar toda la página. */}
-            <div className="flex overflow-x-auto">
+            {/* Las pestañas se reparten el ancho por igual: las 5 caben a 360 px sin desplazar la barra. */}
+            <div className="flex">
               {mode === 'services'
                 ? SERVICE_TABS.map((tab) => (
                     <button key={tab.id} type="button" className={tabButtonClass(serviceView === tab.id)} aria-current={serviceView === tab.id ? 'page' : undefined} onClick={() => setServiceView(tab.id)}>
@@ -335,7 +334,7 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
         {adminOpen && isPlatformAdmin ? (
           <AdminPanel />
         ) : screen === 'business' ? (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             <BrandSettings />
             <ReceiptSettings />
             <PublicLinkSettings />
