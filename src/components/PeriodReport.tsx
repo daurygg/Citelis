@@ -19,6 +19,7 @@ import {
   weekRange,
 } from '../lib/format';
 import { FixedExpenses } from './FixedExpenses';
+import { ClientSalesList } from './ClientSalesList';
 import { btnIcon, field, fieldLabel, input, screenTitle, segment, segmented, surface } from './ui';
 
 type Mode = 'day' | 'week' | 'month' | 'range';
@@ -199,6 +200,8 @@ export function PeriodReport() {
           </dl>
         </div>
       )}
+
+      <ClientSalesList rows={store.salesByClient(from, to)} />
 
       <FixedExpenses month={monthKey} />
     </section>
