@@ -17,7 +17,7 @@ import { buildPaymentPlan, initialPaymentText, type PaymentRowText } from '../li
 import { useToast } from './Toast';
 import { CalendarActions } from './CalendarActions';
 import { ClientNotice } from './ClientNotice';
-import { PaymentMethodChips, RegisterPaymentPanel } from './PaymentPanel';
+import { DepositPanel, PaymentMethodChips, RegisterPaymentPanel } from './PaymentPanel';
 import { ReceiptDialog } from './ReceiptDialog';
 import { btnGhostSm, btnPrimary, btnPrimarySm, btnText, chip, field, fieldLabel, input } from './ui';
 
@@ -52,6 +52,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   // Pagos tecleados al cobrar. null = no los tocó: se ofrece el saldo en efectivo.
   const [payRows, setPayRows] = useState<PaymentRowText[] | null>(null);
   const [registeringPayment, setRegisteringPayment] = useState(false);
+  const [depositing, setDepositing] = useState(false);
   const [showingReceipt, setShowingReceipt] = useState(false);
 
   const isOpen = appointment.status === 'PENDING' || appointment.status === 'IN_PROGRESS';
@@ -225,6 +226,9 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
               >
                 {rescheduling ? 'Cerrar' : 'Reprogramar'}
               </button>
+              <button type="button" className={quietAction} onClick={() => setDepositing((v) => !v)}>
+                {depositing ? 'Cerrar' : 'Abonar'}
+              </button>
             </>
           )}
           {editable && (
@@ -273,6 +277,14 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
       {/* Se decide solo según el estado: aparece en una cita confirmada o
           cancelada, y desaparece cuando ya no hay nada que avisar. */}
       <ClientNotice appointment={appointment} />
+
+      {isOpen && depositing && (
+        <DepositPanel
+          appointment={appointment}
+          estimate={store.completionPreview(appointment.id)?.charged_price ?? null}
+          onDone={() => setDepositing(false)}
+        />
+      )}
 
       {rescheduling && (
         <div className="flex flex-col gap-2 rounded-xl bg-paper p-3">
