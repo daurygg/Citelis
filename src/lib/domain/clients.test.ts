@@ -14,13 +14,32 @@ const catalog = [maria, jose, ana];
 describe('phoneDigits', () => {
   it('deja solo los dígitos, igual que la columna phone_digits del servidor', () => {
     expect(phoneDigits('(829) 000-0001')).toBe('8290000001');
-    expect(phoneDigits('+1 829 000 0001')).toBe('18290000001');
+  });
+  it('quita el código de país 1 cuando son 11 dígitos: +1 809, 1-809 y 809 son el mismo teléfono', () => {
+    expect(phoneDigits('+1 809 555 1234')).toBe('8095551234');
+    expect(phoneDigits('1 809-555-1234')).toBe('8095551234');
+    expect(phoneDigits('809-555-1234')).toBe('8095551234');
+    expect(phoneDigits('+1 829 000 0001')).toBe('8290000001');
+  });
+  it('no toca lo que no es un 1 de país seguido de 10 dígitos', () => {
+    expect(phoneDigits('1234567')).toBe('1234567');
+    expect(phoneDigits('18095551234567')).toBe('18095551234567');
+    expect(phoneDigits('2 809 555 1234')).toBe('28095551234');
   });
   it('devuelve null si no hay dígitos', () => {
     expect(phoneDigits('---')).toBeNull();
     expect(phoneDigits('')).toBeNull();
     expect(phoneDigits(null)).toBeNull();
     expect(phoneDigits(undefined)).toBeNull();
+  });
+});
+
+describe('duplicados y búsqueda con código de país', () => {
+  it('findClientByPhone reconoce a la misma clienta con o sin +1', () => {
+    expect(findClientByPhone(catalog, '+1 809 555 1234')?.id).toBe(2);
+  });
+  it('searchClients encuentra por teléfono escrito con +1', () => {
+    expect(searchClients(catalog, '1 809 555 1234').map((c) => c.id)).toEqual([2]);
   });
 });
 

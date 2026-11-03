@@ -12,16 +12,18 @@ import type { Client } from './types';
 export const DEFAULT_CLIENT_LIMIT = 8;
 
 /**
- * Solo los dígitos del teléfono, o null si no hay ninguno. Es la MISMA regla que la
- * columna generada `client.phone_digits` del servidor: así lo que aquí se considera
- * "el mismo teléfono" coincide con lo que la base considera duplicado.
- * (No usa `normalizeWhatsAppPhone`: ese añade el país para armar el enlace de
- * WhatsApp, y aquí añadirlo haría distinto lo que la base ve igual.)
+ * Los dígitos del teléfono sin el código de país 1 (NANP: República Dominicana, EE. UU.),
+ * o null si no hay dígitos. "+1 809 555 1234", "1-809-555-1234" y "809-555-1234" son la
+ * misma persona, así que un valor de 11 dígitos que empieza en 1 se guarda como sus
+ * últimos 10. Es la MISMA regla que la función SQL `client_phone_digits` (columna
+ * `client.phone_digits` y todas las búsquedas del servidor): si una cambia, cambia la otra.
+ * (No usa `normalizeWhatsAppPhone`: ese SÍ necesita el país para armar el enlace wa.me.)
  */
 export function phoneDigits(phone: string | null | undefined): string | null {
   if (typeof phone !== 'string') return null;
   const digits = phone.replace(/\D/g, '');
-  return digits === '' ? null : digits;
+  if (digits === '') return null;
+  return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
 }
 
 /**
