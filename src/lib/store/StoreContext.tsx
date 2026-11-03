@@ -30,6 +30,7 @@ import {
   type CompleteOptions,
 } from '../domain/appointments';
 import { completeRpcArgs, planCompletion, type ChargePayment } from '../domain/charge';
+import { salesByClient, type ClientSales } from '../domain/clientSales';
 import { creditsByClient, incomeByMethod, paymentStatus, type ClientCredit, type IncomeByMethod, type PaymentStatus } from '../domain/payments';
 import { buildReceiptData, type ReceiptLineInput, type ReceiptResult } from '../domain/receipt';
 import { scheduleRpcArgs } from '../domain/selection';
@@ -167,6 +168,8 @@ export interface Store {
   /** Crédito vivo de servicios por clienta. Separado del crédito de ropa (INVARIANTE 3). */
   serviceCredits: () => ClientCredit[];
   incomeByMethod: (from: string, to: string) => IncomeByMethod;
+  /** Lo vendido en servicios a cada clienta en [from, to), de mayor a menor. */
+  salesByClient: (from: string, to: string) => ClientSales[];
   /** Registra un abono (cita abierta) o un pago de crédito (cita cobrada). Espera al servidor. */
   addPayment: (appointmentId: number, amount: number, method: PaymentMethod, kind: Extract<PaymentKind, 'deposit' | 'credit_payment'>, clientRef?: string) => Promise<ActionResult>;
   cancel: (appointmentId: number) => void;
@@ -529,6 +532,10 @@ function StoreReady({
 
   function paymentsIncome(from: string, to: string): IncomeByMethod {
     return incomeByMethod(appointments, payments, businessId, from, to);
+  }
+
+  function clientSales(from: string, to: string): ClientSales[] {
+    return salesByClient(appointments, payments, businessId, from, to);
   }
 
   function suppliesForService(serviceId: number): Supply[] {
@@ -1296,6 +1303,7 @@ function StoreReady({
     paidOf,
     serviceCredits,
     incomeByMethod: paymentsIncome,
+    salesByClient: clientSales,
     addPayment,
     cancel,
     markNoShow,
