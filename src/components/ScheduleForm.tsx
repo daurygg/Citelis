@@ -10,12 +10,16 @@ import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
 import type { PaymentMethod } from '../lib/domain/types';
 import { useToast } from './Toast';
 import { PaymentMethodChips } from './PaymentPanel';
+import { ClientPicker, EMPTY_CLIENT_SELECTION, type ClientSelection } from './ClientPicker';
 import { btnGhost, btnPrimary, btnText, card, chip, field, fieldLabel, input } from './ui';
 
 export function ScheduleForm() {
   const store = useStore();
   const { notify } = useToast();
-  const [client, setClient] = useState('');
+  // Clienta elegida del registro, o nueva (nombre + teléfono opcional). `pickerKey` reinicia el selector al limpiar.
+  const [person, setPerson] = useState<ClientSelection>(EMPTY_CLIENT_SELECTION);
+  const [pickerKey, setPickerKey] = useState(0);
+  const client = person.name;
   const [selectedIds, setSelectedIds] = useState<number[]>(store.services[0] ? [store.services[0].id] : []);
   const [saving, setSaving] = useState(false);
   // Id de la cita en curso, fijo entre reintentos: si un intento llegó a
@@ -39,7 +43,7 @@ export function ScheduleForm() {
   // daría por buena sin serlo.
   useEffect(() => {
     setDraftId(null);
-  }, [client, selectedIds, datetime, walkIn, quotedText, depositText, depositMethod, walkInPay, chargeTexts]);
+  }, [person, selectedIds, datetime, walkIn, quotedText, depositText, depositMethod, walkInPay, chargeTexts]);
 
   const selection = summarizeSelection(store.services, selectedIds);
   const selectedServices = selection.service_ids.flatMap((id) => store.services.find((s) => s.id === id) ?? []);
@@ -57,6 +61,11 @@ export function ScheduleForm() {
     // `saving`: un doble clic o doble Enter no registra (ni cobra) dos veces.
     if (!canSubmit || saving) return;
     const id = draftId ?? newId();
+    // Con clienta elegida viaja su id; el teléfono solo si hay (el servidor lo normaliza).
+    const personFields = {
+      client_id: person.client_id ?? undefined,
+      client_phone: person.phone.trim() === '' ? undefined : person.phone.trim(),
+    };
     setDraftId(id);
     if (walkIn) {
       setSaving(true);
@@ -66,6 +75,7 @@ export function ScheduleForm() {
           id,
           service_ids: selection.service_ids,
           client: client.trim(),
+          ...personFields,
           datetime: datetime || nowLocalDatetime(),
           priceOverrides: charge.priceOverrides,
           price: charge.overridePrice,
@@ -95,6 +105,7 @@ export function ScheduleForm() {
         result = await store.schedule({
           id,
           client: client.trim(),
+          ...personFields,
           service_ids: selection.service_ids,
           datetime,
           quoted_price: quotedCents,
@@ -112,7 +123,8 @@ export function ScheduleForm() {
       notify('✓ Cita agendada');
     }
     setDraftId(null);
-    setClient('');
+    setPerson(EMPTY_CLIENT_SELECTION);
+    setPickerKey((k) => k + 1);
     setDatetime('');
     setChargeTexts({ prices: {}, total: '' });
     setQuotedText('');
@@ -140,16 +152,7 @@ export function ScheduleForm() {
         </button>
       </div>
 
-      <label className={field}>
-        <span className={fieldLabel}>Clienta</span>
-        <input
-          className={input}
-          type="text"
-          value={client}
-          onChange={(e) => setClient(e.target.value)}
-          placeholder="Nombre de la clienta"
-        />
-      </label>
+      <ClientPicker key={pickerKey} clients={store.clients} value={person} onChange={setPerson} />
 
       <fieldset className={field}>
         <legend className={fieldLabel}>Servicios (puedes elegir varios)</legend>
