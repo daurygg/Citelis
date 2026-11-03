@@ -17,11 +17,18 @@
 --   tiene ningún acceso a la tabla: el portal público solo toca clientas a través de
 --   `public_request_booking`, que es SECURITY DEFINER y filtra por negocio.
 --
--- TELÉFONO ÚNICO POR NEGOCIO (comparado solo por dígitos)
---   "829-000-0001", "(829) 000 0001" y "8290000001" son la misma persona. Se guarda
+-- TELÉFONO ÚNICO POR NEGOCIO (comparado solo por dígitos, sin código de país 1)
+--   "829-000-0001", "(829) 000 0001" y "8290000001" son la misma persona. También lo son
+--   "+1 809 555 1234", "1-809-555-1234" y "809-555-1234": en República Dominicana el 1 es
+--   el código de país de la numeración norteamericana, y la gente lo escribe o no según
+--   el día. La regla vive en UN solo sitio, `client_phone_digits(text)`, que usan la
+--   columna generada, las búsquedas de las RPC y el relleno (y `phoneDigits` en
+--   src/lib/domain/clients.ts la replica en TypeScript para que el selector coincida con
+--   el servidor). Un valor de 11 dígitos que empieza en 1 se guarda como sus últimos 10;
+--   todo lo demás queda en dígitos tal cual. Se guarda
 --   `phone_digits` como columna GENERADA y almacenada en vez de un índice sobre la
---   expresión: (a) las búsquedas escriben `where phone_digits = ...` sin repetir la
---   expresión exacta del índice (un descuido y el índice no se usaría); (b) nadie puede
+--   expresión: (a) las búsquedas escriben `where phone_digits = client_phone_digits(...)`
+--   sin repetir la expresión exacta del índice (un descuido y no se usaría); (b) nadie puede
 --   escribirla a mano y desincronizarla de `phone`; (c) el `on conflict` de las RPC
 --   apunta a columnas, no a una expresión. Un teléfono sin dígitos ("---") queda con
 --   `phone_digits` null y no participa de la unicidad.
@@ -44,13 +51,25 @@
 --   Vive en una función de mantenimiento (`backfill_client_directory`) para poder
 --   probarlo en la suite; no es ejecutable por ningún rol de la API.
 
+-- ── 0 · Regla única de normalización del teléfono ──────────────────────────
+-- IMMUTABLE porque una columna generada solo acepta funciones inmutables. Quita todo lo
+-- que no es dígito y, si quedan exactamente 11 y empiezan en 1, descarta ese 1 (código de
+-- país). Sin dígitos devuelve null (no participa de la unicidad). Es pura: no toca tablas.
+create or replace function client_phone_digits(p_phone text)
+returns text language sql immutable parallel safe as $$
+  select nullif(
+    regexp_replace(regexp_replace(coalesce(p_phone, ''), '\D', '', 'g'), '^1(\d{10})$', '\1'),
+    ''
+  )
+$$;
+
 -- ── 1 · Tabla ───────────────────────────────────────────────────────────────
 create table if not exists client (
   id           bigint      generated always as identity primary key,
   business_id  bigint      not null references business (id) on delete cascade,
   name         text        not null check (btrim(name) <> ''),
   phone        text        null,
-  phone_digits text        generated always as (nullif(regexp_replace(coalesce(phone, ''), '\D', '', 'g'), '')) stored,
+  phone_digits text        generated always as (client_phone_digits(phone)) stored,
   created_at   timestamptz not null default now()
 );
 
@@ -151,8 +170,8 @@ begin
   -- Clienta (INVARIANTE 1: siempre dentro de ESTE negocio).
   v_phone := nullif(btrim(p_client_phone), '');
   if v_phone is not null then
-    v_digits := regexp_replace(v_phone, '\D', '', 'g');
-    if v_digits = '' then raise exception 'El teléfono no es válido.'; end if;
+    v_digits := client_phone_digits(v_phone);
+    if v_digits is null then raise exception 'El teléfono no es válido.'; end if;
   end if;
 
   if p_client_id is not null then
@@ -165,20 +184,38 @@ begin
     select id into v_client from client
      where business_id = p_business_id and phone_digits = v_digits;
     if v_client is null then
+      -- Alta idempotente: si dos primeras reservas con el mismo teléfono corren a la vez,
+      -- la segunda chocaría con el índice único y fallaría toda la cita. Con `do nothing`
+      -- no falla: no devuelve fila y se reutiliza la que ganó la carrera. El destino del
+      -- `on conflict` repite EXACTO el índice parcial client_business_phone_digits_uidx.
       insert into client (business_id, name, phone)
       values (p_business_id, btrim(p_client), v_phone)
       on conflict (business_id, phone_digits) where phone_digits is not null do nothing
       returning id into v_client;
-      -- Otra transacción la creó entre la búsqueda y el alta: se reutiliza.
       if v_client is null then
         select id into v_client from client
          where business_id = p_business_id and phone_digits = v_digits;
       end if;
     end if;
   else
-    insert into client (business_id, name, phone)
-    values (p_business_id, btrim(p_client), null)
-    returning id into v_client;
+    -- Sin teléfono ni clienta elegida: antes cada cita creaba una clienta nueva y la
+    -- lista se llenaba de "Ana", "Ana", "Ana". Se reutiliza la clienta SIN teléfono de
+    -- este negocio con el mismo nombre (sin mayúsculas ni espacios de más; las tildes
+    -- sí cuentan, porque el proyecto no usa `unaccent`). Si hay varias, la más antigua.
+    -- Es "mejor esfuerzo": no hay índice único por nombre, así que dos citas simultáneas
+    -- de una clienta nueva sin teléfono podrían crear dos filas. Aceptado: es un duplicado
+    -- inocuo, no un fallo, y la dueña puede elegirla en el selector.
+    select id into v_client from client
+     where business_id = p_business_id and phone is null
+       and lower(regexp_replace(btrim(name), '\s+', ' ', 'g'))
+         = lower(regexp_replace(btrim(p_client), '\s+', ' ', 'g'))
+     order by id
+     limit 1;
+    if v_client is null then
+      insert into client (business_id, name, phone)
+      values (p_business_id, btrim(p_client), null)
+      returning id into v_client;
+    end if;
   end if;
 
   insert into appointment (id, business_id, service_id, client, client_phone, client_id, datetime,
@@ -341,18 +378,25 @@ begin
     raise exception 'Ese horario acaba de ocuparse. Elige otro, por favor.';
   end if;
 
-  -- CLIENTA: se busca por teléfono (solo dígitos) dentro de ESTE negocio; si no
-  -- existe se crea con el nombre que escribió. Si ya existía NO se renombra: manda
-  -- lo que guardó la dueña. Ya estamos dentro del lock del negocio, sin carreras.
-  v_digits := regexp_replace(trim(p_client_phone), '\D', '', 'g');
-  if v_digits <> '' then
+  -- CLIENTA: se busca por teléfono (dígitos sin código de país) dentro de ESTE negocio;
+  -- si no existe se crea con el nombre que escribió. Si ya existía NO se renombra: manda
+  -- lo que guardó la dueña. El lock del negocio ya serializa esto, pero el alta también es
+  -- idempotente (`on conflict do nothing` + relectura) por si la clienta la crea la dueña
+  -- (schedule_appointment) desde otra transacción que no toma ese lock.
+  v_digits := client_phone_digits(p_client_phone);
+  if v_digits is not null then
     select id into v_client from client
      where business_id = v_business and phone_digits = v_digits;
   end if;
   if v_client is null then
     insert into client (business_id, name, phone)
     values (v_business, trim(p_client_name), trim(p_client_phone))
+    on conflict (business_id, phone_digits) where phone_digits is not null do nothing
     returning id into v_client;
+    if v_client is null then
+      select id into v_client from client
+       where business_id = v_business and phone_digits = v_digits;
+    end if;
   end if;
 
   v_new_id := nextval('public_appointment_id_seq');
@@ -381,14 +425,14 @@ returns void language plpgsql
 set search_path = public, pg_temp as $$
 begin
   insert into client (business_id, name, phone)
-  select distinct on (a.business_id, regexp_replace(a.client_phone, '\D', '', 'g'))
+  select distinct on (a.business_id, client_phone_digits(a.client_phone))
          a.business_id,
          coalesce(nullif(btrim(a.client), ''), 'Sin nombre'),
          btrim(a.client_phone)
     from appointment a
    where a.client_id is null
-     and regexp_replace(coalesce(a.client_phone, ''), '\D', '', 'g') <> ''
-   order by a.business_id, regexp_replace(a.client_phone, '\D', '', 'g'),
+     and client_phone_digits(a.client_phone) is not null
+   order by a.business_id, client_phone_digits(a.client_phone),
             a.datetime desc, a.id desc
   on conflict (business_id, phone_digits) where phone_digits is not null do nothing;
 
@@ -397,7 +441,7 @@ begin
     from client c
    where a.client_id is null
      and c.business_id = a.business_id
-     and c.phone_digits = regexp_replace(coalesce(a.client_phone, ''), '\D', '', 'g');
+     and c.phone_digits = client_phone_digits(a.client_phone);
 end $$;
 
 revoke execute on function backfill_client_directory() from public, anon, authenticated;

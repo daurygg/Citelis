@@ -18,6 +18,12 @@
 --       las citas sin teléfono quedan sin enlace.
 --   9 · permisos: `anon` no ejecuta schedule_appointment; las llamadas de 7 y 8 argumentos
 --       siguen funcionando.
+--  10 · código de país: "+1 809…", "1-809…" y "809…" son la misma clienta (agendando, por el
+--       portal y con una clienta ya existente, que es el camino del `on conflict`).
+--  11 · cita sin teléfono: reutiliza a la clienta sin teléfono del mismo nombre (sin
+--       mayúsculas ni espacios de más; la más antigua si hay varias); otro nombre crea otra.
+--       La carrera real entre dos transacciones no se puede simular en un solo script: aquí
+--       se cubre que la clienta ya existente se reutiliza en vez de chocar con el índice.
 
 do $$
 declare
@@ -37,6 +43,8 @@ declare
   v_ok      boolean;
   v_msg     text;
   v_name    text;
+  v_a       bigint;
+  v_b       bigint;
 begin
   -- 0 · La estructura existe y no hay sobrecargas de schedule_appointment.
   if to_regclass('public.client') is null then
@@ -225,6 +233,81 @@ begin
   end if;
   perform schedule_appointment(v_biz, 999956, 'Siete', '2026-10-12T15:00', null, null, array[v_svc]);
   perform schedule_appointment(v_biz, 999957, 'Ocho', '2026-10-12T16:00', null, null, array[v_svc], 'cash');
+
+  -- 10 · Código de país. La función es la regla única.
+  if client_phone_digits('+1 809 555 1234') is distinct from '8095551234'
+     or client_phone_digits('1-809-555-1234') is distinct from '8095551234'
+     or client_phone_digits('809-555-1234') is distinct from '8095551234'
+     or client_phone_digits('1234567') is distinct from '1234567'
+     or client_phone_digits('2 809 555 1234') is distinct from '28095551234'
+     or client_phone_digits('---') is not null
+     or client_phone_digits(null) is not null then
+    raise exception 'FALLÓ 10a: client_phone_digits no normaliza como se esperaba';
+  end if;
+  -- "+1 809…" crea; "809…" y "1-809…" reutilizan a la misma clienta.
+  perform schedule_appointment(v_biz, 999971, 'Marta', '2026-10-13T10:00', null, null, array[v_svc],
+                               null, '+1 809 777 0005', null);
+  perform schedule_appointment(v_biz, 999972, 'Marta Dos', '2026-10-13T11:00', null, null, array[v_svc],
+                               null, '809-777-0005', null);
+  perform schedule_appointment(v_biz, 999973, 'Marta Tres', '2026-10-13T12:00', null, null, array[v_svc],
+                               null, '1-809-777-0005', null);
+  select count(*) into v_n from client where business_id = v_biz and phone_digits = '8097770005';
+  if v_n <> 1 then raise exception 'FALLÓ 10b: +1 / 1- / sin código crearon % clientas (debe ser 1)', v_n; end if;
+  select count(distinct client_id) into v_n from appointment where id in (999971, 999972, 999973);
+  if v_n <> 1 then raise exception 'FALLÓ 10b: las tres citas no comparten clienta'; end if;
+  select name into v_name from client where business_id = v_biz and phone_digits = '8097770005';
+  if v_name <> 'Marta' then raise exception 'FALLÓ 10b: se renombró a la clienta (%)', v_name; end if;
+  -- Clienta que ya existe (guardada con +1, como si otra transacción la hubiera creado antes):
+  -- la RPC la reutiliza en vez de chocar con el índice único.
+  insert into client (business_id, name, phone) values (v_biz, 'Preexistente', '+1 (809) 888-0006')
+  returning id into v_a;
+  perform schedule_appointment(v_biz, 999974, 'Otro Nombre', '2026-10-13T13:00', null, null, array[v_svc],
+                               null, '809 888 0006', null);
+  select client_id into v_b from appointment where id = 999974;
+  if v_b is distinct from v_a then raise exception 'FALLÓ 10c: no reutilizó a la clienta preexistente'; end if;
+  select count(*) into v_n from client where business_id = v_biz and phone_digits = '8098880006';
+  if v_n <> 1 then raise exception 'FALLÓ 10c: se duplicó la clienta preexistente'; end if;
+  -- Portal: "+1 849…" encuentra a la clienta de "849-333-0003" (creada en la prueba 7).
+  v_cid := public_request_booking(v_slug, array[v_svc], v_fecha || 'T14:00', 'Luz Tres', '+1 849 333 0003');
+  select client_id into v_b from appointment where id = v_cid;
+  select count(*) into v_n from client where business_id = v_biz and phone_digits = '8493330003';
+  if v_n <> 1 or v_b is distinct from (select id from client where business_id = v_biz and phone_digits = '8493330003') then
+    raise exception 'FALLÓ 10d: el portal duplicó a la clienta por el código de país (% clientas)', v_n;
+  end if;
+
+  -- 11 · Citas sin teléfono: reutilizan a la clienta sin teléfono del mismo nombre.
+  perform schedule_appointment(v_biz, 999981, 'Rosa Díaz', '2026-10-14T10:00', null, null, array[v_svc]);
+  perform schedule_appointment(v_biz, 999982, '  rosa   DÍAZ ', '2026-10-14T11:00', null, null, array[v_svc]);
+  select count(*) into v_n from client
+   where business_id = v_biz and phone is null and lower(btrim(name)) like 'rosa%';
+  if v_n <> 1 then raise exception 'FALLÓ 11a: la misma clienta sin teléfono se duplicó (% filas)', v_n; end if;
+  select count(distinct client_id) into v_n from appointment where id in (999981, 999982);
+  if v_n <> 1 then raise exception 'FALLÓ 11a: las dos citas no comparten clienta'; end if;
+  -- Otro nombre crea otra clienta.
+  perform schedule_appointment(v_biz, 999983, 'Rosa Pérez', '2026-10-14T12:00', null, null, array[v_svc]);
+  select count(*) into v_n from client
+   where business_id = v_biz and phone is null and lower(btrim(name)) like 'rosa%';
+  if v_n <> 2 then raise exception 'FALLÓ 11b: otro nombre debía crear otra clienta (% filas)', v_n; end if;
+  -- Con varias del mismo nombre, gana la más antigua (menor id).
+  insert into client (business_id, name, phone) values (v_biz, 'Elena Ruiz', null) returning id into v_a;
+  insert into client (business_id, name, phone) values (v_biz, 'elena ruiz', null);
+  perform schedule_appointment(v_biz, 999984, 'ELENA  RUIZ', '2026-10-14T13:00', null, null, array[v_svc]);
+  select client_id into v_b from appointment where id = 999984;
+  if v_b is distinct from v_a then raise exception 'FALLÓ 11c: no eligió la clienta más antigua'; end if;
+  -- Una clienta del mismo nombre en OTRO negocio no se reutiliza (INVARIANTE 1).
+  insert into client (business_id, name, phone) values (v_otro, 'Zoila Ajena', null) returning id into v_a;
+  perform schedule_appointment(v_biz, 999985, 'Zoila Ajena', '2026-10-14T14:00', null, null, array[v_svc]);
+  select client_id into v_b from appointment where id = 999985;
+  if v_b = v_a or (select business_id from client where id = v_b) <> v_biz then
+    raise exception 'FALLÓ 11d: reutilizó una clienta de otro negocio';
+  end if;
+  -- Una clienta CON teléfono del mismo nombre no cuenta como "sin teléfono".
+  perform schedule_appointment(v_biz, 999986, 'Ana', '2026-10-14T15:00', null, null, array[v_svc]);
+  select client_id into v_b from appointment where id = 999986;
+  if (select phone from client where id = v_b) is not null then
+    raise exception 'FALLÓ 11e: una cita sin teléfono se enlazó a una clienta con teléfono';
+  end if;
+
 
   -- Limpieza: el borrado en cascada se lleva servicios, citas y clientas.
   delete from business where id in (v_biz, v_otro);
