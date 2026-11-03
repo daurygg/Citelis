@@ -26,7 +26,8 @@ import { ReceiptSettings } from './components/owner/ReceiptSettings';
 import { PublicLinkSettings } from './components/owner/PublicLinkSettings';
 import { PushNotificationSettings } from './components/owner/PushNotificationSettings';
 import { RequestsInbox } from './components/owner/RequestsInbox';
-import { ToastProvider } from './components/Toast';
+import { ToastProvider, useToast } from './components/Toast';
+import { LoadingScreen } from './components/LoadingScreen';
 import { SubscriptionNoticeBar } from './components/SubscriptionNotice';
 import { BlockedScreen } from './components/BlockedScreen';
 import { AdminPanel } from './components/admin/AdminPanel';
@@ -98,7 +99,7 @@ export function App() {
 function Root() {
   const { session, loading } = useAuth();
   if (loading) {
-    return <div className="grid min-h-dvh place-items-center bg-paper text-muted">Cargando…</div>;
+    return <LoadingScreen />;
   }
   if (!session) return <Login />;
   return <SubscriptionGate />;
@@ -113,7 +114,7 @@ function SubscriptionGate() {
   const { signOut } = useAuth();
   const { loading, state } = useMySubscription();
   if (loading) {
-    return <div className="grid min-h-dvh place-items-center bg-paper text-muted">Cargando…</div>;
+    return <LoadingScreen />;
   }
   const notice = subscriptionNotice(state);
   if (notice.kind === 'blocked') {
@@ -186,6 +187,7 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
     };
   }, [menuOpen]);
   const { business } = useStore();
+  const { notify } = useToast();
   // Si la app se abrió desde el toque de un aviso push (?vista=reservas),
   // arranca directo en la bandeja de reservas en vez de en la agenda.
   const [screen, setScreen] = useState<Screen>(() => initialViewFromSearch(window.location.search).screen);
@@ -215,7 +217,8 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
   async function invite() {
     const { data, error } = await supabase.rpc('create_invitation');
     if (error) {
-      window.alert('No se pudo generar la invitación: ' + error.message);
+      console.error('create_invitation falló', error);
+      notify('No se pudo generar la invitación. Inténtalo de nuevo.', 'error');
       return;
     }
     setInviteCode(data as string);
@@ -346,7 +349,9 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
             {serviceView === 'agenda' && (
               <div className="flex flex-col gap-6">
                 <ScheduleForm />
-                <DayAgenda />
+                <DayAgenda
+                  onGoTo={(step) => setServiceView(step === 'add_service' ? 'services' : 'reservas')}
+                />
               </div>
             )}
             {serviceView === 'reservas' && (

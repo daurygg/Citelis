@@ -44,7 +44,10 @@ import { dayRange, shiftMonthISODate } from '../format';
 import { supabase } from '../supabase/client';
 import { useAuth } from '../auth/AuthContext';
 import { LOGO_BUCKET, buildLogoPath, validateAddress, validateDisplayName, validateLogoFile, validatePhone } from '../domain/receiptProfile';
+import { LoadingScreen } from '../../components/LoadingScreen';
+import { btnPrimary } from '../../components/ui';
 import { Onboarding } from '../../components/Onboarding';
+import { OnboardingWizard } from '../../components/OnboardingWizard';
 
 // ── Tipos de la fachada (idénticos a las fases en memoria) ──────────────────
 export interface ScheduleInput {
@@ -88,6 +91,11 @@ export interface SupplyInput {
   name: string;
   purchase_price: number;
   servings: number;
+}
+export interface ServiceInput {
+  name: string;
+  price: number; // centavos
+  duration_min: number;
 }
 export interface ServicePatch {
   name?: string;
@@ -161,6 +169,8 @@ export interface Store {
   allSupplies: () => Supply[];
   serviceEconomics: (serviceId: number) => ServiceEconomics | null;
   addService: () => number;
+  /** Crea un servicio ya con sus datos en UNA sola escritura (sin insumos: INVARIANTE 6). */
+  createService: (input: ServiceInput) => number;
   updateService: (serviceId: number, patch: ServicePatch) => void;
   deleteService: (serviceId: number) => void;
   setServiceCostOverride: (serviceId: number, cents: number | null) => void;
@@ -256,8 +266,22 @@ interface LoadedData {
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { signOut } = useAuth();
   const [data, setData] = useState<LoadedData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const [noBusiness, setNoBusiness] = useState(false);
+  // Se incrementa para volver a cargar la membresía y los datos SIN recargar la
+  // página (el asistente guiado crea el negocio y sigue en pantalla).
+  const [loadKey, setLoadKey] = useState(0);
+  // Asistente de configuración inicial: solo en memoria. Si la dueña recarga a
+  // medias, cae directo en la app (la guía vacía de la agenda cubre ese caso).
+  const [wizardActive, setWizardActive] = useState(false);
+
+  function reload(options?: { startWizard?: boolean }) {
+    if (options?.startWizard) setWizardActive(true);
+    setError(false);
+    setNoBusiness(false);
+    setData(null);
+    setLoadKey((k) => k + 1);
+  }
 
   useEffect(() => {
     let active = true;
@@ -274,7 +298,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .limit(1);
       if (!active) return;
       if (mErr) {
-        setError('No se pudieron cargar tus datos: ' + mErr.message);
+        console.error('No se pudo leer la membresía', mErr);
+        setError(true);
         return;
       }
       if (!members || members.length === 0) {
@@ -330,28 +355,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadKey]);
 
   if (error) {
     return (
       <div className="grid min-h-dvh place-items-center bg-neutral-50 px-6 text-center">
-        <div>
-          <p className="mb-4 text-neutral-700">{error}</p>
-          <button type="button" className="text-sm text-brand-700 hover:underline" onClick={() => signOut()}>
+        <div className="flex max-w-sm flex-col items-center gap-3">
+          <p className="text-lg font-semibold text-neutral-800">No pudimos cargar tus datos</p>
+          <p className="text-neutral-600">Revisa tu conexión a internet e inténtalo de nuevo.</p>
+          <button type="button" className={btnPrimary} onClick={() => reload()}>
+            Reintentar
+          </button>
+          <button type="button" className="min-h-11 px-3 text-sm text-brand-700 hover:underline" onClick={() => signOut()}>
             Salir
           </button>
         </div>
       </div>
     );
   }
-  if (noBusiness) return <Onboarding />;
+  if (noBusiness) return <Onboarding onCreated={() => reload({ startWizard: true })} onJoined={() => reload()} />;
   if (!data) {
-    return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando tus datos…</div>;
+    return <LoadingScreen message="Cargando tus datos…" />;
   }
-  return <StoreReady data={data}>{children}</StoreReady>;
+  return (
+    <StoreReady data={data} wizardActive={wizardActive} onWizardFinish={() => setWizardActive(false)}>
+      {children}
+    </StoreReady>
+  );
 }
 
-function StoreReady({ data, children }: { data: LoadedData; children: ReactNode }) {
+function StoreReady({
+  data,
+  wizardActive,
+  onWizardFinish,
+  children,
+}: {
+  data: LoadedData;
+  wizardActive: boolean;
+  onWizardFinish: () => void;
+  children: ReactNode;
+}) {
   const businessId = data.businessId;
   const [business, setBusiness] = useState<Business | null>(data.business);
   const [memberNames, setMemberNames] = useState<readonly MemberName[]>(data.memberNames);
@@ -820,20 +863,24 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     }
   }
 
-  function addService(): number {
+  function createService(input: ServiceInput): number {
     const service: Service = {
       id: newId(),
       business_id: businessId,
-      name: 'Nuevo servicio',
-      price: 0,
+      name: input.name,
+      price: input.price,
       supply_cost: 0,
       cost_override: null,
-      duration_min: 60,
+      duration_min: input.duration_min,
       variable_price: false,
     };
     setServices((prev) => [...prev, service]);
     persist(supabase.from('service').insert(service));
     return service.id;
+  }
+
+  function addService(): number {
+    return createService({ name: 'Nuevo servicio', price: 0, duration_min: 60 });
   }
 
   function updateService(serviceId: number, patch: ServicePatch): void {
@@ -1220,6 +1267,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     allSupplies,
     serviceEconomics,
     addService,
+    createService,
     updateService,
     deleteService,
     setServiceCostOverride,
@@ -1250,7 +1298,13 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     loadReceipt,
     updatePublicSlug,
   };
-  return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
+  // El asistente se pinta con el store ya cargado (pasos 2-4) en lugar de la app.
+  // Recibe el store por prop y no con useStore() para no cerrar un ciclo de imports.
+  return (
+    <StoreContext.Provider value={store}>
+      {wizardActive ? <OnboardingWizard store={store} onFinish={onWizardFinish} /> : children}
+    </StoreContext.Provider>
+  );
 }
 
 export function useStore(): Store {

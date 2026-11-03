@@ -6,6 +6,8 @@ import { useStore } from '../lib/store/StoreContext';
 import { dayHeading } from '../lib/agendaDay';
 import { formatMoney, shiftISODate, todayISODate } from '../lib/format';
 import { AppointmentRow } from './AppointmentRow';
+import { pendingSetupSteps, type SetupStepId } from '../lib/domain/onboardingSetup';
+import { btnPrimarySm } from './ui';
 
 const iconButton =
   'grid size-11 shrink-0 place-items-center rounded-xl bg-white text-ink ring-1 ring-line transition hover:bg-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700';
@@ -18,7 +20,7 @@ function Chevron({ dir }: { dir: 'left' | 'right' }) {
   );
 }
 
-export function DayAgenda() {
+export function DayAgenda({ onGoTo }: { onGoTo: (step: SetupStepId) => void }) {
   const store = useStore();
   const today = todayISODate();
   const [date, setDate] = useState(today);
@@ -29,6 +31,12 @@ export function DayAgenda() {
   const realized = store.dayReport(date); // lo YA ganado ese día (citas completadas)
   const isToday = date === today;
   const heading = dayHeading(date, today);
+  // Qué le falta configurar al negocio (decisión en dominio puro; aquí solo se pinta).
+  const setupSteps = pendingSetupSteps({
+    serviceCount: store.services.length,
+    hoursDays: new Set(store.businessHours.map((h) => h.weekday)).size,
+    bookingOpen: store.bookingPolicy?.enabled ?? false,
+  });
 
   return (
     <section className="flex flex-col gap-4">
@@ -103,12 +111,32 @@ export function DayAgenda() {
       </div>
 
       {appointments.length === 0 ? (
-        <div className="rounded-2xl bg-white p-5 ring-1 ring-line">
-          <p className="font-semibold">{isToday ? 'No hay citas para hoy' : 'No hay citas para este día'}</p>
-          <p className="mt-1 text-muted">
-            {isToday ? 'Cuando agendes una, aparece aquí.' : 'Prueba otro día o agenda una cita.'}
-          </p>
-        </div>
+        setupSteps.length > 0 && isToday ? (
+          /* Guía de primeros pasos (onboarding): qué le falta configurar al negocio. */
+          <div className="rounded-2xl bg-white ring-1 ring-line">
+            <div className="p-5 pb-3">
+              <h2 className="font-semibold">Para empezar</h2>
+              <p className="mt-1 text-muted">Aún no tienes citas hoy. Deja tu negocio listo:</p>
+            </div>
+            <ul className="divide-y divide-line border-t border-line">
+              {setupSteps.map((step) => (
+                <li key={step.id} className="flex items-center justify-between gap-3 px-5 py-2">
+                  <span className="min-w-0">{step.label}</span>
+                  <button type="button" className={btnPrimarySm + ' shrink-0'} onClick={() => onGoTo(step.id)}>
+                    Ir
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-white p-5 ring-1 ring-line">
+            <p className="font-semibold">{isToday ? 'No hay citas para hoy' : 'No hay citas para este día'}</p>
+            <p className="mt-1 text-muted">
+              {isToday ? 'Cuando agendes una, aparece aquí.' : 'Prueba otro día o agenda una cita.'}
+            </p>
+          </div>
+        )
       ) : (
         <ul className="flex flex-col gap-2">
           {appointments.map((appointment) => (
