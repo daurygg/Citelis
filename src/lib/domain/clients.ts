@@ -26,6 +26,10 @@ export function phoneDigits(phone: string | null | undefined): string | null {
   return digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits;
 }
 
+/** Lo que se le dice a la dueña (o a la clienta) cuando el teléfono no pasa `isValidPhone`. */
+export const PHONE_INVALID_MESSAGE =
+  'Escribe un teléfono válido: 10 dígitos, o con + y el código del país si es de otro país.';
+
 /**
  * ¿Es un teléfono aceptable? Solo caracteres de teléfono (dígitos, espacios, "-", ".",
  * "(", ")" y un "+" al inicio). Sin "+": dominicano, 10 dígitos u 11 empezando en 1.

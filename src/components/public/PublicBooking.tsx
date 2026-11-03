@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { Appointment, BookingPolicy, BusinessHours, Service, Slot } from '../../lib/domain/types';
 import { generateSlots } from '../../lib/domain/availability';
 import { toggleServiceId } from '../../lib/domain/selection';
+import { PHONE_INVALID_MESSAGE, isValidPhone } from '../../lib/domain/clients';
 import { formatTime, monthLabel, shiftISODate, todayISODate } from '../../lib/format';
 import { resolveStepFromHistory, stepHistoryState, type BookingStep } from '../../lib/public/bookingSteps';
 import { dayNumber, longDayLabel, weekdayShort } from '../../lib/public/dayLabels';
@@ -153,6 +154,10 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
   // inicializador es perezoso: se lee una sola vez, al montar.
   const [clientName, setClientName] = useState(() => readRememberedClient()?.name ?? '');
   const [clientPhone, setClientPhone] = useState(() => readRememberedClient()?.phone ?? '');
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const phoneValid = isValidPhone(clientPhone);
+  // El aviso sale cuando ya escribió algo (también un teléfono recordado que no sirve) o salió del campo.
+  const showPhoneError = !phoneValid && (phoneTouched || clientPhone.trim() !== '');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmedId, setConfirmedId] = useState<number | null>(null);
@@ -304,6 +309,10 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
       setSubmitError('Escribe tu nombre y tu teléfono.');
       return;
     }
+    if (!isValidPhone(phone)) {
+      setPhoneTouched(true);
+      return;
+    }
     setSubmitting(true);
     setSubmitError(null);
     const result = await requestPublicBooking({
@@ -361,7 +370,7 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
   const bar = {
     service: { cta: 'Elegir hora', disabled: false, onCta: () => goForward('datetime') },
     datetime: { cta: 'Revisar mis datos', disabled: !selectedSlot, onCta: () => goForward('details') },
-    details: { cta: submitting ? 'Enviando…' : 'Enviar solicitud', disabled: submitting, onCta: handleSubmit },
+    details: { cta: submitting ? 'Enviando…' : 'Enviar solicitud', disabled: submitting || !phoneValid, onCta: handleSubmit },
     success: { cta: '', disabled: true, onCta: () => {} },
   }[step];
   const barDetail = slotChosen
@@ -489,8 +498,16 @@ export function PublicBooking({ slug: initialSlug }: { slug: string }) {
                   autoComplete="tel"
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
+                  onBlur={() => setPhoneTouched(true)}
                   placeholder="Para avisarte si se confirma"
+                  aria-invalid={showPhoneError}
+                  aria-describedby={showPhoneError ? 'portal-phone-error' : undefined}
                 />
+                {showPhoneError && (
+                  <span id="portal-phone-error" role="alert" className="text-red-700">
+                    {PHONE_INVALID_MESSAGE}
+                  </span>
+                )}
               </label>
 
               {submitError && (
