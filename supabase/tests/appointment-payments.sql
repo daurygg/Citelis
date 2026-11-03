@@ -338,7 +338,7 @@ begin
   -- 12 · anon no ejecuta.
   if has_function_privilege('anon', 'public.add_appointment_payment(bigint,bigint,bigint,text,text,uuid)', 'execute')
      or has_function_privilege('anon', 'public.complete_appointment(bigint,bigint,bigint,bigint,bigint,jsonb,jsonb)', 'execute')
-     or has_function_privilege('anon', 'public.schedule_appointment(bigint,bigint,text,text,bigint,bigint,bigint[],text)', 'execute') then
+     or has_function_privilege('anon', 'public.schedule_appointment(bigint,bigint,text,text,bigint,bigint,bigint[],text,text,bigint)', 'execute') then
     raise exception 'FALLÓ 12: anon puede ejecutar una RPC de pagos';
   end if;
 
