@@ -17,7 +17,11 @@ export function WizardProgress({ step }: { step: OnboardingStep }) {
         aria-label={`Paso ${current} de ${total}`}
         className="h-2 overflow-hidden rounded-full bg-neutral-200"
       >
-        <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${(current / total) * 100}%` }} />
+        {/* Se escala en vez de cambiar el ancho: `transform` no recalcula el layout en cada frame. */}
+        <div
+          className="h-full w-full origin-left rounded-full bg-brand-600 motion-safe:transition-transform motion-safe:duration-(--motion-enter) motion-safe:ease-out-soft"
+          style={{ transform: `scaleX(${current / total})` }}
+        />
       </div>
     </div>
   );
