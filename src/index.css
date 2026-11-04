@@ -44,8 +44,27 @@
 }
 
 /*
- * Portal público: el único movimiento es la barra de resumen que sube al elegir
- * el primer servicio. Con `prefers-reduced-motion` aparece sin animar.
+ * Tokens de movimiento: una sola curva y un puñado de duraciones para toda la app.
+ * Entrar es suave y algo más lento; salir, más corto. Todas las animaciones van
+ * dentro de `prefers-reduced-motion: no-preference`: con movimiento reducido se
+ * ve el estado final al instante. `--ease-out-soft` vive en `@theme` para que
+ * Tailwind genere también la utilidad `ease-out-soft`; `static` obliga a emitir
+ * la variable aunque solo la usen los keyframes de abajo.
+ */
+@theme static {
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root {
+  --motion-exit: 160ms;
+  --motion-micro: 200ms;
+  --motion-enter: 280ms;
+  --motion-modal: 320ms;
+}
+
+/*
+ * Portal público: la barra de resumen sube al elegir el primer servicio.
+ * Con `prefers-reduced-motion` aparece sin animar.
  */
 @keyframes portal-bar-in {
   from {
@@ -58,7 +77,116 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .portal-bar-in {
-    animation: portal-bar-in 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    animation: portal-bar-in var(--motion-enter) var(--ease-out-soft);
+  }
+}
+
+/*
+ * Modal de novedades: el fondo se oscurece y la tarjeta sube un poco mientras
+ * aparece; al cerrarla hace lo contrario. Con `prefers-reduced-motion` no se
+ * anima (ReleaseNotesCard cierra al instante en ese caso).
+ */
+@keyframes modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-backdrop-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.5rem) scale(0.96);
+  }
+}
+
+@keyframes modal-panel-out {
+  to {
+    opacity: 0;
+    transform: translateY(1rem) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modal-backdrop-in {
+    animation: modal-backdrop-in var(--motion-micro) ease-out both;
+  }
+  .modal-backdrop-out {
+    animation: modal-backdrop-out var(--motion-exit) ease-in both;
+  }
+  .modal-panel-in {
+    animation: modal-panel-in var(--motion-modal) var(--ease-out-soft) both;
+  }
+  .modal-panel-out {
+    animation: modal-panel-out var(--motion-exit) ease-in both;
+  }
+}
+
+/*
+ * Avisos breves (Toast): suben un poco al aparecer y se desvanecen antes de
+ * quitarse. Con movimiento reducido Toast los quita al instante.
+ */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+@keyframes toast-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/*
+ * Paneles de una cita (Cobrar, Reprogramar, Editar servicios, Abonar): solo
+ * entrada, y nunca la altura — el panel ocupa su sitio desde el primer frame.
+ */
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/*
+ * Dinero de una cita recién cobrada: un fundido corto que arranca ya legible.
+ * Nada se oculta; el importe se lee desde el primer frame.
+ */
+@keyframes money-in {
+  from {
+    opacity: 0.4;
+  }
+}
+
+/* Tramo de progreso recién lleno: crece de izquierda a derecha. */
+@keyframes progress-fill-in {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .toast-in {
+    animation: toast-in 220ms var(--ease-out-soft) both;
+  }
+  .toast-out {
+    animation: toast-out var(--motion-exit) ease-in both;
+  }
+  .panel-in {
+    animation: panel-in var(--motion-micro) var(--ease-out-soft);
+  }
+  .money-in {
+    animation: money-in var(--motion-micro) ease-out;
+  }
+  .progress-fill-in {
+    animation: progress-fill-in var(--motion-enter) var(--ease-out-soft);
   }
 }
 
