@@ -29,6 +29,7 @@ import { RequestsInbox } from './components/owner/RequestsInbox';
 import { ToastProvider, useToast } from './components/Toast';
 import { LoadingScreen } from './components/LoadingScreen';
 import { SubscriptionNoticeBar } from './components/SubscriptionNotice';
+import { ReleaseNotesCard } from './components/ReleaseNotesCard';
 import { BlockedScreen } from './components/BlockedScreen';
 import { AdminPanel } from './components/admin/AdminPanel';
 import { CITELIS_WHATSAPP } from './lib/subscription/paymentInstructions';
@@ -373,6 +374,7 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
           </InventoryProvider>
         )}
       </main>
+      <ReleaseNotesCard />
     </div>
   );
 }
