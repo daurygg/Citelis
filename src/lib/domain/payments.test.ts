@@ -6,6 +6,8 @@ import {
   buildPaymentPlan,
   initialPaymentText,
   checkPaymentAmount,
+  checkDepositAmount,
+  depositRemaining,
   creditsByClient,
   incomeByMethod,
   normalizeClientKey,
@@ -251,5 +253,33 @@ describe('creditsByClient', () => {
   it('cada cita trae su saldo y lo pagado', () => {
     const rosa = credits.find((c) => c.key === 'rosa');
     expect(rosa?.appointments).toEqual([{ appointment: expect.objectContaining({ id: 3 }), paid: 0, balance: 3000 }]);
+  });
+});
+
+describe('abono o pago completo antes de atender', () => {
+  it('lo que falta es el precio estimado menos lo ya abonado, nunca negativo', () => {
+    expect(depositRemaining(150000, 0)).toBe(150000);
+    expect(depositRemaining(150000, 50000)).toBe(100000);
+    expect(depositRemaining(150000, 200000)).toBe(0);
+  });
+
+  it('sin precio conocido (servicio de precio variable) no hay tope', () => {
+    expect(depositRemaining(null, 50000)).toBeNull();
+    expect(checkDepositAmount(999999, null, 50000)).toEqual({ ok: true });
+  });
+
+  it('acepta un abono parcial y el pago completo', () => {
+    expect(checkDepositAmount(50000, 150000, 0)).toEqual({ ok: true });
+    expect(checkDepositAmount(100000, 150000, 50000)).toEqual({ ok: true });
+  });
+
+  it('bloquea pasarse de lo que cuesta la cita', () => {
+    expect(checkDepositAmount(100001, 150000, 50000)).toEqual({ ok: false, reason: 'Eso es más de lo que cuesta la cita.' });
+  });
+
+  it('bloquea un monto vacío, cero o negativo', () => {
+    for (const cents of [0, -100, 1.5]) {
+      expect(checkDepositAmount(cents, 150000, 0)).toEqual({ ok: false, reason: 'Escribe cuánto pagó.' });
+    }
   });
 });

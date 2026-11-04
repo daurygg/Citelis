@@ -4,7 +4,14 @@ import { useRef, useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, parseMoneyToCents } from '../lib/format';
 import type { Appointment, PaymentMethod } from '../lib/domain/types';
-import { PAYMENT_METHODS, appointmentBalance, checkPaymentAmount, paymentMethodLabel } from '../lib/domain/payments';
+import {
+  PAYMENT_METHODS,
+  appointmentBalance,
+  checkDepositAmount,
+  checkPaymentAmount,
+  depositRemaining,
+  paymentMethodLabel,
+} from '../lib/domain/payments';
 import { useToast } from './Toast';
 import { btnPrimary, chip, field, fieldLabel, input } from './ui';
 
@@ -13,8 +20,8 @@ export function centsToText(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
-const chipOn = 'border-neutral-900 bg-neutral-900 text-white';
-const chipOff = 'border-neutral-300 bg-white text-neutral-700';
+const chipOn = 'border-ink bg-ink text-white';
+const chipOff = 'border-line bg-white text-ink';
 
 /**
  * Efectivo / Transferencia / Tarjeta. `extra` añade una opción más aparte (p. ej.
@@ -98,10 +105,10 @@ export function RegisterPaymentPanel({ appointment, onDone }: { appointment: App
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
-      <div className="flex justify-between text-sm">
-        <span className="text-neutral-600">Debe</span>
-        <strong>{formatMoney(balance)}</strong>
+    <div className="flex flex-col gap-3 rounded-xl bg-paper p-3">
+      <div className="flex items-baseline justify-between gap-3 tabular-nums">
+        <span className="text-muted">Debe</span>
+        <strong className="text-lg">{formatMoney(balance)}</strong>
       </div>
       <label className={field}>
         <span className={fieldLabel}>¿Cuánto pagó?</span>
@@ -116,7 +123,122 @@ export function RegisterPaymentPanel({ appointment, onDone }: { appointment: App
           }}
         />
       </label>
-      {!check.ok && cents !== null && <p className="text-sm text-red-600">{check.reason}</p>}
+      {!check.ok && cents !== null && <p className="text-sm text-red-700">{check.reason}</p>}
+      <div className={field}>
+        <span className={fieldLabel}>¿Cómo pagó?</span>
+        <PaymentMethodChips
+          value={method}
+          onChange={(next) => {
+            paymentId.current = null; // otra vía = otro pago
+            setMethod(next);
+          }}
+          label="Vía de pago"
+        />
+      </div>
+      <button type="button" className={btnPrimary} onClick={handleSave} disabled={!check.ok || saving}>
+        {saving ? 'Guardando…' : 'Guardar pago'}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Abonar o pagar completo una cita que aún no se ha cobrado. `estimate` es el
+ * precio que tendría hoy (null si es de precio variable sin acordar). Lo pagado
+ * se descuenta al cobrar; el precio se sigue congelando al completar (INVARIANTE 2).
+ */
+export function DepositPanel({
+  appointment,
+  estimate,
+  onDone,
+}: {
+  appointment: Appointment;
+  estimate: number | null;
+  onDone?: () => void;
+}) {
+  const store = useStore();
+  const { notify } = useToast();
+  const alreadyPaid = store.paidOf(appointment.id);
+  const remaining = depositRemaining(estimate, alreadyPaid);
+  const [amountText, setAmountText] = useState('');
+  const [method, setMethod] = useState<PaymentMethod>('cash');
+  const [saving, setSaving] = useState(false);
+  // Id fijo entre reintentos: un intento que llegó al servidor no se cobra dos veces.
+  const paymentId = useRef<string | null>(null);
+
+  const cents = parseMoneyToCents(amountText);
+  const check = cents === null ? { ok: false as const, reason: 'Escribe cuánto pagó.' } : checkDepositAmount(cents, estimate, alreadyPaid);
+
+  async function handleSave() {
+    if (!check.ok || cents === null || saving) return;
+    paymentId.current ??= crypto.randomUUID();
+    setSaving(true);
+    let result;
+    try {
+      result = await store.addPayment(appointment.id, cents, method, 'deposit', paymentId.current);
+    } finally {
+      setSaving(false);
+    }
+    if (!result.ok) {
+      notify(result.message, 'error');
+      return;
+    }
+    paymentId.current = null;
+    setAmountText('');
+    notify(remaining !== null && cents === remaining ? '✓ Pagó todo' : '✓ Abono registrado');
+    onDone?.();
+  }
+
+  if (remaining === 0) {
+    return <p className="rounded-xl bg-paper p-3 text-sm text-muted">Ya pagó todo. Al cobrar no queda nada pendiente.</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl bg-paper p-3">
+      {estimate !== null && (
+        <div className="flex flex-col gap-1 tabular-nums">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-muted">Cuesta</span>
+            <span>{formatMoney(estimate)}</span>
+          </div>
+          {alreadyPaid > 0 && (
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-muted">Ya abonó</span>
+              <span>{formatMoney(alreadyPaid)}</span>
+            </div>
+          )}
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-muted">Falta</span>
+            <strong className="text-lg">{formatMoney(remaining ?? 0)}</strong>
+          </div>
+        </div>
+      )}
+      <label className={field}>
+        <span className={fieldLabel}>¿Cuánto pagó?</span>
+        <input
+          className={input}
+          type="text"
+          inputMode="decimal"
+          value={amountText}
+          onChange={(e) => {
+            paymentId.current = null; // otro monto = otro pago
+            setAmountText(e.target.value);
+          }}
+        />
+      </label>
+      {remaining !== null && (
+        <button
+          type="button"
+          className={chip + ' self-start ' + chipOff}
+          onClick={() => {
+            paymentId.current = null;
+            setAmountText(centsToText(remaining));
+          }}
+        >
+          Pagó todo: {formatMoney(remaining)}
+        </button>
+      )}
+      {!check.ok && cents !== null && <p className="text-sm text-red-700">{check.reason}</p>}
       <div className={field}>
         <span className={fieldLabel}>¿Cómo pagó?</span>
         <PaymentMethodChips

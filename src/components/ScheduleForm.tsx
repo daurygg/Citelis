@@ -10,12 +10,16 @@ import { summarizeSelection, toggleServiceId } from '../lib/domain/selection';
 import type { PaymentMethod } from '../lib/domain/types';
 import { useToast } from './Toast';
 import { PaymentMethodChips } from './PaymentPanel';
-import { btnPrimary, card, chip, field, fieldLabel, input } from './ui';
+import { ClientPicker, EMPTY_CLIENT_SELECTION, hasInvalidNewPhone, type ClientSelection } from './ClientPicker';
+import { btnGhost, btnPrimary, btnText, card, chip, field, fieldLabel, input } from './ui';
 
 export function ScheduleForm() {
   const store = useStore();
   const { notify } = useToast();
-  const [client, setClient] = useState('');
+  // Clienta elegida del registro, o nueva (nombre + teléfono opcional). `pickerKey` reinicia el selector al limpiar.
+  const [person, setPerson] = useState<ClientSelection>(EMPTY_CLIENT_SELECTION);
+  const [pickerKey, setPickerKey] = useState(0);
+  const client = person.name;
   const [selectedIds, setSelectedIds] = useState<number[]>(store.services[0] ? [store.services[0].id] : []);
   const [saving, setSaving] = useState(false);
   // Id de la cita en curso, fijo entre reintentos: si un intento llegó a
@@ -24,6 +28,8 @@ export function ScheduleForm() {
   const [draftId, setDraftId] = useState<number | null>(null);
   const [datetime, setDatetime] = useState('');
   const [walkIn, setWalkIn] = useState(false);
+  // Cerrado por defecto: la agenda es lo que se abre todos los días. Lo escrito se conserva al cerrar.
+  const [open, setOpen] = useState(false);
   // Cobro al paso: un precio por cada servicio variable + total opcional (igual que cobrar una cita).
   const [chargeTexts, setChargeTexts] = useState<{ prices: Record<number, string>; total: string }>({ prices: {}, total: '' });
   const [quotedText, setQuotedText] = useState(''); // precio acordado (al agendar)
@@ -37,7 +43,7 @@ export function ScheduleForm() {
   // daría por buena sin serlo.
   useEffect(() => {
     setDraftId(null);
-  }, [client, selectedIds, datetime, walkIn, quotedText, depositText, depositMethod, walkInPay, chargeTexts]);
+  }, [person, selectedIds, datetime, walkIn, quotedText, depositText, depositMethod, walkInPay, chargeTexts]);
 
   const selection = summarizeSelection(store.services, selectedIds);
   const selectedServices = selection.service_ids.flatMap((id) => store.services.find((s) => s.id === id) ?? []);
@@ -46,7 +52,7 @@ export function ScheduleForm() {
   const quotedCents = quotedText.trim() === '' ? undefined : (parseMoneyToCents(quotedText) ?? undefined);
   const depositCents = depositText.trim() === '' ? undefined : (parseMoneyToCents(depositText) ?? undefined);
 
-  const baseValid = client.trim() !== '' && selection.ready;
+  const baseValid = client.trim() !== '' && selection.ready && !hasInvalidNewPhone(person);
   // Al cobrar (walk-in), cada servicio de precio variable necesita su precio.
   const canSubmit = walkIn ? baseValid && charge.ready : baseValid && datetime !== '';
 
@@ -55,6 +61,11 @@ export function ScheduleForm() {
     // `saving`: un doble clic o doble Enter no registra (ni cobra) dos veces.
     if (!canSubmit || saving) return;
     const id = draftId ?? newId();
+    // Con clienta elegida viaja su id; el teléfono solo si hay (el servidor lo normaliza).
+    const personFields = {
+      client_id: person.client_id ?? undefined,
+      client_phone: person.phone.trim() === '' ? undefined : person.phone.trim(),
+    };
     setDraftId(id);
     if (walkIn) {
       setSaving(true);
@@ -64,6 +75,7 @@ export function ScheduleForm() {
           id,
           service_ids: selection.service_ids,
           client: client.trim(),
+          ...personFields,
           datetime: datetime || nowLocalDatetime(),
           priceOverrides: charge.priceOverrides,
           price: charge.overridePrice,
@@ -93,6 +105,7 @@ export function ScheduleForm() {
         result = await store.schedule({
           id,
           client: client.trim(),
+          ...personFields,
           service_ids: selection.service_ids,
           datetime,
           quoted_price: quotedCents,
@@ -110,29 +123,36 @@ export function ScheduleForm() {
       notify('✓ Cita agendada');
     }
     setDraftId(null);
-    setClient('');
+    setPerson(EMPTY_CLIENT_SELECTION);
+    setPickerKey((k) => k + 1);
     setDatetime('');
     setChargeTexts({ prices: {}, total: '' });
     setQuotedText('');
     setDepositText('');
     setDepositMethod('cash');
     setWalkInPay('cash');
+    // Ya quedó registrada: se cierra el formulario para ver la agenda.
+    setOpen(false);
+  }
+
+  if (!open) {
+    return (
+      <button type="button" className={btnGhost + ' w-full font-semibold'} onClick={() => setOpen(true)}>
+        Agendar una cita
+      </button>
+    );
   }
 
   return (
     <form onSubmit={handleSubmit} className={card + ' flex flex-col gap-3'}>
-      <h2 className="text-lg font-semibold">{walkIn ? 'Registrar atención' : 'Agendar cita'}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-xl font-semibold tracking-tight">{walkIn ? 'Registrar atención' : 'Agendar cita'}</h2>
+        <button type="button" className={btnText + ' -mr-2 text-muted'} onClick={() => setOpen(false)}>
+          Cerrar
+        </button>
+      </div>
 
-      <label className={field}>
-        <span className={fieldLabel}>Clienta</span>
-        <input
-          className={input}
-          type="text"
-          value={client}
-          onChange={(e) => setClient(e.target.value)}
-          placeholder="Nombre de la clienta"
-        />
-      </label>
+      <ClientPicker key={pickerKey} clients={store.clients} value={person} onChange={setPerson} />
 
       <fieldset className={field}>
         <legend className={fieldLabel}>Servicios (puedes elegir varios)</legend>
@@ -147,7 +167,7 @@ export function ScheduleForm() {
                 onClick={() => setSelectedIds((ids) => toggleServiceId(ids, service.id))}
                 className={
                   chip + ' ' +
-                  (on ? 'border-neutral-900 bg-neutral-900 text-white' : 'border-neutral-300 bg-white text-neutral-700')
+                  (on ? 'border-ink bg-ink text-white' : 'border-line bg-white text-ink')
                 }
               >
                 {service.name}
@@ -156,8 +176,8 @@ export function ScheduleForm() {
           })}
         </div>
         {selection.service_ids.length > 0 && (
-          <p className="text-sm text-neutral-600">
-            Duran {selection.duration_min} min · Precio estimado:{' '}
+          <p className="text-sm text-muted">
+            Duran {selection.duration_min} min. Precio estimado:{' '}
             {hasVariable
               ? selection.estimate.total > 0
                 ? `${formatMoney(selection.estimate.total)} + a convenir`
@@ -167,7 +187,7 @@ export function ScheduleForm() {
         )}
         {selectedServices.some((service) => service.duration_min <= 0) && (
           // Sin esto el botón quedaría apagado sin explicar por qué.
-          <p className="text-sm text-red-600">
+          <p className="text-sm text-red-700">
             {selectedServices
               .filter((service) => service.duration_min <= 0)
               .map((service) => service.name)
@@ -263,7 +283,7 @@ export function ScheduleForm() {
         </div>
       )}
 
-      <label className="flex min-h-11 items-center gap-2 text-sm text-neutral-700">
+      <label className="flex min-h-11 items-center gap-2 text-sm text-ink">
         <input className="size-5" type="checkbox" checked={walkIn} onChange={(e) => setWalkIn(e.target.checked)} />
         Ya la atendí (cobrar ahora)
       </label>

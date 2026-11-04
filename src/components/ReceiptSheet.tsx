@@ -21,7 +21,7 @@ function Row({ left, right, strong }: { left: ReactNode; right: ReactNode; stron
 export function ReceiptSheet({ data, qr }: { data: ReceiptData; qr?: ReactNode }) {
   const { header, meta, lines, totals, payments, credit, footer } = data;
   return (
-    <article className="receipt-paper mx-auto w-full max-w-[22rem] bg-white p-4 font-mono text-[13px] leading-snug text-black shadow-lg">
+    <article className="receipt-paper mx-auto w-full max-w-[22rem] bg-white p-4 font-mono text-[13px] leading-snug text-black ring-1 ring-black/10">
       <header className="flex flex-col items-center gap-1 text-center">
         {header.logo_url && (
           <img src={header.logo_url} alt={`Logo de ${header.name}`} className="mb-1 max-h-20 max-w-[60%] object-contain grayscale" />

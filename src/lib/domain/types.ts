@@ -135,6 +135,9 @@ export interface Appointment {
   // Solo en citas nacidas del portal público. Opcionales porque las citas que la
   // dueña registró antes de esta función no los traen.
   client_phone?: string | null;
+  // Enlace a la clienta del registro. Opcional: las citas anteriores no lo traen.
+  // El nombre y teléfono de ESTA cita siguen en `client`/`client_phone` (histórico).
+  client_id?: number | null;
   source?: AppointmentSource;
   datetime: string; // ISO 8601
   status: AppointmentStatus;
@@ -224,4 +227,15 @@ export interface AdminBusiness {
   status: SubscriptionStatus | null;
   last_payment_at: string | null;
   last_payment_cents: number | null;
+}
+
+// Clienta del negocio (registro propio por negocio; INVARIANTE 1). Se llena sola con cada cita.
+// `phone_digits` lo genera la base y no se escribe nunca desde la app.
+export interface Client {
+  id: number;
+  business_id: number; // INVARIANTE 1
+  name: string;
+  phone: string | null;
+  phone_digits?: string | null;
+  created_at: string;
 }

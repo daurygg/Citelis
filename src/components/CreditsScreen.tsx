@@ -5,7 +5,7 @@ import { saleBalance } from '../lib/domain/inventory/sales';
 import type { Sale } from '../lib/domain/inventory/types';
 import { formatDateShort, formatMoney, parseMoneyToCents } from '../lib/format';
 import { useToast } from './Toast';
-import { btnGhost, btnPrimary, card, field, fieldLabel, input } from './ui';
+import { btnGhostSm, btnPrimarySm, field, fieldLabel, input, rowDivider, screenTitle, surface } from './ui';
 
 export function CreditsScreen() {
   const inv = useInventory();
@@ -14,17 +14,27 @@ export function CreditsScreen() {
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Fiados (por cobrar)</h2>
+      <h2 className={screenTitle}>Fiados por cobrar</h2>
 
-      <div className={card}>
-        <div className="text-sm text-neutral-500">Total por cobrar</div>
-        <div className="text-2xl font-bold text-brand-700">{formatMoney(total)}</div>
+      <div className={surface + ' p-4'}>
+        <p className="text-sm text-muted">Total por cobrar</p>
+        <p className="text-2xl font-bold tabular-nums">{formatMoney(total)}</p>
+        <p className="text-sm text-muted">
+          {credits.length === 1 ? '1 fiado pendiente' : `${credits.length} fiados pendientes`}
+        </p>
       </div>
 
       {credits.length === 0 ? (
-        <p className={card + ' text-neutral-500'}>No hay fiados pendientes. 🎉</p>
+        <div className={surface + ' p-5'}>
+          <p className="font-semibold">No hay fiados pendientes</p>
+          <p className="mt-1 text-muted">Cuando vendas a crédito, la deuda aparece aquí.</p>
+        </div>
       ) : (
-        credits.map((sale) => <CreditRow key={sale.id} sale={sale} />)
+        <div className={surface + ' ' + rowDivider}>
+          {credits.map((sale) => (
+            <CreditRow key={sale.id} sale={sale} />
+          ))}
+        </div>
       )}
     </section>
   );
@@ -52,29 +62,30 @@ function CreditRow({ sale }: { sale: Sale }) {
   }
 
   return (
-    <div className={card + ' flex flex-col gap-2'}>
-      <div className="flex items-baseline justify-between">
+    <div className="flex flex-col gap-3 p-4">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="truncate font-medium">{sale.client || 'Sin nombre'}</div>
-          <div className="truncate text-sm text-neutral-500">
-            {sale.quantity} × {productName} · {formatDateShort(sale.datetime)}
+          <div className="font-semibold break-words">{sale.client || 'Sin nombre'}</div>
+          <div className="text-sm text-muted break-words">
+            {sale.quantity} × {productName}
           </div>
+          <div className="text-sm text-muted tabular-nums">{formatDateShort(sale.datetime)}</div>
         </div>
-        <div className="text-right">
-          <div className="text-xs text-neutral-400">Debe</div>
-          <div className="font-semibold text-brand-700">{formatMoney(balance)}</div>
+        <div className="shrink-0 text-right tabular-nums">
+          <div className="text-sm text-muted">Debe</div>
+          <div className="font-semibold text-orange-700">{formatMoney(balance)}</div>
         </div>
       </div>
 
-      <div className="flex items-end gap-2">
-        <label className={field + ' flex-1'}>
+      <div className="grid grid-cols-[1fr_auto_auto] items-end gap-2">
+        <label className={field + ' min-w-0'}>
           <span className={fieldLabel}>Registrar abono</span>
           <input className={input} type="text" inputMode="decimal" value={amountText} onChange={(e) => setAmountText(e.target.value)} />
         </label>
-        <button type="button" className={btnGhost} onClick={pay}>
+        <button type="button" className={btnGhostSm} onClick={pay}>
           Abonar
         </button>
-        <button type="button" className={btnPrimary} onClick={payAll}>
+        <button type="button" className={btnPrimarySm} onClick={payAll}>
           Saldar
         </button>
       </div>

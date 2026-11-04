@@ -26,13 +26,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ notify }}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 flex flex-col items-center gap-2 px-4">
+      <div role="status" className="pointer-events-none fixed inset-x-0 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 flex flex-col items-center gap-2 px-4">
         {toasts.map((t) => (
           <div
             key={t.id}
             className={
-              'rounded-xl px-4 py-2 text-sm text-white shadow-lg ' +
-              (t.kind === 'error' ? 'bg-red-600' : 'bg-neutral-800')
+              'rounded-xl px-4 py-3 text-sm font-medium text-white ' +
+              (t.kind === 'error' ? 'bg-red-700' : 'bg-ink')
             }
           >
             {t.message}

@@ -8,6 +8,7 @@ import type {
   AppointmentPayment,
   BookingPolicyRow,
   Business,
+  Client,
   BusinessHours,
   Employee,
   FixedExpense,
@@ -29,6 +30,7 @@ import {
   type CompleteOptions,
 } from '../domain/appointments';
 import { completeRpcArgs, planCompletion, type ChargePayment } from '../domain/charge';
+import { salesByClient, type ClientSales } from '../domain/clientSales';
 import { creditsByClient, incomeByMethod, paymentStatus, type ClientCredit, type IncomeByMethod, type PaymentStatus } from '../domain/payments';
 import { buildReceiptData, type ReceiptLineInput, type ReceiptResult } from '../domain/receipt';
 import { scheduleRpcArgs } from '../domain/selection';
@@ -44,7 +46,10 @@ import { dayRange, shiftMonthISODate } from '../format';
 import { supabase } from '../supabase/client';
 import { useAuth } from '../auth/AuthContext';
 import { LOGO_BUCKET, buildLogoPath, validateAddress, validateDisplayName, validateLogoFile, validatePhone } from '../domain/receiptProfile';
+import { LoadingScreen } from '../../components/LoadingScreen';
+import { btnPrimary } from '../../components/ui';
 import { Onboarding } from '../../components/Onboarding';
+import { OnboardingWizard } from '../../components/OnboardingWizard';
 
 // ── Tipos de la fachada (idénticos a las fases en memoria) ──────────────────
 export interface ScheduleInput {
@@ -57,6 +62,8 @@ export interface ScheduleInput {
   quoted_price?: number; // precio acordado (servicios variables), opcional
   deposit?: number; // abono/adelanto pagado al reservar, opcional
   deposit_method?: PaymentMethod; // cómo pagó el abono (el pago nace con la cita)
+  client_id?: number; // clienta elegida del registro; sin ella el servidor busca por teléfono o la crea
+  client_phone?: string; // teléfono para ESTA cita (de ahí sale el aviso por WhatsApp)
 }
 export interface WalkInInput {
   /** Id fijo entre reintentos (ver `newId`): un reintento no duplica la cita. */
@@ -65,6 +72,8 @@ export interface WalkInInput {
   service_ids: number[];
   client: string;
   datetime: string;
+  client_id?: number;
+  client_phone?: string;
   /** Precio de cada servicio de precio variable, por id (de `buildChargeForm`). */
   priceOverrides?: ReadonlyMap<number, number>;
   /** Total pactado, si lo hay: manda sobre la suma. */
@@ -88,6 +97,11 @@ export interface SupplyInput {
   name: string;
   purchase_price: number;
   servings: number;
+}
+export interface ServiceInput {
+  name: string;
+  price: number; // centavos
+  duration_min: number;
 }
 export interface ServicePatch {
   name?: string;
@@ -139,6 +153,8 @@ export interface Store {
   completionPreview: (appointmentId: number, options?: CompleteOptions) => CompletionPreview | null;
   completionBreakdown: (appointmentId: number, options?: CompleteOptions) => CompletionBreakdown | null;
   scheduleConflict: (datetime: string, serviceIds: readonly number[], excludeId?: number) => Appointment | null;
+  /** Clientas del negocio (registro propio). Alimenta el selector al agendar. */
+  clients: readonly Client[];
   schedule: (input: ScheduleInput) => Promise<ActionResult>;
   checkServicesEdit: (appointmentId: number, serviceIds: readonly number[]) => ServicesEditCheck;
   updateAppointmentServices: (appointmentId: number, serviceIds: readonly number[]) => Promise<ActionResult>;
@@ -152,6 +168,8 @@ export interface Store {
   /** Crédito vivo de servicios por clienta. Separado del crédito de ropa (INVARIANTE 3). */
   serviceCredits: () => ClientCredit[];
   incomeByMethod: (from: string, to: string) => IncomeByMethod;
+  /** Lo vendido en servicios a cada clienta en [from, to), de mayor a menor. */
+  salesByClient: (from: string, to: string) => ClientSales[];
   /** Registra un abono (cita abierta) o un pago de crédito (cita cobrada). Espera al servidor. */
   addPayment: (appointmentId: number, amount: number, method: PaymentMethod, kind: Extract<PaymentKind, 'deposit' | 'credit_payment'>, clientRef?: string) => Promise<ActionResult>;
   cancel: (appointmentId: number) => void;
@@ -161,6 +179,8 @@ export interface Store {
   allSupplies: () => Supply[];
   serviceEconomics: (serviceId: number) => ServiceEconomics | null;
   addService: () => number;
+  /** Crea un servicio ya con sus datos en UNA sola escritura (sin insumos: INVARIANTE 6). */
+  createService: (input: ServiceInput) => number;
   updateService: (serviceId: number, patch: ServicePatch) => void;
   deleteService: (serviceId: number) => void;
   setServiceCostOverride: (serviceId: number, cents: number | null) => void;
@@ -241,6 +261,7 @@ interface LoadedData {
   employees: Employee[];
   payments: AppointmentPayment[];
   appointments: Appointment[];
+  clients: Client[];
   /** Líneas de `appointment_service` con su ganancia congelada (reportes por servicio). */
   serviceLines: ServiceProfitLine[];
   fixedExpenses: FixedExpense[];
@@ -256,8 +277,22 @@ interface LoadedData {
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { signOut } = useAuth();
   const [data, setData] = useState<LoadedData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState(false);
   const [noBusiness, setNoBusiness] = useState(false);
+  // Se incrementa para volver a cargar la membresía y los datos SIN recargar la
+  // página (el asistente guiado crea el negocio y sigue en pantalla).
+  const [loadKey, setLoadKey] = useState(0);
+  // Asistente de configuración inicial: solo en memoria. Si la dueña recarga a
+  // medias, cae directo en la app (la guía vacía de la agenda cubre ese caso).
+  const [wizardActive, setWizardActive] = useState(false);
+
+  function reload(options?: { startWizard?: boolean }) {
+    if (options?.startWizard) setWizardActive(true);
+    setError(false);
+    setNoBusiness(false);
+    setData(null);
+    setLoadKey((k) => k + 1);
+  }
 
   useEffect(() => {
     let active = true;
@@ -274,7 +309,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         .limit(1);
       if (!active) return;
       if (mErr) {
-        setError('No se pudieron cargar tus datos: ' + mErr.message);
+        console.error('No se pudo leer la membresía', mErr);
+        setError(true);
         return;
       }
       if (!members || members.length === 0) {
@@ -285,7 +321,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // INVARIANTE 1: cada consulta filtra por business_id de forma explícita,
       // además de la RLS. Con varias membresías, la RLS deja ver las filas de
       // todos los negocios del usuario; sin este filtro se mezclarían.
-      const [biz, svc, sup, ss, emp, apt, aptSvc, fx, bh, tb, bp, pay, names, sess] = await Promise.all([
+      const [biz, svc, sup, ss, emp, apt, aptSvc, fx, bh, tb, bp, pay, names, cli, sess] = await Promise.all([
         // El nombre del negocio sale en el .ics y en el link de Google Calendar.
         supabase.from('business').select('*').eq('id', businessId),
         supabase.from('service').select('*').eq('business_id', businessId),
@@ -305,6 +341,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         supabase.from('appointment_payment').select('*').eq('business_id', businessId),
         // Nombres visibles de quienes cobran (RPC acotada a mi negocio). Si falla, sin nombres.
         supabase.rpc('business_member_names', { p_business_id: businessId }),
+        // Registro de clientas. Si falla, el selector arranca vacío y la dueña puede escribir una nueva.
+        supabase.from('client').select('*').eq('business_id', businessId).order('name', { ascending: true }),
         supabase.auth.getSession(),
       ]);
       if (!active) return;
@@ -319,6 +357,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Si la consulta de líneas falla, cada cita cae a su `service_id`.
         appointments: foldServiceIds((apt.data ?? []) as Appointment[], (aptSvc.data ?? []) as AppointmentServiceRow[], businessId),
         serviceLines: ((aptSvc.data ?? []) as ServiceProfitLine[]).filter((l) => l.business_id === businessId),
+        clients: ((cli.data ?? []) as Client[]).filter((c) => c.business_id === businessId),
         fixedExpenses: (fx.data ?? []) as FixedExpense[],
         businessHours: (bh.data ?? []) as BusinessHours[],
         timeBlocks: (tb.data ?? []) as TimeBlock[],
@@ -330,28 +369,46 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadKey]);
 
   if (error) {
     return (
       <div className="grid min-h-dvh place-items-center bg-neutral-50 px-6 text-center">
-        <div>
-          <p className="mb-4 text-neutral-700">{error}</p>
-          <button type="button" className="text-sm text-brand-700 hover:underline" onClick={() => signOut()}>
+        <div className="flex max-w-sm flex-col items-center gap-3">
+          <p className="text-lg font-semibold text-neutral-800">No pudimos cargar tus datos</p>
+          <p className="text-neutral-600">Revisa tu conexión a internet e inténtalo de nuevo.</p>
+          <button type="button" className={btnPrimary} onClick={() => reload()}>
+            Reintentar
+          </button>
+          <button type="button" className="min-h-11 px-3 text-sm text-brand-700 hover:underline" onClick={() => signOut()}>
             Salir
           </button>
         </div>
       </div>
     );
   }
-  if (noBusiness) return <Onboarding />;
+  if (noBusiness) return <Onboarding onCreated={() => reload({ startWizard: true })} onJoined={() => reload()} />;
   if (!data) {
-    return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando tus datos…</div>;
+    return <LoadingScreen message="Cargando tus datos…" />;
   }
-  return <StoreReady data={data}>{children}</StoreReady>;
+  return (
+    <StoreReady data={data} wizardActive={wizardActive} onWizardFinish={() => setWizardActive(false)}>
+      {children}
+    </StoreReady>
+  );
 }
 
-function StoreReady({ data, children }: { data: LoadedData; children: ReactNode }) {
+function StoreReady({
+  data,
+  wizardActive,
+  onWizardFinish,
+  children,
+}: {
+  data: LoadedData;
+  wizardActive: boolean;
+  onWizardFinish: () => void;
+  children: ReactNode;
+}) {
   const businessId = data.businessId;
   const [business, setBusiness] = useState<Business | null>(data.business);
   const [memberNames, setMemberNames] = useState<readonly MemberName[]>(data.memberNames);
@@ -361,6 +418,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
   const [employees, setEmployees] = useState<readonly Employee[]>(data.employees);
   const [payments, setPayments] = useState<readonly AppointmentPayment[]>(data.payments);
   const [appointments, setAppointments] = useState<readonly Appointment[]>(data.appointments);
+  const [clients, setClients] = useState<readonly Client[]>(data.clients);
   const [serviceLines, setServiceLines] = useState<readonly ServiceProfitLine[]>(data.serviceLines);
   const [fixedExpenses, setFixedExpenses] = useState<readonly FixedExpense[]>(data.fixedExpenses);
   const [businessHours, setBusinessHoursState] = useState<readonly BusinessHours[]>(data.businessHours);
@@ -476,6 +534,10 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     return incomeByMethod(appointments, payments, businessId, from, to);
   }
 
+  function clientSales(from: string, to: string): ClientSales[] {
+    return salesByClient(appointments, payments, businessId, from, to);
+  }
+
   function suppliesForService(serviceId: number): Supply[] {
     const linkedIds = serviceSupplies.filter((l) => l.service_id === serviceId).map((l) => l.supply_id);
     return supplies.filter((s) => linkedIds.includes(s.id));
@@ -572,6 +634,24 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     setPayments((prev) => [...prev, ...added]);
   }
 
+  // Vuelve a leer el registro tras agendar: el servidor pudo crear una clienta
+  // nueva (id real, teléfono normalizado) y es la única fuente de verdad. Si la
+  // lectura falla, se queda la lista anterior: la cita ya está guardada y la
+  // clienta aparecerá en la próxima carga.
+  async function refreshClients(): Promise<void> {
+    try {
+      // INVARIANTE 1: filtro explícito por negocio, además de la RLS.
+      const { data: rows, error } = await supabase
+        .from('client')
+        .select('*')
+        .eq('business_id', businessId)
+        .order('name', { ascending: true });
+      if (!error && rows) setClients((rows as Client[]).filter((c) => c.business_id === businessId));
+    } catch {
+      // se conserva la lista actual
+    }
+  }
+
   async function schedule(input: ScheduleInput): Promise<ActionResult> {
     if (input.service_ids.length === 0) return { ok: false, message: 'Elige al menos un servicio.' };
     const appointment: Appointment = {
@@ -580,6 +660,8 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       service_id: input.service_ids[0],
       service_ids: input.service_ids,
       client: input.client,
+      client_phone: input.client_phone?.trim() || null,
+      client_id: input.client_id ?? null,
       datetime: input.datetime,
       status: 'PENDING',
       quoted_price: input.quoted_price ?? null,
@@ -591,6 +673,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     const error = await insertScheduled(appointment, input.deposit_method);
     if (error) return { ok: false, message: error.message };
     putAppointment(appointment);
+    void refreshClients();
     // El abono es un pago: el servidor lo creó con la cita, aquí se refleja.
     if (appointment.deposit != null && appointment.deposit > 0) {
       await syncPayments(appointment.id, [newPayment(appointment.id, appointment.deposit, input.deposit_method ?? null, 'deposit')]);
@@ -760,6 +843,8 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
       service_id: input.service_ids[0],
       service_ids: input.service_ids,
       client: input.client,
+      client_phone: input.client_phone?.trim() || null,
+      client_id: input.client_id ?? null,
       datetime: input.datetime,
       status: 'PENDING',
       quoted_price: null,
@@ -778,6 +863,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     const insertError = await insertScheduled(pending);
     if (insertError) return { ok: false, message: insertError.message };
     putAppointment(pending);
+    void refreshClients();
     // Con vía, la clienta pagó TODO el cobro por ella; sin vía queda a crédito.
     const total = plan.completed.charged_price as number;
     const walkInPayments: ChargePayment[] = input.payment_method && total > 0 ? [{ amount: total, method: input.payment_method }] : [];
@@ -820,20 +906,24 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     }
   }
 
-  function addService(): number {
+  function createService(input: ServiceInput): number {
     const service: Service = {
       id: newId(),
       business_id: businessId,
-      name: 'Nuevo servicio',
-      price: 0,
+      name: input.name,
+      price: input.price,
       supply_cost: 0,
       cost_override: null,
-      duration_min: 60,
+      duration_min: input.duration_min,
       variable_price: false,
     };
     setServices((prev) => [...prev, service]);
     persist(supabase.from('service').insert(service));
     return service.id;
+  }
+
+  function addService(): number {
+    return createService({ name: 'Nuevo servicio', price: 0, duration_min: 60 });
   }
 
   function updateService(serviceId: number, patch: ServicePatch): void {
@@ -1202,6 +1292,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     completionPreview,
     completionBreakdown,
     scheduleConflict,
+    clients,
     schedule,
     checkServicesEdit: servicesEditCheck,
     updateAppointmentServices,
@@ -1212,6 +1303,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     paidOf,
     serviceCredits,
     incomeByMethod: paymentsIncome,
+    salesByClient: clientSales,
     addPayment,
     cancel,
     markNoShow,
@@ -1220,6 +1312,7 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     allSupplies,
     serviceEconomics,
     addService,
+    createService,
     updateService,
     deleteService,
     setServiceCostOverride,
@@ -1250,7 +1343,13 @@ function StoreReady({ data, children }: { data: LoadedData; children: ReactNode 
     loadReceipt,
     updatePublicSlug,
   };
-  return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
+  // El asistente se pinta con el store ya cargado (pasos 2-4) en lugar de la app.
+  // Recibe el store por prop y no con useStore() para no cerrar un ciclo de imports.
+  return (
+    <StoreContext.Provider value={store}>
+      {wizardActive ? <OnboardingWizard store={store} onFinish={onWizardFinish} /> : children}
+    </StoreContext.Provider>
+  );
 }
 
 export function useStore(): Store {

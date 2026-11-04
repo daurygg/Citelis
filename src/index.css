@@ -21,9 +21,51 @@
   --color-brand-fg: oklch(1 0 0);
 }
 
-/* Tema base de la app. Fuente del sistema y color de fondo cálido. */
+/*
+ * Tokens neutrales compartidos por toda la app (portal público y app de la dueña;
+ * odd/tasks/public-booking-redesign.md y owner-agenda-redesign.md). `@theme` a
+ * secas, por la misma razón de arriba. El papel se tiñe con la marca del negocio:
+ * `color-mix` lee `--color-brand-50` en vivo, así que sigue la sobrescritura en
+ * runtime. La fuente (Bricolage Grotesque, autoalojada) se importa en main.tsx;
+ * sus ejes `opsz` y `wdth` se usan con `font-variation-settings` / `font-stretch`.
+ */
+@theme {
+  --font-sans: 'Bricolage Grotesque Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --color-paper: color-mix(in oklch, var(--color-brand-50) 45%, white);
+  --color-ink: #231f26;
+  --color-muted: #6d6772;
+  --color-line: #e6e1e8;
+}
+
+/* Tema base de la app: la fuente y la tinta salen de los tokens de arriba. */
 :root {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+}
+
+/*
+ * Portal público: el único movimiento es la barra de resumen que sube al elegir
+ * el primer servicio. Con `prefers-reduced-motion` aparece sin animar.
+ */
+@keyframes portal-bar-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .portal-bar-in {
+    animation: portal-bar-in 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
+/* Nombre del negocio (firma compartida): óptico grande, lo más ancho que ofrece la fuente. */
+.display-name {
+  font-variation-settings: 'opsz' 96, 'wdth' 100;
+  font-stretch: 100%;
 }
 
 /* iOS: no reescala el texto al girar el teléfono. */

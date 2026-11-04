@@ -6,7 +6,7 @@ import { useStore } from '../../lib/store/StoreContext';
 import { useToast } from '../Toast';
 import { validateEmployeeName } from '../../lib/domain/employees';
 import type { Employee } from '../../lib/domain/types';
-import { btnGhostSm, btnPrimary, btnPrimarySm, btnText, card, field, fieldLabel, input } from '../ui';
+import { btnGhostSm, btnPrimary, btnPrimarySm, btnText, field, fieldLabel, input, rowDivider, surface } from '../ui';
 
 function EmployeeRow({ employee }: { employee: Employee }) {
   const store = useStore();
@@ -24,12 +24,12 @@ function EmployeeRow({ employee }: { employee: Employee }) {
 
   if (editing) {
     return (
-      <li className="flex flex-col gap-2 rounded-xl bg-neutral-50 p-3">
+      <li className="flex flex-col gap-2 py-3">
         <label className={field}>
           <span className={fieldLabel}>Nombre</span>
           <input className={input} type="text" value={name} onChange={(e) => setName(e.target.value)} />
         </label>
-        {!check.ok && <p className="text-sm text-red-600">{check.message}</p>}
+        {!check.ok && <p className="text-sm text-red-700">{check.message}</p>}
         <div className="flex gap-2">
           <button type="button" className={btnPrimarySm} onClick={save} disabled={!check.ok}>
             Guardar
@@ -50,10 +50,10 @@ function EmployeeRow({ employee }: { employee: Employee }) {
   }
 
   return (
-    <li className="flex flex-wrap items-center gap-2">
-      <span className={'min-w-32 flex-1 truncate ' + (employee.active ? '' : 'text-neutral-400')}>
+    <li className="flex flex-wrap items-center gap-2 py-2">
+      <span className={'min-w-32 flex-1 break-words ' + (employee.active ? 'font-medium' : 'text-muted')}>
         {employee.name}
-        {!employee.active && <span className="ml-2 text-xs">(dada de baja)</span>}
+        {!employee.active && <span className="ml-2 text-sm font-normal">(dada de baja)</span>}
       </span>
       <button type="button" className={btnGhostSm} onClick={() => setEditing(true)}>
         Cambiar nombre
@@ -86,18 +86,18 @@ export function EmployeeSettings() {
   }
 
   return (
-    <section className={card + ' flex flex-col gap-3'}>
+    <section className={surface + ' flex flex-col gap-3 p-4'}>
       <div>
         <h2 className="text-lg font-semibold">Tu equipo</h2>
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-muted">
           Agrega a quienes hacen los servicios para anotar quién hizo cada uno al cobrar.
         </p>
       </div>
 
       {store.employees.length === 0 ? (
-        <p className="text-sm text-neutral-500">Todavía no agregaste a nadie.</p>
+        <p className="text-sm text-muted">Todavía no agregaste a nadie.</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className={rowDivider}>
           {store.employees.map((employee) => (
             <EmployeeRow key={employee.id} employee={employee} />
           ))}

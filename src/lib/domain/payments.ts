@@ -58,6 +58,25 @@ export function checkPaymentAmount(cents: number, balance: number): AmountCheck 
   return { ok: true };
 }
 
+/**
+ * Lo que falta por pagar de una cita aún no cobrada: precio estimado menos lo ya
+ * abonado. null si el precio todavía no se sabe (servicio de precio variable).
+ */
+export function depositRemaining(estimate: number | null, alreadyPaid: number): number | null {
+  return estimate === null ? null : Math.max(0, estimate - alreadyPaid);
+}
+
+/**
+ * ¿Se puede abonar este monto antes de atender? Se admite desde un abono hasta el
+ * pago completo; pasarse del precio estimado se bloquea. Sin precio, sin tope.
+ */
+export function checkDepositAmount(cents: number, estimate: number | null, alreadyPaid: number): AmountCheck {
+  if (!Number.isInteger(cents) || cents <= 0) return { ok: false, reason: 'Escribe cuánto pagó.' };
+  const remaining = depositRemaining(estimate, alreadyPaid);
+  if (remaining !== null && cents > remaining) return { ok: false, reason: 'Eso es más de lo que cuesta la cita.' };
+  return { ok: true };
+}
+
 /** Una fila de la pantalla de cobro: lo tecleado y la vía elegida. */
 export interface PaymentRowText {
   amount: string;

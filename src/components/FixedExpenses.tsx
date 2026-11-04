@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, parseMoneyToCents } from '../lib/format';
 import { useToast } from './Toast';
-import { btnGhost, card, field, fieldLabel, input } from './ui';
+import { btnGhost, btnQuietDanger, field, fieldLabel, input, rowDivider, surface } from './ui';
 
 export function FixedExpenses({ month }: { month: string }) {
   const store = useStore();
@@ -30,49 +30,43 @@ export function FixedExpenses({ month }: { month: string }) {
   }
 
   return (
-    <div className={card + ' flex flex-col gap-3'}>
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Gastos fijos del mes</h3>
-        <button type="button" className="text-sm text-brand-700 hover:underline" onClick={handleCopy}>
+    <section className={surface + ' flex flex-col'}>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 pt-4 pr-4 pl-4">
+        <h3 className="text-lg font-semibold">Gastos fijos del mes</h3>
+        <button type="button" className="-ml-3 min-h-11 rounded-lg px-3 text-sm font-medium text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700" onClick={handleCopy}>
           Copiar del mes anterior
         </button>
       </div>
 
       {expenses.length === 0 ? (
-        <p className="text-sm text-neutral-500">Aún no hay gastos para este mes.</p>
+        <p className="p-4 pt-1 text-muted">Aún no hay gastos para este mes.</p>
       ) : (
-        <ul className="flex flex-col divide-y divide-neutral-100">
+        <ul className={'mt-2 border-t border-line px-4 ' + rowDivider}>
           {expenses.map((expense) => (
-            <li key={expense.id} className="flex items-center justify-between py-2">
-              <span>{expense.concept}</span>
-              <div className="flex items-center gap-3">
-                <span className="font-medium">{formatMoney(expense.amount)}</span>
-                <button
-                  type="button"
-                  className="text-sm text-red-600 hover:underline"
-                  onClick={() => store.removeFixedExpense(expense.id)}
-                >
-                  Quitar
-                </button>
-              </div>
+            <li key={expense.id} className="flex items-center justify-between gap-2">
+              <span className="min-w-0 flex-1 py-3 break-words">{expense.concept}</span>
+              <span className="shrink-0 font-semibold tabular-nums">{formatMoney(expense.amount)}</span>
+              <button type="button" className={btnQuietDanger + ' -mr-3'} onClick={() => store.removeFixedExpense(expense.id)}>
+                Quitar
+              </button>
             </li>
           ))}
         </ul>
       )}
 
-      <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
-        <label className={field + ' min-w-[8rem] flex-[2]'}>
+      <form onSubmit={handleSubmit} className="grid grid-cols-2 items-end gap-3 border-t border-line p-4">
+        <label className={field + ' col-span-2'}>
           <span className={fieldLabel}>Concepto</span>
           <input className={input} type="text" value={concept} onChange={(e) => setConcept(e.target.value)} placeholder="Ej: Luz" />
         </label>
-        <label className={field + ' flex-1'}>
+        <label className={field}>
           <span className={fieldLabel}>Monto de este mes</span>
           <input className={input} type="text" inputMode="decimal" value={amountText} onChange={(e) => setAmountText(e.target.value)} />
         </label>
         <button type="submit" className={btnGhost} disabled={!canAdd}>
-          Añadir
+          Añadir gasto
         </button>
       </form>
-    </div>
+    </section>
   );
 }

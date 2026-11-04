@@ -13,7 +13,7 @@ import { useState } from 'react';
 import { useStore } from '../../lib/store/StoreContext';
 import { useToast } from '../Toast';
 import { isValidSlug, slugifyBusinessName } from '../../lib/domain/slug';
-import { btnPrimary, card, field, fieldLabel, input } from '../ui';
+import { btnPrimary, field, fieldLabel, input, surface } from '../ui';
 
 export function PublicLinkSettings() {
   const store = useStore();
@@ -59,9 +59,9 @@ export function PublicLinkSettings() {
 
   if (!policy) {
     return (
-      <div className={card + ' flex flex-col gap-2'}>
+      <div className={surface + ' flex flex-col gap-2 p-4'}>
         <h2 className="text-lg font-semibold">La dirección de tu página</h2>
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-muted">
           Todavía no tienes una. Se crea sola en cuanto abras las reservas en línea, en "Reservas".
         </p>
       </div>
@@ -69,13 +69,13 @@ export function PublicLinkSettings() {
   }
 
   return (
-    <div className={card + ' flex flex-col gap-3'}>
+    <div className={surface + ' flex flex-col gap-3 p-4'}>
       <div>
         <h2 className="text-lg font-semibold">La dirección de tu página</h2>
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-muted">
           Es el enlace que le mandas a tus clientas para que reserven. Ahora es:
         </p>
-        <p className="mt-1 break-all font-mono text-sm text-brand-700">
+        <p className="mt-1 break-all text-sm font-medium">
           {window.location.origin}/reservar/{savedSlug}
         </p>
       </div>
@@ -83,7 +83,7 @@ export function PublicLinkSettings() {
       <label className={field}>
         <span className={fieldLabel}>Cambiar la última parte</span>
         <div className="flex items-center gap-1">
-          <span className="shrink-0 text-sm text-neutral-400">/reservar/</span>
+          <span className="shrink-0 text-sm text-muted">/reservar/</span>
           <input
             className={input}
             type="text"
@@ -97,19 +97,19 @@ export function PublicLinkSettings() {
       </label>
 
       {showFormatHint && (
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-red-700">
           Solo letras sin acentos, números y guiones, sin espacios ni mayúsculas.
         </p>
       )}
-      {serverError && <p className="text-sm text-red-600">{serverError}</p>}
+      {serverError && <p className="text-sm text-red-700">{serverError}</p>}
 
       {showSuggestion && (
-        <button type="button" className="self-start text-sm text-brand-700 hover:underline" onClick={applySuggestion}>
+        <button type="button" className="min-h-11 self-start rounded-lg text-left text-sm font-medium text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700" onClick={applySuggestion}>
           Usar "{suggestedSlug}" (viene del nombre de tu negocio)
         </button>
       )}
 
-      <p className="text-xs text-neutral-400">
+      <p className="text-sm text-muted">
         La dirección anterior va a seguir funcionando: nadie que la haya guardado se queda sin poder
         entrar.
       </p>

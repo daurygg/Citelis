@@ -11,7 +11,7 @@ import { type BookingOutcome } from '../../lib/domain/whatsapp';
 import { ClientNotice } from '../ClientNotice';
 import type { Appointment } from '../../lib/domain/types';
 import { serviceNames } from '../../lib/domain/appointments';
-import { btnGhostSm, btnPrimarySm, card } from '../ui';
+import { btnGhostSm, btnPrimarySm, btnQuiet, rowDivider, surface } from '../ui';
 
 /** La solicitud que se acaba de responder, y qué se decidió sobre ella. */
 interface Answered {
@@ -43,49 +43,51 @@ export function RequestsInbox() {
   }
 
   return (
-    <div className={card + ' flex flex-col gap-3'}>
-      <div className="flex items-center justify-between">
+    <section className={surface + ' flex flex-col'}>
+      <div className="flex items-center justify-between gap-3 p-4 pb-3">
         <h2 className="text-lg font-semibold">Solicitudes por responder</h2>
         {requests.length > 0 && (
-          <span className="rounded-full bg-violet-600 px-2.5 py-1 text-xs font-semibold text-white">
-            {requests.length}
+          <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-violet-800">
+            {requests.length === 1 ? '1 por responder' : `${requests.length} por responder`}
           </span>
         )}
       </div>
 
       {requests.length === 0 ? (
-        <p className="text-sm text-neutral-500">No tienes solicitudes esperando respuesta.</p>
+        <p className="px-4 pb-4 text-muted">No tienes solicitudes esperando respuesta.</p>
       ) : (
-        <p className="text-sm text-brand-700">
+        <p className="px-4 pb-3 text-sm text-muted">
           Mientras no respondas, esa hora queda apartada y nadie más puede pedirla.
         </p>
       )}
 
       {requests.length > 0 && (
-        <ul className="flex flex-col gap-3">
+        <ul className={'border-t border-line ' + rowDivider}>
           {requests.map((request) => {
             return (
-              <li key={request.id} className="flex flex-col gap-2 rounded-xl border border-violet-200 bg-violet-50 p-3">
-                <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3">
-                  <span className="min-w-0 break-words font-medium">{request.client}</span>
+              <li key={request.id} className="flex flex-col gap-3 p-4">
+                <div className="min-w-0">
+                  <div className="font-semibold break-words">{request.client}</div>
+                  <div className="text-sm text-muted break-words">
+                    {serviceNames(request, store.services) || 'Servicio desconocido'}
+                  </div>
+                  <div className="text-sm tabular-nums">
+                    {formatDateShort(request.datetime)} a las {formatTime(request.datetime)}
+                  </div>
+                  {request.quoted_price != null && (
+                    <div className="text-sm text-muted tabular-nums">Precio acordado: {formatMoney(request.quoted_price)}</div>
+                  )}
                   {request.client_phone ? (
                     <a
                       href={`tel:${request.client_phone.replace(/[^\d+]/g, '')}`}
-                      className="inline-flex min-h-11 items-center text-sm text-brand-700 hover:underline"
+                      className="inline-flex min-h-11 items-center text-sm font-medium text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-brand-700"
                     >
                       {request.client_phone}
                     </a>
                   ) : (
-                    <span className="text-sm text-neutral-600">Sin teléfono</span>
+                    <div className="text-sm text-muted">Sin teléfono</div>
                   )}
                 </div>
-                <div className="text-sm text-neutral-700">
-                  {serviceNames(request, store.services) || 'Servicio desconocido'} · {formatDateShort(request.datetime)} ·{' '}
-                  {formatTime(request.datetime)}
-                </div>
-                {request.quoted_price != null && (
-                  <div className="text-sm text-neutral-600">Precio acordado: {formatMoney(request.quoted_price)}</div>
-                )}
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -108,8 +110,12 @@ export function RequestsInbox() {
         </ul>
       )}
 
-      {answered && <AnsweredPanel answered={answered} onDismiss={() => setAnswered(null)} />}
-    </div>
+      {answered && (
+        <div className="border-t border-line p-4">
+          <AnsweredPanel answered={answered} onDismiss={() => setAnswered(null)} />
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -127,17 +133,17 @@ function AnsweredPanel({ answered, onDismiss }: { answered: Answered; onDismiss:
   const timeLabel = formatTime(appointment.datetime);
 
   const tone = accepted
-    ? 'border-green-200 bg-green-50'
-    : 'border-amber-200 bg-amber-50';
+    ? 'bg-green-50 ring-green-200'
+    : 'bg-amber-50 ring-amber-200';
   const headline = accepted
     ? `Cita de ${appointment.client} aceptada, ${dateLabel} a las ${timeLabel}.`
     : `Solicitud de ${appointment.client} rechazada (${dateLabel} a las ${timeLabel}).`;
 
   return (
-    <div className={`flex flex-col gap-2 rounded-xl border p-3 ${tone}`}>
+    <div className={`flex flex-col gap-2 rounded-xl p-3 ring-1 ${tone}`}>
       <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium text-neutral-900">{headline}</p>
-        <button type="button" className="min-h-11 shrink-0 px-2 text-sm text-neutral-500 hover:underline" onClick={onDismiss}>
+        <p className="text-sm font-medium text-ink">{headline}</p>
+        <button type="button" className={btnQuiet} onClick={onDismiss}>
           Listo
         </button>
       </div>

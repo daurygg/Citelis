@@ -14,7 +14,7 @@ import { useStore } from '../../lib/store/StoreContext';
 import { useToast } from '../Toast';
 import { DEFAULT_BRAND_COLOR } from '../../lib/domain/theme';
 import { BrandColorPicker } from '../BrandColorPicker';
-import { btnPrimary, card } from '../ui';
+import { btnPrimary, surface } from '../ui';
 
 
 export function BrandSettings() {
@@ -31,10 +31,10 @@ export function BrandSettings() {
   }
 
   return (
-    <div className={card + ' flex flex-col gap-3'}>
+    <div className={surface + ' flex flex-col gap-3 p-4'}>
       <div>
         <h2 className="text-lg font-semibold">El color de tu negocio</h2>
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-muted">
           Se usa en los botones, en el título y en la página donde tus clientas reservan.
         </p>
       </div>

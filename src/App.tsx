@@ -1,6 +1,6 @@
 // Raíz de la app. Puerta de autenticación: sin sesión → Login; con sesión → la app.
 // Dos modos separados (INVARIANTE 3): Servicios y Ropa, cada uno con sus pestañas.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './lib/auth/AuthContext';
 import { supabase } from './lib/supabase/client';
 import { StoreProvider, useStore } from './lib/store/StoreContext';
@@ -26,7 +26,8 @@ import { ReceiptSettings } from './components/owner/ReceiptSettings';
 import { PublicLinkSettings } from './components/owner/PublicLinkSettings';
 import { PushNotificationSettings } from './components/owner/PushNotificationSettings';
 import { RequestsInbox } from './components/owner/RequestsInbox';
-import { ToastProvider } from './components/Toast';
+import { ToastProvider, useToast } from './components/Toast';
+import { LoadingScreen } from './components/LoadingScreen';
 import { SubscriptionNoticeBar } from './components/SubscriptionNotice';
 import { BlockedScreen } from './components/BlockedScreen';
 import { AdminPanel } from './components/admin/AdminPanel';
@@ -98,7 +99,7 @@ export function App() {
 function Root() {
   const { session, loading } = useAuth();
   if (loading) {
-    return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando…</div>;
+    return <LoadingScreen />;
   }
   if (!session) return <Login />;
   return <SubscriptionGate />;
@@ -113,7 +114,7 @@ function SubscriptionGate() {
   const { signOut } = useAuth();
   const { loading, state } = useMySubscription();
   if (loading) {
-    return <div className="grid min-h-dvh place-items-center bg-neutral-50 text-neutral-500">Cargando…</div>;
+    return <LoadingScreen />;
   }
   const notice = subscriptionNotice(state);
   if (notice.kind === 'blocked') {
@@ -132,12 +133,29 @@ function businessDisplayName(name: string | undefined): string {
   return name && name.trim() !== '' ? name.trim() : 'Citelis';
 }
 
-const headerButton = 'min-h-11 px-2.5 text-sm text-neutral-500 hover:text-neutral-800';
+const focusRing = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700';
+const menuItem =
+  'min-h-11 rounded-lg px-3 text-left text-sm font-medium text-ink hover:bg-paper ' + focusRing;
+const headerButton =
+  'min-h-11 rounded-lg px-2.5 text-sm font-medium text-muted hover:text-ink ' + focusRing;
 
+/** Cambio de modo (Servicios / Ropa): pastilla segmentada pequeña, quieta. */
+function modeButtonClass(active: boolean): string {
+  return (
+    'min-h-11 flex-1 rounded-lg px-3 text-sm font-medium transition ' +
+    focusRing +
+    (active ? ' bg-white text-ink shadow-sm' : ' text-muted hover:text-ink')
+  );
+}
+
+/** Pestaña con subrayado de marca: la activa lleva tinta y una barra de 2px. */
 function tabButtonClass(active: boolean): string {
   return (
-    'min-h-11 flex-1 shrink-0 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition ' +
-    (active ? 'bg-white text-brand-700 shadow-sm' : 'text-neutral-500 hover:text-neutral-800')
+    'relative min-h-11 min-w-0 flex-1 whitespace-nowrap px-1 text-[0.8125rem] font-medium min-[400px]:text-sm transition ' +
+    focusRing +
+    (active
+      ? ' text-ink after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-brand-700'
+      : ' text-muted hover:text-ink')
   );
 }
 
@@ -145,7 +163,31 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
   const { signOut } = useAuth();
   const isPlatformAdmin = useIsPlatformAdmin();
   const [adminOpen, setAdminOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuWrap = useRef<HTMLDivElement>(null);
+  const menuTrigger = useRef<HTMLButtonElement>(null);
+
+  // Patrón de divulgación: el menú se cierra con Escape (devolviendo el foco a
+  // "Más") y al tocar fuera de él.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return;
+      setMenuOpen(false);
+      menuTrigger.current?.focus();
+    }
+    function onPointerDown(event: PointerEvent) {
+      if (!menuWrap.current?.contains(event.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [menuOpen]);
   const { business } = useStore();
+  const { notify } = useToast();
   // Si la app se abrió desde el toque de un aviso push (?vista=reservas),
   // arranca directo en la bandeja de reservas en vez de en la agenda.
   const [screen, setScreen] = useState<Screen>(() => initialViewFromSearch(window.location.search).screen);
@@ -175,20 +217,21 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
   async function invite() {
     const { data, error } = await supabase.rpc('create_invitation');
     if (error) {
-      window.alert('No se pudo generar la invitación: ' + error.message);
+      console.error('create_invitation falló', error);
+      notify('No se pudo generar la invitación. Inténtalo de nuevo.', 'error');
       return;
     }
     setInviteCode(data as string);
   }
 
   return (
-    <div className="min-h-dvh bg-neutral-50 text-neutral-900">
+    <div className="min-h-dvh bg-paper text-ink">
       {/* Solo la barra de pestañas queda fija: el título y el cambio de modo se
           van con el scroll para no comerse ~150px de pantalla. */}
-      <header className="border-b border-neutral-200 bg-white pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto max-w-xl px-4 py-2">
+      <header className="pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto max-w-xl px-4 pt-3 pb-1">
           <div className="flex items-center justify-between gap-2">
-            <h1 className="min-w-0 truncate text-xl font-bold tracking-tight text-brand-700">{businessName}</h1>
+            <h1 className="display-name min-w-0 truncate text-2xl leading-tight font-extrabold tracking-tight">{businessName}</h1>
             <div className="flex shrink-0 items-center">
               <button
                 type="button"
@@ -197,26 +240,56 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
               >
                 {screen === 'business' ? 'Volver' : 'Mi negocio'}
               </button>
-              {isPlatformAdmin && (
-                <button type="button" className={headerButton} onClick={() => setAdminOpen(!adminOpen)}>
-                  {adminOpen ? 'Cerrar panel' : 'Administrar'}
+              {/* El resto de acciones, plegadas: el nombre del negocio se queda con el ancho. */}
+              <div className="relative" ref={menuWrap}>
+                <button
+                  ref={menuTrigger}
+                  type="button"
+                  className={headerButton}
+                  aria-expanded={menuOpen}
+                  onClick={() => setMenuOpen((v) => !v)}
+                >
+                  Más
                 </button>
-              )}
-              <button type="button" className={headerButton} onClick={invite}>
-                Invitar
-              </button>
-              <button type="button" className={headerButton} onClick={() => signOut()}>
-                Salir
-              </button>
+                {menuOpen && (
+                  <div className="absolute top-full right-0 z-20 mt-1 flex min-w-40 flex-col rounded-xl bg-white p-1 ring-1 ring-line">
+                    {isPlatformAdmin && (
+                      <button
+                        type="button"
+                        className={menuItem}
+                        onClick={() => {
+                          setAdminOpen(!adminOpen);
+                          setMenuOpen(false);
+                        }}
+                      >
+                        {adminOpen ? 'Cerrar panel' : 'Administrar'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className={menuItem}
+                      onClick={() => {
+                        setMenuOpen(false);
+                        void invite();
+                      }}
+                    >
+                      Invitar
+                    </button>
+                    <button type="button" className={menuItem} onClick={() => signOut()}>
+                      Salir
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {inviteCode && (
-            <div className="mt-1 flex items-center justify-between gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm">
+            <div className="mt-1 flex items-center justify-between gap-2 rounded-xl bg-brand-50 px-3 py-2 text-sm">
               <span className="min-w-0">
                 Comparte este código: <strong className="tracking-widest">{inviteCode}</strong>
               </span>
-              <button type="button" className="min-h-11 shrink-0 px-2 text-brand-700 hover:underline" onClick={() => setInviteCode(null)}>
+              <button type="button" className={"shrink-0 " + headerButton} onClick={() => setInviteCode(null)}>
                 Cerrar
               </button>
             </div>
@@ -224,11 +297,11 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
 
           {screen === 'work' && (
             /* Cambio de modo: Servicios / Ropa (líneas de negocio separadas) */
-            <div className="mt-1 flex gap-1 rounded-xl bg-neutral-100 p-1">
-              <button type="button" className={tabButtonClass(mode === 'services')} onClick={() => setMode('services')}>
+            <div className="mt-1 flex gap-1 rounded-xl bg-line/60 p-1">
+              <button type="button" className={modeButtonClass(mode === 'services')} aria-pressed={mode === 'services'} onClick={() => setMode('services')}>
                 Servicios
               </button>
-              <button type="button" className={tabButtonClass(mode === 'clothing')} onClick={() => setMode('clothing')}>
+              <button type="button" className={modeButtonClass(mode === 'clothing')} aria-pressed={mode === 'clothing'} onClick={() => setMode('clothing')}>
                 Ropa
               </button>
             </div>
@@ -240,19 +313,18 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
 
       {screen === 'work' && !adminOpen && (
         /* Pestañas del modo activo */
-        <nav className="sticky top-0 z-10 border-b border-neutral-200 bg-white/90 backdrop-blur">
-          <div className="mx-auto max-w-xl px-4 py-2">
-            {/* Con 5 pestañas no caben en un teléfono angosto: la barra se desplaza
-                sola en vez de ensanchar toda la página. */}
-            <div className="flex gap-1 overflow-x-auto rounded-xl bg-neutral-100 p-1">
+        <nav className="sticky top-0 z-10 mt-1 border-b border-line bg-paper">
+          <div className="mx-auto max-w-xl px-2">
+            {/* Las pestañas se reparten el ancho por igual: las 5 caben a 360 px sin desplazar la barra. */}
+            <div className="flex">
               {mode === 'services'
                 ? SERVICE_TABS.map((tab) => (
-                    <button key={tab.id} type="button" className={tabButtonClass(serviceView === tab.id)} onClick={() => setServiceView(tab.id)}>
+                    <button key={tab.id} type="button" className={tabButtonClass(serviceView === tab.id)} aria-current={serviceView === tab.id ? 'page' : undefined} onClick={() => setServiceView(tab.id)}>
                       {tab.label}
                     </button>
                   ))
                 : CLOTHING_TABS.map((tab) => (
-                    <button key={tab.id} type="button" className={tabButtonClass(clothingView === tab.id)} onClick={() => setClothingView(tab.id)}>
+                    <button key={tab.id} type="button" className={tabButtonClass(clothingView === tab.id)} aria-current={clothingView === tab.id ? 'page' : undefined} onClick={() => setClothingView(tab.id)}>
                       {tab.label}
                     </button>
                   ))}
@@ -261,11 +333,11 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
         </nav>
       )}
 
-      <main className="mx-auto max-w-xl px-4 py-6">
+      <main className="mx-auto max-w-xl px-4 py-5">
         {adminOpen && isPlatformAdmin ? (
           <AdminPanel />
         ) : screen === 'business' ? (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             <BrandSettings />
             <ReceiptSettings />
             <PublicLinkSettings />
@@ -277,7 +349,9 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
             {serviceView === 'agenda' && (
               <div className="flex flex-col gap-6">
                 <ScheduleForm />
-                <DayAgenda />
+                <DayAgenda
+                  onGoTo={(step) => setServiceView(step === 'add_service' ? 'services' : 'reservas')}
+                />
               </div>
             )}
             {serviceView === 'reservas' && (
