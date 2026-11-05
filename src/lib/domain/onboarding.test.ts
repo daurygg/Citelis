@@ -59,10 +59,11 @@ describe('validateBusinessName', () => {
 
 describe('pasos del asistente', () => {
   it('declara el orden de los pasos', () => {
-    expect(ONBOARDING_STEPS).toEqual(['business', 'hours', 'service', 'done']);
+    expect(ONBOARDING_STEPS).toEqual(['owner', 'business', 'hours', 'service', 'done']);
   });
 
   it('avanza y retrocede, con topes en los extremos', () => {
+    expect(nextStep('owner')).toBe('business');
     expect(nextStep('business')).toBe('hours');
     expect(nextStep('hours')).toBe('service');
     expect(nextStep('service')).toBe('done');
@@ -70,10 +71,12 @@ describe('pasos del asistente', () => {
     expect(prevStep('done')).toBe('service');
     expect(prevStep('service')).toBe('hours');
     expect(prevStep('hours')).toBe('business');
-    expect(prevStep('business')).toBe('business');
+    expect(prevStep('business')).toBe('owner');
+    expect(prevStep('owner')).toBe('owner');
   });
 
   it('solo horarios y servicio se pueden saltar', () => {
+    expect(isSkippable('owner')).toBe(false);
     expect(isSkippable('business')).toBe(false);
     expect(isSkippable('hours')).toBe(true);
     expect(isSkippable('service')).toBe(true);
@@ -81,10 +84,11 @@ describe('pasos del asistente', () => {
   });
 
   it('calcula el progreso sobre los pasos visibles', () => {
-    expect(stepProgress('business')).toEqual({ current: 1, total: 3 });
-    expect(stepProgress('hours')).toEqual({ current: 2, total: 3 });
-    expect(stepProgress('service')).toEqual({ current: 3, total: 3 });
-    expect(stepProgress('done')).toEqual({ current: 3, total: 3 });
+    expect(stepProgress('owner')).toEqual({ current: 1, total: 4 });
+    expect(stepProgress('business')).toEqual({ current: 2, total: 4 });
+    expect(stepProgress('hours')).toEqual({ current: 3, total: 4 });
+    expect(stepProgress('service')).toEqual({ current: 4, total: 4 });
+    expect(stepProgress('done')).toEqual({ current: 4, total: 4 });
   });
 });
 
