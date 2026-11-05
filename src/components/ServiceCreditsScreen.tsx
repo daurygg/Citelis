@@ -23,14 +23,14 @@ export function ServiceCreditsScreen() {
         <p className="text-sm text-muted">Total por cobrar</p>
         <p className="text-2xl font-bold tabular-nums">{formatMoney(total)}</p>
         <p className="text-sm text-muted">
-          {credits.length === 1 ? '1 clienta con saldo' : `${credits.length} clientas con saldo`}
+          {credits.length === 1 ? '1 cliente con saldo' : `${credits.length} clientes con saldo`}
         </p>
       </div>
 
       {credits.length === 0 ? (
         <div className={surface + ' p-5'}>
           <p className="font-semibold">Nadie te debe nada</p>
-          <p className="mt-1 text-muted">Cuando una clienta deje algo a crédito, aparece aquí.</p>
+          <p className="mt-1 text-muted">Cuando alguien deje algo a crédito, aparece aquí.</p>
         </div>
       ) : (
         <ul className={surface + ' overflow-hidden ' + rowDivider}>

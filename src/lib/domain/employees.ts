@@ -9,7 +9,7 @@ export type EmployeeNameCheck = { ok: true; name: string } | { ok: false; messag
 /** Valida el nombre tecleado; lo devuelve sin espacios sobrantes en los bordes. */
 export function validateEmployeeName(raw: string): EmployeeNameCheck {
   const name = raw.trim();
-  if (name === '') return { ok: false, message: 'Escribe el nombre de la empleada.' };
+  if (name === '') return { ok: false, message: 'Escribe el nombre de la persona.' };
   return { ok: true, name };
 }
 

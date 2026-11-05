@@ -29,9 +29,9 @@ export const RELEASE_NOTES: readonly ReleaseNote[] = [
     id: '2026-11-04',
     title: 'Novedades en tu agenda',
     items: [
-      'Tus clientas quedan guardadas: al agendar, búscala por su nombre o crea una nueva con su teléfono.',
+      'Tus clientes quedan guardados: al agendar, busca por nombre o agrega uno nuevo con su teléfono.',
       'Puedes registrar un abono o el pago completo antes de atender, con el botón "Abonar" de la cita.',
-      'En Reporte, "¿Quién te compró?" te dice cuánto te compró cada clienta.',
+      'En Reporte, "¿Quién te compró?" te dice cuánto te compró cada cliente.',
     ],
   },
 ];

@@ -11,7 +11,7 @@ describe('validateEmployeeName', () => {
   });
 
   it('rechaza un nombre vacío o de solo espacios, en el idioma de la dueña', () => {
-    expect(validateEmployeeName('   ')).toEqual({ ok: false, message: 'Escribe el nombre de la empleada.' });
+    expect(validateEmployeeName('   ')).toEqual({ ok: false, message: 'Escribe el nombre de la persona.' });
   });
 });
 

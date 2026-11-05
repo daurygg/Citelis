@@ -73,7 +73,7 @@ export function PublicLinkSettings() {
       <div>
         <h2 className="text-lg font-semibold">La dirección de tu página</h2>
         <p className="text-sm text-muted">
-          Es el enlace que le mandas a tus clientas para que reserven. Ahora es:
+          Es el enlace que le mandas a tus clientes para que reserven. Ahora es:
         </p>
         <p className="mt-1 break-all text-sm font-medium">
           {window.location.origin}/reservar/{savedSlug}

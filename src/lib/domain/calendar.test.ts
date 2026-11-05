@@ -179,7 +179,7 @@ describe('buildICS', () => {
       now: new Date('2026-09-17T10:00:00Z'),
     });
 
-    expect(propertyValue(ics, 'DESCRIPTION')).toBe('Clienta: Ana');
+    expect(propertyValue(ics, 'DESCRIPTION')).toBe('Cliente: Ana');
   });
 
   it('DESCRIPTION agrega una segunda línea "Tel. <teléfono>" cuando la cita lo trae', () => {
@@ -192,7 +192,7 @@ describe('buildICS', () => {
     });
 
     // El salto de línea real se escapa como \n literal (RFC 5545 §3.3.11).
-    expect(propertyValue(ics, 'DESCRIPTION')).toBe('Clienta: Ana\\nTel. +56 9 1234 5678');
+    expect(propertyValue(ics, 'DESCRIPTION')).toBe('Cliente: Ana\\nTel. +56 9 1234 5678');
   });
 
   it('escapa backslash, punto y coma, coma y salto de línea en SUMMARY/DESCRIPTION', () => {
@@ -212,7 +212,7 @@ describe('buildICS', () => {
     expect(summary).toContain('Corte\\; especial');
 
     const description = propertyValue(ics, 'DESCRIPTION');
-    expect(description).toContain('Clienta: Ana\\;Reyes\\\\Torres\\, con nota\\nespecial');
+    expect(description).toContain('Cliente: Ana\\;Reyes\\\\Torres\\, con nota\\nespecial');
     expect(description).toContain('Tel. +56 9 1234\\;5678');
   });
 
@@ -297,7 +297,7 @@ describe('googleCalendarUrl', () => {
     const parsed = new URL(url);
     expect(parsed.searchParams.get('dates')).toBe('20260921T143000/20260921T151500');
     expect(parsed.searchParams.get('text')).toBe('Ana — Corte');
-    expect(parsed.searchParams.get('details')).toBe('Clienta: Ana');
+    expect(parsed.searchParams.get('details')).toBe('Cliente: Ana');
   });
 
   it('agrega una segunda línea con el teléfono en los detalles cuando la cita lo trae', () => {
@@ -307,7 +307,7 @@ describe('googleCalendarUrl', () => {
     });
 
     const parsed = new URL(url);
-    expect(parsed.searchParams.get('details')).toBe('Clienta: Ana\nTel. +56 9 1234 5678');
+    expect(parsed.searchParams.get('details')).toBe('Cliente: Ana\nTel. +56 9 1234 5678');
   });
 
   it('escapa correctamente valores con caracteres especiales de URL (coma, &, espacios)', () => {

@@ -35,7 +35,7 @@ export function AddSupplyForm({ serviceId }: { serviceId: number }) {
         <input className={input} type="text" inputMode="decimal" value={paidText} onChange={(e) => setPaidText(e.target.value)} />
       </label>
       <label className={field}>
-        <span className={fieldLabel}>¿Para cuántas alcanza?</span>
+        <span className={fieldLabel}>¿Para cuántos servicios alcanza?</span>
         <input className={input} type="number" min={1} value={servingsText} onChange={(e) => setServingsText(e.target.value)} />
       </label>
       <button type="submit" className={btnGhost + ' col-span-2'} disabled={!canAdd}>

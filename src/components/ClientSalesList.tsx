@@ -38,7 +38,7 @@ export function ClientSalesList({ rows }: { rows: readonly ClientSales[] }) {
       </ul>
       {rows.length > PREVIEW && (
         <button type="button" className={btnText + ' -mx-3'} onClick={() => setShowAll((v) => !v)}>
-          {showAll ? 'Ver menos' : `Ver las ${rows.length} clientas`}
+          {showAll ? 'Ver menos' : `Ver los ${rows.length} clientes`}
         </button>
       )}
     </div>

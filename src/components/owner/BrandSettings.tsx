@@ -35,7 +35,7 @@ export function BrandSettings() {
       <div>
         <h2 className="text-lg font-semibold">El color de tu negocio</h2>
         <p className="text-sm text-muted">
-          Se usa en los botones, en el título y en la página donde tus clientas reservan.
+          Se usa en los botones, en el título y en la página donde tus clientes reservan.
         </p>
       </div>
 

@@ -117,7 +117,7 @@ export interface CalendarEventInput {
  * vs. parámetro de URL de Google).
  */
 function eventDescription(appointment: Appointment): string {
-  const lines = [`Clienta: ${appointment.client}`];
+  const lines = [`Cliente: ${appointment.client}`];
   if (appointment.client_phone) lines.push(`Tel. ${appointment.client_phone}`);
   return lines.join('\n');
 }

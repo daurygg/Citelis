@@ -69,7 +69,7 @@ export function BookingSettings() {
           <div className="min-w-0">
             <h2 className="text-lg font-semibold">Reservas en línea</h2>
             <p className="text-sm text-muted">
-              Con esto abierto, tus clientas pueden pedir su cita por su cuenta.
+              Con esto abierto, tus clientes pueden pedir su cita por su cuenta.
             </p>
           </div>
           {/* Interruptor: el campo nativo sigue siendo el control (teclado y lector de pantalla); la pista solo lo dibuja. */}
@@ -241,7 +241,7 @@ export function BookingSettings() {
           </div>
         </label>
         <label className={field}>
-          <span className={fieldLabel}>¿Cuánto descanso quieres entre una clienta y la siguiente?</span>
+          <span className={fieldLabel}>¿Cuánto descanso quieres entre una cita y la siguiente?</span>
           <div className="flex items-center gap-2">
             <input
               className={input + ' max-w-28'}

@@ -95,7 +95,7 @@ function HoursStep({ save, onSave, onSkip }: { save: (rows: HoursRows) => void; 
     <div className={card + ' flex flex-col gap-3'}>
       <div>
         <h2 className="text-lg font-semibold">¿Cuándo atiendes?</h2>
-        <p className="text-sm text-neutral-500">Así tus clientas saben cuándo pueden reservar. Después puedes ajustarlo día por día.</p>
+        <p className="text-sm text-neutral-500">Así tus clientes saben cuándo pueden reservar. Después puedes ajustarlo día por día.</p>
       </div>
       <div role="radiogroup" aria-label="Días de trabajo" className="flex flex-wrap gap-2">
         {HOURS_PRESETS.map((p) => (

@@ -102,7 +102,7 @@ export function Login() {
         <header className="mb-6 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-brand-700">Citelis</h1>
           <p className="mt-2 text-sm text-neutral-600">
-            Tu agenda, tus clientas y lo que realmente ganas, en un solo lugar.
+            Tu agenda, tus clientes y lo que realmente ganas, en un solo lugar.
           </p>
           {isSignUp && pendingEmail === null && (
             <p className="mt-3 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">
