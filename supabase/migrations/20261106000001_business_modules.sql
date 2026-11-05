@@ -44,16 +44,17 @@ revoke execute on function business_module_on(bigint, text) from public;
 grant  execute on function business_module_on(bigint, text) to anon, authenticated;
 
 -- ── Tienda: productos y ventas ──────────────────────────────────────────────
--- Mismas políticas FOR ALL de la base, más la condición del módulo.
+-- Mismas políticas FOR ALL de la base, más la condición del módulo. El `(select …)`
+-- hace que Postgres la evalúe una vez por consulta y no una vez por fila.
 drop policy if exists product_all on product;
 create policy product_all on product
-  using (is_member(business_id) and business_module_on(business_id, 'store'))
-  with check (is_member(business_id) and business_module_on(business_id, 'store'));
+  using (is_member(business_id) and (select business_module_on(business_id, 'store')))
+  with check (is_member(business_id) and (select business_module_on(business_id, 'store')));
 
 drop policy if exists sale_all on sale;
 create policy sale_all on sale
-  using (is_member(business_id) and business_module_on(business_id, 'store'))
-  with check (is_member(business_id) and business_module_on(business_id, 'store'));
+  using (is_member(business_id) and (select business_module_on(business_id, 'store')))
+  with check (is_member(business_id) and (select business_module_on(business_id, 'store')));
 
 -- ── Equipo: personas del equipo ─────────────────────────────────────────────
 -- Leer sigue igual: los recibos de citas viejas muestran quién atendió aunque el
@@ -62,12 +63,12 @@ drop policy if exists employee_all on employee;
 create policy employee_select on employee for select
   using (is_member(business_id));
 create policy employee_insert on employee for insert
-  with check (is_member(business_id) and business_module_on(business_id, 'team'));
+  with check (is_member(business_id) and (select business_module_on(business_id, 'team')));
 create policy employee_update on employee for update
-  using (is_member(business_id) and business_module_on(business_id, 'team'))
-  with check (is_member(business_id) and business_module_on(business_id, 'team'));
+  using (is_member(business_id) and (select business_module_on(business_id, 'team')))
+  with check (is_member(business_id) and (select business_module_on(business_id, 'team')));
 create policy employee_delete on employee for delete
-  using (is_member(business_id) and business_module_on(business_id, 'team'));
+  using (is_member(business_id) and (select business_module_on(business_id, 'team')));
 
 -- ── Equipo: quién atendió cada servicio ─────────────────────────────────────
 -- `complete_appointment` (security definer) escribe `appointment_service.employee_id`
