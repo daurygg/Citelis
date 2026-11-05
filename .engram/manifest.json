@@ -160,6 +160,14 @@
       "sessions": 1,
       "memories": 7,
       "prompts": 0
+    },
+    {
+      "id": "093f695a",
+      "created_by": "daurygg",
+      "created_at": "2026-11-05T20:03:27.588357529Z",
+      "sessions": 1,
+      "memories": 7,
+      "prompts": 0
     }
   ]
 }
