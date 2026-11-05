@@ -41,6 +41,20 @@ describe('friendlyAuthError', () => {
     expect(friendlyAuthError(new Error('No perteneces a ningún negocio'))).toBe('No perteneces a ningún negocio');
   });
 
+  it('deja pasar los mensajes del perfil de quien administra (create_business / save_owner_profile)', () => {
+    for (const own of [
+      'Escribe tu nombre.',
+      'El nombre es muy largo (máximo 80 caracteres).',
+      'Escribe tu WhatsApp.',
+      'El WhatsApp no es válido.',
+      'Elige el tipo de negocio.',
+      'Solo quien administra el negocio puede completar estos datos.',
+      'Estos datos ya los completó otra persona del negocio.',
+    ]) {
+      expect(friendlyAuthError({ message: own })).toBe(own);
+    }
+  });
+
   it('acepta Error, objeto con message o texto', () => {
     expect(friendlyAuthError(new Error('Invalid login credentials'))).toMatch(/correo o la contraseña/);
     expect(friendlyAuthError({ message: 'Email not confirmed' })).toMatch(/bandeja/);

@@ -42,12 +42,13 @@ export function validateBusinessName(name: string): string | null {
   return null;
 }
 
-export type OnboardingStep = 'business' | 'hours' | 'service' | 'done';
+// 'owner' = "Cuéntanos de ti" (odd/tasks/owner-profile.md): va antes del negocio.
+export type OnboardingStep = 'owner' | 'business' | 'hours' | 'service' | 'done';
 
-export const ONBOARDING_STEPS: readonly OnboardingStep[] = ['business', 'hours', 'service', 'done'];
+export const ONBOARDING_STEPS: readonly OnboardingStep[] = ['owner', 'business', 'hours', 'service', 'done'];
 
 // Pasos con número en el indicador de progreso ("done" es la pantalla final).
-const VISIBLE_STEPS: readonly OnboardingStep[] = ['business', 'hours', 'service'];
+const VISIBLE_STEPS: readonly OnboardingStep[] = ['owner', 'business', 'hours', 'service'];
 
 const SKIPPABLE: readonly OnboardingStep[] = ['hours', 'service'];
 
@@ -65,7 +66,7 @@ export function isSkippable(step: OnboardingStep): boolean {
   return SKIPPABLE.includes(step);
 }
 
-/** Posición para "Paso 2 de 3". En "done" queda completo (3 de 3). */
+/** Posición para "Paso 2 de 4". En "done" queda completo (4 de 4). */
 export function stepProgress(step: OnboardingStep): { current: number; total: number } {
   const total = VISIBLE_STEPS.length;
   const index = VISIBLE_STEPS.indexOf(step);

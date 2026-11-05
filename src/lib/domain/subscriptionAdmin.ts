@@ -1,7 +1,8 @@
 // Lógica pura del panel de administración de la plataforma (S6): mapeo de las filas de
 // `admin_list_businesses()`, etiquetas en lenguaje claro y validación del formulario
 // "Registrar pago". El servidor vuelve a validar todo; esto solo da respuesta inmediata.
-import type { AdminBusiness, SubscriptionPaymentMethod, SubscriptionStatus } from './types';
+import type { AdminBusiness, BusinessType, SubscriptionPaymentMethod, SubscriptionStatus } from './types';
+import { isBusinessType } from './ownerProfile';
 
 const STATUSES: readonly SubscriptionStatus[] = ['TRIAL', 'ACTIVE', 'GRACE', 'BLOCKED', 'EXEMPT'];
 export const SUBSCRIPTION_PAYMENT_METHODS: readonly SubscriptionPaymentMethod[] = ['TRANSFER', 'CASH', 'CARD', 'OTHER'];
@@ -28,6 +29,11 @@ function toStrOrNull(v: unknown, field: string): string | null {
   return typeof v === 'string' ? v : fail(field);
 }
 
+function toBusinessTypeOrNull(v: unknown): BusinessType | null {
+  if (v === null || v === undefined) return null;
+  return isBusinessType(v) ? v : fail('business_type');
+}
+
 /** Filas de `admin_list_businesses()` → `AdminBusiness[]`. Lanza si una fila no se entiende. */
 export function parseAdminBusinesses(data: unknown): AdminBusiness[] {
   if (data === null || data === undefined) return [];
@@ -49,6 +55,10 @@ export function parseAdminBusinesses(data: unknown): AdminBusiness[] {
       status: status as SubscriptionStatus | null,
       last_payment_at: toStrOrNull(row.last_payment_at, 'last_payment_at'),
       last_payment_cents: toIntOrNull(row.last_payment_cents, 'last_payment_cents'),
+      // Ausentes si la base todavía no tiene la migración del perfil: quedan en null.
+      owner_name: toStrOrNull(row.owner_name, 'owner_name'),
+      owner_whatsapp: toStrOrNull(row.owner_whatsapp, 'owner_whatsapp'),
+      business_type: toBusinessTypeOrNull(row.business_type),
     };
   });
 }

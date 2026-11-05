@@ -1,8 +1,9 @@
-// Pantalla para usuarios sin negocio: bienvenida, paso 1 del asistente (nombre y
-// color del negocio) y la vía secundaria de unirse con un código. Llama a RPC de
+// Pantalla para usuarios sin negocio: bienvenida, pasos 1 y 2 del asistente
+// ("Cuéntanos de ti" y nombre y color del negocio) y la vía secundaria de unirse
+// con un código. Llama a RPC de
 // Supabase (SECURITY DEFINER). Tras el éxito NO recarga la página: avisa al
 // StoreProvider (`onCreated`/`onJoined`), que vuelve a cargar los datos en sitio;
-// los pasos 2-4 los pinta OnboardingWizard dentro del store ya cargado.
+// los pasos 3-4 los pinta OnboardingWizard dentro del store ya cargado.
 //
 // Este archivo lo importa StoreContext.tsx, así que no puede importar el store
 // (formaría un ciclo de imports): por eso solo usa componentes hoja.
@@ -13,15 +14,19 @@ import { friendlyAuthError } from '../lib/domain/authErrors';
 import { validateBusinessName } from '../lib/domain/onboarding';
 import { DEFAULT_BRAND_COLOR, themeCssVars } from '../lib/domain/theme';
 import { slugifyBusinessName } from '../lib/domain/slug';
+import type { OwnerProfile } from '../lib/domain/ownerProfile';
 import { BrandColorPicker } from './BrandColorPicker';
+import { OwnerProfileForm } from './OwnerProfileForm';
 import { WizardProgress } from './WizardProgress';
 import { btnPrimary, card, field, fieldLabel, input } from './ui';
 
-type Mode = 'welcome' | 'create' | 'join';
+type Mode = 'welcome' | 'owner' | 'create' | 'join';
 
 export function Onboarding({ onCreated, onJoined }: { onCreated: () => void; onJoined: () => void }) {
   const { signOut } = useAuth();
   const [mode, setMode] = useState<Mode>('welcome');
+  // "Cuéntanos de ti" ya validado; viaja en la misma llamada que crea el negocio.
+  const [owner, setOwner] = useState<OwnerProfile | null>(null);
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [color, setColor] = useState(DEFAULT_BRAND_COLOR);
@@ -39,6 +44,11 @@ export function Onboarding({ onCreated, onJoined }: { onCreated: () => void; onJ
   async function createBusiness() {
     setNameTouched(true);
     if (nameError !== null || busy) return;
+    // Sin perfil no se llega aquí: el paso anterior lo exige.
+    if (owner === null) {
+      goTo('owner');
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -50,6 +60,9 @@ export function Onboarding({ onCreated, onJoined }: { onCreated: () => void; onJ
         p_name: trimmedName,
         p_theme_color: color,
         p_slug: slugifyBusinessName(trimmedName),
+        p_owner_name: owner.owner_name,
+        p_owner_whatsapp: owner.owner_whatsapp,
+        p_business_type: owner.business_type,
       });
       if (err) {
         setError(friendlyAuthError(err.message));
@@ -91,10 +104,10 @@ export function Onboarding({ onCreated, onJoined }: { onCreated: () => void; onJ
             <div className="text-center">
               <h2 className="text-xl font-semibold">Te damos la bienvenida</h2>
               <p className="mt-1 text-sm text-neutral-600">
-                Vamos a dejar tu negocio listo en unos 2 minutos, en 3 pasos cortos.
+                Vamos a dejar tu negocio listo en unos 2 minutos, en 4 pasos cortos.
               </p>
             </div>
-            <button type="button" className={btnPrimary} onClick={() => goTo('create')}>
+            <button type="button" className={btnPrimary} onClick={() => goTo('owner')}>
               Crear mi negocio
             </button>
             <p className="text-center text-xs text-neutral-500">Cada cuenta puede crear un negocio.</p>
@@ -103,6 +116,29 @@ export function Onboarding({ onCreated, onJoined }: { onCreated: () => void; onJ
               <p className="text-xs text-neutral-500">Es para quien trabaja en un negocio y recibió un código de invitación.</p>
               <button type="button" className="min-h-11 text-sm font-medium text-brand-700 hover:underline" onClick={() => goTo('join')}>
                 Unirme con un código
+              </button>
+            </div>
+          </div>
+        )}
+
+        {mode === 'owner' && (
+          <div>
+            <WizardProgress step="owner" />
+            <div className={card + ' flex flex-col gap-3'}>
+              <div>
+                <h2 className="text-lg font-semibold">Cuéntanos de ti</h2>
+                <p className="mt-1 text-sm text-neutral-500">Así sabemos con quién hablar si necesitas ayuda.</p>
+              </div>
+              <OwnerProfileForm
+                initial={owner ?? undefined}
+                submitLabel="Seguir"
+                onSubmit={(profile) => {
+                  setOwner(profile);
+                  goTo('create');
+                }}
+              />
+              <button type="button" className="min-h-11 text-sm text-neutral-500 hover:underline" onClick={() => goTo('welcome')}>
+                ← Volver
               </button>
             </div>
           </div>
@@ -153,7 +189,7 @@ export function Onboarding({ onCreated, onJoined }: { onCreated: () => void; onJ
               <button type="button" className={btnPrimary} disabled={busy} onClick={createBusiness}>
                 {busy ? 'Creando…' : 'Crear mi negocio'}
               </button>
-              <button type="button" className="min-h-11 text-sm text-neutral-500 hover:underline" onClick={() => goTo('welcome')}>
+              <button type="button" className="min-h-11 text-sm text-neutral-500 hover:underline" onClick={() => goTo('owner')}>
                 ← Volver
               </button>
             </div>

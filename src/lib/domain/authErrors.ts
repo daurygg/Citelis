@@ -53,6 +53,14 @@ const OWN_SPANISH_PREFIXES: readonly string[] = [
   'esa dirección ya la usa',
   'este negocio no acepta reservas',
   'tu negocio todavía no tiene',
+  // Perfil de quien administra (20261105000001_owner_profile.sql).
+  'escribe tu nombre',
+  'el nombre es muy largo',
+  'escribe tu whatsapp',
+  'el whatsapp no es válido',
+  'elige el tipo de negocio',
+  'solo quien administra el negocio',
+  'estos datos ya los completó',
 ];
 
 function extractMessage(raw: unknown): string {

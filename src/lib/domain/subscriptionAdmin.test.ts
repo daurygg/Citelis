@@ -18,6 +18,9 @@ const adminRow = {
   status: 'ACTIVE',
   last_payment_at: '2026-10-02T15:00:00+00:00',
   last_payment_cents: 150000,
+  owner_name: 'Rosa Pérez',
+  owner_whatsapp: '829-457-6475',
+  business_type: 'salon',
 };
 
 describe('parseAdminBusinesses', () => {
@@ -37,6 +40,22 @@ describe('parseAdminBusinesses', () => {
     ]);
     expect(r.status).toBeNull();
     expect(r.last_payment_cents).toBeNull();
+  });
+
+  it('sin perfil de quien administra, o con un servidor sin migrar, deja esos campos en null', () => {
+    const [sinPerfil] = parseAdminBusinesses([{ ...adminRow, owner_name: null, owner_whatsapp: null, business_type: null }]);
+    expect(sinPerfil.owner_name).toBeNull();
+    expect(sinPerfil.business_type).toBeNull();
+    const { owner_name, owner_whatsapp, business_type, ...viejo } = adminRow;
+    void owner_name;
+    void owner_whatsapp;
+    void business_type;
+    const [r] = parseAdminBusinesses([viejo]);
+    expect([r.owner_name, r.owner_whatsapp, r.business_type]).toEqual([null, null, null]);
+  });
+
+  it('lanza si el tipo de negocio no es uno conocido', () => {
+    expect(() => parseAdminBusinesses([{ ...adminRow, business_type: 'restaurante' }])).toThrow();
   });
 
   it('lista vacía o null da lista vacía', () => {
