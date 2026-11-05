@@ -4,6 +4,7 @@
 // se pide, y cuándo se puede cobrar, lo decide `buildChargeForm` (dominio puro).
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
+import { businessModules } from '../lib/domain/modules';
 import { formatMoney, formatTime, statusLabel } from '../lib/format';
 import { splitClock } from '../lib/agendaDay';
 import type { AppointmentStatus, Appointment } from '../lib/domain/types';
@@ -60,8 +61,10 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   // llegaron cobradas al cargar la agenda aparecen quietas.
   const statusAtMount = useRef(appointment.status);
   const justCharged = appointment.status === 'COMPLETED' && statusAtMount.current !== 'COMPLETED';
-  const form = buildChargeForm(cobroServices ?? [], texts, store.employees);
-  const assignable = activeEmployees(store.employees);
+  // Sin el módulo Equipo no se pregunta quién atendió (el servidor tampoco lo acepta).
+  const employees = businessModules(store.business).team ? store.employees : [];
+  const form = buildChargeForm(cobroServices ?? [], texts, employees);
+  const assignable = activeEmployees(employees);
   const preview = store.completionPreview(appointment.id, {
     overridePrice: form.overridePrice,
     priceOverrides: form.priceOverrides,

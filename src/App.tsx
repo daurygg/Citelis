@@ -21,6 +21,7 @@ import { PublicBooking } from './components/public/PublicBooking';
 import { PublicReceipt } from './components/public/PublicReceipt';
 import { BookingSettings } from './components/owner/BookingSettings';
 import { EmployeeSettings } from './components/owner/EmployeeSettings';
+import { businessModules } from './lib/domain/modules';
 import { BrandSettings } from './components/owner/BrandSettings';
 import { ReceiptSettings } from './components/owner/ReceiptSettings';
 import { PublicLinkSettings } from './components/owner/PublicLinkSettings';
@@ -192,7 +193,11 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
   // Si la app se abrió desde el toque de un aviso push (?vista=reservas),
   // arranca directo en la bandeja de reservas en vez de en la agenda.
   const [screen, setScreen] = useState<Screen>(() => initialViewFromSearch(window.location.search).screen);
-  const [mode, setMode] = useState<Mode>('services');
+  const [chosenMode, setMode] = useState<Mode>('services');
+  // Módulos que el administrador activó para este negocio (odd/tasks/business-modules.md).
+  // Sin la Tienda, la app es solo de servicios aunque se hubiera elegido Ropa antes.
+  const modules = businessModules(business);
+  const mode: Mode = modules.store ? chosenMode : 'services';
   const [serviceView, setServiceView] = useState<ServiceView>(
     () => initialViewFromSearch(window.location.search).serviceView,
   );
@@ -296,7 +301,7 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
             </div>
           )}
 
-          {screen === 'work' && (
+          {screen === 'work' && modules.store && (
             /* Cambio de modo: Servicios / Ropa (líneas de negocio separadas) */
             <div className="mt-1 flex gap-1 rounded-xl bg-line/60 p-1">
               <button type="button" className={modeButtonClass(mode === 'services')} aria-pressed={mode === 'services'} onClick={() => setMode('services')}>
@@ -342,7 +347,7 @@ function AppShell({ notice }: { notice: SubscriptionNotice }) {
             <BrandSettings />
             <ReceiptSettings />
             <PublicLinkSettings />
-            <EmployeeSettings />
+            {modules.team && <EmployeeSettings />}
             <PushNotificationSettings />
           </div>
         ) : mode === 'services' ? (
