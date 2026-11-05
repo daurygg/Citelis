@@ -216,6 +216,10 @@ export type SubscriptionPaymentMethod = 'TRANSFER' | 'CASH' | 'CARD' | 'OTHER';
 
 // Una fila de `admin_list_businesses()`. `status` es nulo si el negocio no tiene fila
 // de suscripción (no debería pasar tras el backfill).
+// Tipo de negocio del perfil de quien lo administra (odd/tasks/owner-profile.md).
+// Mismos valores que el check de `business_owner_profile.business_type` en SQL.
+export type BusinessType = 'salon' | 'barbershop' | 'nails' | 'lashes' | 'spa' | 'other';
+
 export interface AdminBusiness {
   business_id: number;
   name: string;
