@@ -19,11 +19,11 @@ Rama: `feat/owner-profile` → PR a `develop`, un solo PR con commits por unidad
 | ID | Specs | Ruta | Estado | Commit |
 |---|---|---|---|---|
 | T1 | S1, S5 | inline | hecho | 8cd4b72 |
-| T2 | S1, S3, S4, S5, S6, S8 | inline | hecho (SQL pendiente de CI) | 73b8939 |
+| T2 | S1, S3, S4, S5, S6, S8 | inline | hecho | 73b8939 |
 | T3 | S1, S2 | inline | hecho | e110ba6 |
 | T4 | S3 | inline | hecho | 89b8973 |
 | T5 | S4 | inline | hecho | 8f903ae |
-| T6 | S7 | inline | hecho (SQL pendiente de CI) | d30a130 |
+| T6 | S7 | inline | hecho | d30a130 |
 
 - T1 dominio: tipos de negocio y validación pura del perfil (+ tests).
 - T2 migración: tabla `business_owner_profile`, `create_business` con 3 parámetros opcionales, `owner_profile_pending`, `save_owner_profile`, `admin_list_businesses` con el perfil; suite SQL.
@@ -42,3 +42,4 @@ Ruta: todo inline (sin motivo de escritor paralelo). Riesgo: item 1 (tabla y dat
 - L4 Decisión: datos personales en tabla aparte sin SELECT directo (S6). Sin Docker local: las suites SQL se validan en CI.
 - L5 Verificación local: `npm run typecheck` OK; `npm run test:run` 737 OK (RED observado en ownerProfile, onboarding, authErrors y subscriptionAdmin antes de implementar). Formulario revisado en Chromium (errores al enviar vacío, envío limpio, chip seleccionado). Las suites `owner-profile.sql`, `neutral-server-messages.sql`, `employees.sql` y `self-booking-regression.sql` solo corren en CI (sin Docker local). Se corrigió `self-booking-regression.sql`, que verificaba la firma vieja de `create_business`.
 - L6 Verificador independiente: sin blockers. Se aplicaron las advertencias 1 (en negocios antiguos, solo quien guardó el perfil lo corrige) y 6 (la compuerta falla abierto también si la llamada lanza). Corrección: la migración DEBE aplicarse antes de desplegar el front; el front nuevo contra la base vieja rompe el alta.
+- L7 CI del PR #84: test y sql-regression en verde; en el log aparecen en VERDE owner-profile.sql y neutral-server-messages.sql.
