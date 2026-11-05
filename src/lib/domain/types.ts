@@ -231,6 +231,10 @@ export interface AdminBusiness {
   status: SubscriptionStatus | null;
   last_payment_at: string | null;
   last_payment_cents: number | null;
+  // Perfil de quien administra (odd/tasks/owner-profile.md). Nulos mientras no lo completa.
+  owner_name: string | null;
+  owner_whatsapp: string | null;
+  business_type: BusinessType | null;
 }
 
 // Clienta del negocio (registro propio por negocio; INVARIANTE 1). Se llena sola con cada cita.
