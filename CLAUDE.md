@@ -17,9 +17,10 @@
 3. **Servicios y productos NO se mezclan.** Lógicas distintas (tiempo vs. inventario físico).
    No crear tablas, tipos ni componentes que mezclen ambas. El MVP solo toca servicios.
 
-4. **Lenguaje de la dueña, no técnico.** En la **UI** (solo textos visibles) nunca se piden unidades
-   técnicas (ml, gramos). Se pregunta "¿cuánto pagaste?" y "¿para cuántas clientas alcanza?". El sistema
+4. **Lenguaje de quien administra el negocio, no técnico ni con género asumido.** En la **UI** (solo textos visibles) nunca se piden unidades
+   técnicas (ml, gramos). Se pregunta "¿cuánto pagaste?" y "¿para cuántos servicios alcanza?". El sistema
    hace la matemática. (Esto NO aplica al código: ver convenciones de idioma abajo.)
+   Los textos no asumen género: "cliente(s)" y "tu equipo", nunca "clienta" ni "empleada" por defecto.
 
 5. **Separación cálculo / presentación.** Las fórmulas y transiciones de estado viven en una capa de
    lógica pura (funciones sin efectos secundarios, testeables). La UI solo llama a esa capa.

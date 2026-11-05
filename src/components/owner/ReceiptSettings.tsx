@@ -51,7 +51,7 @@ export function ReceiptSettings() {
     <div className={surface + ' flex flex-col gap-4 p-4'}>
       <div>
         <h2 className="text-lg font-semibold">Datos del recibo</h2>
-        <p className="text-sm text-muted">Aparecen arriba del recibo que le das a tu clienta.</p>
+        <p className="text-sm text-muted">Aparecen arriba del recibo que entregas.</p>
       </div>
 
       <div className="flex flex-col gap-2">

@@ -63,7 +63,7 @@ function EmployeeRow({ employee }: { employee: Employee }) {
         className={btnGhostSm}
         onClick={() => {
           store.setEmployeeActive(employee.id, !employee.active);
-          notify(employee.active ? 'Empleada dada de baja' : '✓ Empleada de vuelta en el equipo');
+          notify(employee.active ? 'Ya no está en el equipo' : '✓ De vuelta en el equipo');
         }}
       >
         {employee.active ? 'Dar de baja' : 'Reactivar'}
@@ -82,7 +82,7 @@ export function EmployeeSettings() {
     if (!check.ok) return;
     store.addEmployee(check.name);
     setNewName('');
-    notify('✓ Empleada agregada');
+    notify('✓ Ya es parte del equipo');
   }
 
   return (
@@ -105,7 +105,7 @@ export function EmployeeSettings() {
       )}
 
       <label className={field}>
-        <span className={fieldLabel}>Nombre de la empleada</span>
+        <span className={fieldLabel}>Nombre</span>
         <input
           className={input}
           type="text"
@@ -115,7 +115,7 @@ export function EmployeeSettings() {
         />
       </label>
       <button type="button" className={btnPrimary} onClick={handleAdd} disabled={!check.ok}>
-        Agregar empleada
+        Agregar al equipo
       </button>
     </section>
   );

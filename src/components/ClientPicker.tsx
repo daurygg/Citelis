@@ -111,7 +111,7 @@ export function ClientPicker({
     return (
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <span className={fieldLabel + ' text-sm'}>Clienta nueva</span>
+          <span className={fieldLabel + ' text-sm'}>Agregar cliente</span>
           <button type="button" className={btnQuiet + ' -mr-3'} onClick={change}>
             Buscar en mi lista
           </button>
@@ -124,7 +124,7 @@ export function ClientPicker({
             autoComplete="off"
             value={value.name}
             onChange={(e) => onChange({ ...value, name: e.target.value })}
-            placeholder="Nombre de la clienta"
+            placeholder="Nombre y apellido"
             required
           />
         </label>
@@ -188,7 +188,7 @@ export function ClientPicker({
       }}
     >
       <label htmlFor={listId + '-q'} className={fieldLabel}>
-        Clienta
+        Cliente
       </label>
       <input
         id={listId + '-q'}
@@ -211,7 +211,7 @@ export function ClientPicker({
         placeholder="Buscar por nombre o teléfono"
       />
       {showList && (
-        <ul id={listId} role="listbox" aria-label="Clientas" className="flex flex-col rounded-xl bg-white p-1 ring-1 ring-line">
+        <ul id={listId} role="listbox" aria-label="Clientes" className="flex flex-col rounded-xl bg-white p-1 ring-1 ring-line">
           {results.map((client) => (
             <li key={client.id} role="presentation">
               <button type="button" role="option" aria-selected={false} className={rowButton} onClick={() => choose(client)}>
@@ -222,12 +222,12 @@ export function ClientPicker({
           ))}
           {results.length === 0 && (
             <li role="presentation" className="px-2 py-2 text-sm text-muted">
-              {clients.length === 0 ? 'Todavía no tienes clientas guardadas.' : 'No encontramos a nadie con eso.'}
+              {clients.length === 0 ? 'Todavía no has guardado clientes.' : 'No encontramos a nadie con eso.'}
             </li>
           )}
           <li role="presentation">
             <button type="button" role="option" aria-selected={false} className={rowButton + ' font-semibold text-brand-700'} onClick={startNew}>
-              + Nueva clienta
+              + Agregar cliente
             </button>
           </li>
         </ul>

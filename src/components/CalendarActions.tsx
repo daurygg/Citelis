@@ -18,7 +18,7 @@ function safeFileName(client: string, datetime: string): string {
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .toLowerCase();
-  return `cita-${slug || 'clienta'}-${datetime.slice(0, 10)}.ics`;
+  return `cita-${slug || 'cliente'}-${datetime.slice(0, 10)}.ics`;
 }
 
 export function CalendarActions({ appointment }: { appointment: Appointment }) {

@@ -38,7 +38,7 @@ export function SupplyRow({ supply, serviceId }: { supply: Supply; serviceId: nu
       </label>
 
       <label className={field}>
-        <span className={fieldLabel}>¿Para cuántas alcanza?</span>
+        <span className={fieldLabel}>¿Para cuántos servicios alcanza?</span>
         <input
           className={input}
           type="number"
@@ -49,7 +49,7 @@ export function SupplyRow({ supply, serviceId }: { supply: Supply; serviceId: nu
       </label>
 
       <div className="col-span-2 flex items-center justify-between gap-2">
-        <span className="text-sm text-muted tabular-nums">Cada clienta: {formatMoney(unitCost(supply))}</span>
+        <span className="text-sm text-muted tabular-nums">Por servicio: {formatMoney(unitCost(supply))}</span>
         <button type="button" className={btnQuietDanger + ' -mr-3'} onClick={() => store.unlinkSupply(serviceId, supply.id)}>
           Quitar
         </button>

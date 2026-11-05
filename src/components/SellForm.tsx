@@ -92,7 +92,7 @@ export function SellForm() {
 
         <label className={field + ' col-span-2'}>
           <span className={fieldLabel}>Cliente {credit ? '(requerido para fiado)' : '(opcional)'}</span>
-          <input className={input} type="text" value={clientText} onChange={(e) => setClientText(e.target.value)} placeholder="Nombre de la clienta" />
+          <input className={input} type="text" value={clientText} onChange={(e) => setClientText(e.target.value)} placeholder="Nombre de quien compra" />
         </label>
 
         <label className="col-span-2 flex min-h-11 cursor-pointer items-center gap-3">

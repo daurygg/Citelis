@@ -100,7 +100,7 @@ export function Onboarding({ onCreated, onJoined }: { onCreated: () => void; onJ
             <p className="text-center text-xs text-neutral-500">Cada cuenta puede crear un negocio.</p>
             <div className={card + ' flex flex-col gap-1 text-center'}>
               <p className="text-sm text-neutral-600">¿Te invitaron a un negocio?</p>
-              <p className="text-xs text-neutral-500">Es para quien trabaja en un negocio y la dueña le dio un código.</p>
+              <p className="text-xs text-neutral-500">Es para quien trabaja en un negocio y recibió un código de invitación.</p>
               <button type="button" className="min-h-11 text-sm font-medium text-brand-700 hover:underline" onClick={() => goTo('join')}>
                 Unirme con un código
               </button>
@@ -163,7 +163,7 @@ export function Onboarding({ onCreated, onJoined }: { onCreated: () => void; onJ
         {mode === 'join' && (
           <div className={card + ' flex flex-col gap-3'}>
             <h2 className="text-lg font-semibold">Unirme con un código</h2>
-            <p className="text-sm text-neutral-500">Escribe el código que te dio la dueña del negocio.</p>
+            <p className="text-sm text-neutral-500">Escribe el código de invitación que te dieron en el negocio.</p>
             <label className={field}>
               <span className={fieldLabel}>Código de invitación</span>
               <input className={input} type="text" value={code} onChange={(e) => setCode(e.target.value)} placeholder="Ej: A1B2C3D4" />
