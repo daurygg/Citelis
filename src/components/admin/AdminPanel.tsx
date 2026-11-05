@@ -2,9 +2,10 @@
 // y cambia la exención a través de la capa de datos; las tarjetas son presentacionales.
 // Solo se monta si `is_platform_admin()` es verdadero, y el servidor lo exige igual.
 import { useCallback, useEffect, useState } from 'react';
-import type { AdminBusiness } from '../../lib/domain/types';
+import type { AdminBusiness, BusinessModule } from '../../lib/domain/types';
+import { BUSINESS_MODULES } from '../../lib/domain/modules';
 import type { PaymentArgs } from '../../lib/domain/subscriptionAdmin';
-import { fetchAdminBusinesses, registerSubscriptionPayment, setBusinessExempt } from '../../lib/subscription/subscriptionApi';
+import { fetchAdminBusinesses, registerSubscriptionPayment, setBusinessExempt, setBusinessModule } from '../../lib/subscription/subscriptionApi';
 import { useToast } from '../Toast';
 import { btnGhost, rowDivider, screenTitle, surface } from '../ui';
 import { AdminBusinessCard } from './AdminBusinessCard';
@@ -52,6 +53,20 @@ export function AdminPanel() {
     }
   }
 
+  async function toggleModule(b: AdminBusiness, module: BusinessModule) {
+    const enabled = !(module === 'store' ? b.store_enabled : b.team_enabled);
+    const label = BUSINESS_MODULES.find((m) => m.id === module)?.label ?? module;
+    setBusyId(b.business_id);
+    const result = await setBusinessModule(b.business_id, module, enabled);
+    setBusyId(null);
+    if (result.ok) {
+      notify(enabled ? `✓ ${label} activado` : `${label} desactivado`);
+      await load();
+    } else {
+      notify(result.message, 'error');
+    }
+  }
+
   return (
     <section className="flex flex-col gap-4">
       <h2 className={screenTitle}>Negocios y pagos</h2>
@@ -76,6 +91,7 @@ export function AdminPanel() {
             onCancelPayment={() => setPayingId(null)}
             onSubmitPayment={(args) => submitPayment(b.business_id, args)}
             onToggleExempt={() => void toggleExempt(b)}
+            onToggleModule={(module) => void toggleModule(b, module)}
           />
         ))}
       </ul>

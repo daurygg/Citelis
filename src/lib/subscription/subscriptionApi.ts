@@ -5,7 +5,7 @@ import { supabase } from '../supabase/client';
 import { parseAdminBusinesses } from '../domain/subscriptionAdmin';
 import type { PaymentArgs } from '../domain/subscriptionAdmin';
 import { parseMySubscription } from '../domain/subscriptionView';
-import type { AdminBusiness, SubscriptionState } from '../domain/types';
+import type { AdminBusiness, BusinessModule, SubscriptionState } from '../domain/types';
 
 export type ApiResult = { ok: true } | { ok: false; message: string };
 
@@ -69,5 +69,11 @@ export async function registerSubscriptionPayment(businessId: number, args: Paym
 
 export async function setBusinessExempt(businessId: number, exempt: boolean): Promise<ApiResult> {
   const { error } = await supabase.rpc('admin_set_exempt', { p_business_id: businessId, p_exempt: exempt });
+  return error ? { ok: false, message: error.message } : { ok: true };
+}
+
+/** Activa o desactiva un módulo de un negocio (odd/tasks/business-modules.md). */
+export async function setBusinessModule(businessId: number, module: BusinessModule, enabled: boolean): Promise<ApiResult> {
+  const { error } = await supabase.rpc('admin_set_module', { p_business_id: businessId, p_module: module, p_enabled: enabled });
   return error ? { ok: false, message: error.message } : { ok: true };
 }

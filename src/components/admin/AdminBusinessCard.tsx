@@ -3,8 +3,9 @@ import { formatDateShort, formatMoney } from '../../lib/format';
 import { subscriptionStatusLabel, type PaymentArgs } from '../../lib/domain/subscriptionAdmin';
 import { businessTypeLabel } from '../../lib/domain/ownerProfile';
 import { whatsappUrl } from '../../lib/domain/whatsapp';
-import type { AdminBusiness } from '../../lib/domain/types';
-import { btnGhostSm, btnPrimarySm } from '../ui';
+import type { AdminBusiness, BusinessModule } from '../../lib/domain/types';
+import { BUSINESS_MODULES } from '../../lib/domain/modules';
+import { btnGhostSm, btnPrimarySm, chip } from '../ui';
 import { PaymentForm } from './PaymentForm';
 
 interface Props {
@@ -15,9 +16,19 @@ interface Props {
   onCancelPayment: () => void;
   onSubmitPayment: (args: PaymentArgs) => Promise<{ ok: true } | { ok: false; message: string }>;
   onToggleExempt: () => void;
+  onToggleModule: (module: BusinessModule) => void;
 }
 
-export function AdminBusinessCard({ business, paying, busy, onStartPayment, onCancelPayment, onSubmitPayment, onToggleExempt }: Props) {
+export function AdminBusinessCard({
+  business,
+  paying,
+  busy,
+  onStartPayment,
+  onCancelPayment,
+  onSubmitPayment,
+  onToggleExempt,
+  onToggleModule,
+}: Props) {
   const b = business;
   // Enlace directo al WhatsApp de quien administra (odd/tasks/owner-profile.md, S4).
   const chat = b.owner_name ? whatsappUrl(b.owner_whatsapp, `Hola ${b.owner_name}, te escribo de Citelis.`) : null;
@@ -57,6 +68,28 @@ export function AdminBusinessCard({ business, paying, busy, onStartPayment, onCa
             : 'Ninguno'}
         </dd>
       </dl>
+      {/* Módulos opcionales (odd/tasks/business-modules.md): un toque los activa o apaga. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted">Módulos</span>
+        {BUSINESS_MODULES.map((m) => {
+          const on = m.id === 'store' ? b.store_enabled : b.team_enabled;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              role="switch"
+              aria-checked={on}
+              aria-label={`${m.label}: ${on ? 'activo' : 'apagado'}`}
+              className={chip + ' ' + (on ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-line text-muted')}
+              onClick={() => onToggleModule(m.id)}
+              disabled={busy}
+            >
+              {on ? '✓ ' : ''}
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
       {paying ? (
         <PaymentForm currentPaidUntil={b.paid_until} onSubmit={onSubmitPayment} onCancel={onCancelPayment} />
       ) : (

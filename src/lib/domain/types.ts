@@ -242,6 +242,9 @@ export interface AdminBusiness {
   owner_name: string | null;
   owner_whatsapp: string | null;
   business_type: BusinessType | null;
+  // Módulos opcionales (odd/tasks/business-modules.md).
+  store_enabled: boolean;
+  team_enabled: boolean;
 }
 
 // Clienta del negocio (registro propio por negocio; INVARIANTE 1). Se llena sola con cada cita.
