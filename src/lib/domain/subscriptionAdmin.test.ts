@@ -21,6 +21,8 @@ const adminRow = {
   owner_name: 'Rosa Pérez',
   owner_whatsapp: '829-457-6475',
   business_type: 'salon',
+  store_enabled: false,
+  team_enabled: true,
 };
 
 describe('parseAdminBusinesses', () => {
@@ -52,6 +54,18 @@ describe('parseAdminBusinesses', () => {
     void business_type;
     const [r] = parseAdminBusinesses([viejo]);
     expect([r.owner_name, r.owner_whatsapp, r.business_type]).toEqual([null, null, null]);
+  });
+
+  it('con un servidor sin la migración de módulos, los da por activos (como antes)', () => {
+    const { store_enabled, team_enabled, ...viejo } = adminRow;
+    void store_enabled;
+    void team_enabled;
+    const [r] = parseAdminBusinesses([viejo]);
+    expect([r.store_enabled, r.team_enabled]).toEqual([true, true]);
+  });
+
+  it('lanza si un módulo no llega como sí/no', () => {
+    expect(() => parseAdminBusinesses([{ ...adminRow, store_enabled: 'si' }])).toThrow();
   });
 
   it('lanza si el tipo de negocio no es uno conocido', () => {

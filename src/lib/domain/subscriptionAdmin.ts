@@ -34,6 +34,12 @@ function toBusinessTypeOrNull(v: unknown): BusinessType | null {
   return isBusinessType(v) ? v : fail('business_type');
 }
 
+// Ausente = base sin la migración de módulos: entonces todos los negocios los tenían.
+function toModuleFlag(v: unknown, field: string): boolean {
+  if (v === undefined) return true;
+  return typeof v === 'boolean' ? v : fail(field);
+}
+
 /** Filas de `admin_list_businesses()` → `AdminBusiness[]`. Lanza si una fila no se entiende. */
 export function parseAdminBusinesses(data: unknown): AdminBusiness[] {
   if (data === null || data === undefined) return [];
@@ -59,6 +65,8 @@ export function parseAdminBusinesses(data: unknown): AdminBusiness[] {
       owner_name: toStrOrNull(row.owner_name, 'owner_name'),
       owner_whatsapp: toStrOrNull(row.owner_whatsapp, 'owner_whatsapp'),
       business_type: toBusinessTypeOrNull(row.business_type),
+      store_enabled: toModuleFlag(row.store_enabled, 'store_enabled'),
+      team_enabled: toModuleFlag(row.team_enabled, 'team_enabled'),
     };
   });
 }

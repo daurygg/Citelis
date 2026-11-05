@@ -47,6 +47,8 @@ begin
   v_biz := create_business('PRUEBA Recibo Público', '#e11d48', 'prueba-recibo-publico');
   perform set_config('request.jwt.claims', json_build_object('sub', v_uid2)::text, true);
   v_otro := create_business('PRUEBA Recibo Ajeno', '#e11d48', 'prueba-recibo-ajeno');
+  -- Los negocios nuevos nacen sin el módulo Equipo (20261106000001_business_modules).
+  update business set team_enabled = true where id in (v_biz, v_otro);
 
   update business set address = 'Calle 1 #23', phone = '809-555-0101', logo_path = '999/logo.png' where id = v_biz;
   update business_member set display_name = 'Ana Cajera' where business_id = v_biz and user_id = v_uid;

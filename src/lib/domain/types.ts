@@ -28,7 +28,14 @@ export interface Business {
   phone?: string | null;
   // Ruta del logo dentro del bucket `business-logos` (`<business_id>/logo-….png`).
   logo_path?: string | null;
+  // Módulos opcionales (odd/tasks/business-modules.md). Solo los cambia el
+  // administrador de la plataforma. Opcionales: una base sin migrar no los trae.
+  store_enabled?: boolean;
+  team_enabled?: boolean;
 }
+
+/** Módulos opcionales por negocio. Mismos ids que `admin_set_module` en SQL. */
+export type BusinessModule = 'store' | 'team';
 
 // Suscripción del negocio a Citelis (odd/tasks/saas-subscriptions.md). Fechas en
 // ISO con zona (timestamptz): a diferencia de las citas, vencer es un instante real.
@@ -235,6 +242,9 @@ export interface AdminBusiness {
   owner_name: string | null;
   owner_whatsapp: string | null;
   business_type: BusinessType | null;
+  // Módulos opcionales (odd/tasks/business-modules.md).
+  store_enabled: boolean;
+  team_enabled: boolean;
 }
 
 // Clienta del negocio (registro propio por negocio; INVARIANTE 1). Se llena sola con cada cita.
