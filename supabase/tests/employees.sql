@@ -124,7 +124,7 @@ begin
       ('[{"service_id":999711,"charged_price":5000,"actual_cost":1000,"profit":4000,"employee_id":' || v_emp_o || '}]')::jsonb);
     v_msg := null;
   exception when others then v_msg := sqlerrm; end;
-  if v_msg is distinct from 'Una empleada no pertenece a tu negocio.' then
+  if v_msg is distinct from 'Esa persona no pertenece a tu equipo.' then
     raise exception 'FALLÓ 4: empleada ajena dio "%"', coalesce(v_msg, 'éxito');
   end if;
   if (select status from appointment where id = v_apt3) <> 'PENDING' then
@@ -137,7 +137,7 @@ begin
       ('[{"service_id":999711,"charged_price":5000,"actual_cost":1000,"profit":4000,"employee_id":' || v_emp_x || '}]')::jsonb);
     v_msg := null;
   exception when others then v_msg := sqlerrm; end;
-  if v_msg is distinct from 'Una empleada está dada de baja y no se puede asignar.' then
+  if v_msg is distinct from 'Esa persona ya no está en tu equipo y no se puede asignar.' then
     raise exception 'FALLÓ 5: empleada desactivada dio "%"', coalesce(v_msg, 'éxito');
   end if;
   if (select status from appointment where id = v_apt3) <> 'PENDING' then
