@@ -26,11 +26,18 @@ export function OwnerProfileGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    supabase.rpc('owner_profile_pending').then(({ data, error: err }) => {
-      if (!active) return;
-      if (err) console.error('No se pudo consultar el perfil pendiente', err);
-      setState(!err && data === true ? 'pending' : 'done');
-    });
+    supabase
+      .rpc('owner_profile_pending')
+      .then(({ data, error: err }) => {
+        if (!active) return;
+        if (err) console.error('No se pudo consultar el perfil pendiente', err);
+        setState(!err && data === true ? 'pending' : 'done');
+      })
+      .then(undefined, (e: unknown) => {
+        // Falla abierto también si la llamada lanza en vez de devolver `error`.
+        console.error('No se pudo consultar el perfil pendiente', e);
+        if (active) setState('done');
+      });
     return () => {
       active = false;
     };

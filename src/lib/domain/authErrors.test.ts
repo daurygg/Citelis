@@ -49,6 +49,7 @@ describe('friendlyAuthError', () => {
       'El WhatsApp no es válido.',
       'Elige el tipo de negocio.',
       'Solo quien administra el negocio puede completar estos datos.',
+      'Estos datos ya los completó otra persona del negocio.',
     ]) {
       expect(friendlyAuthError({ message: own })).toBe(own);
     }

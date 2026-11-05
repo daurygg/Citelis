@@ -60,6 +60,7 @@ const OWN_SPANISH_PREFIXES: readonly string[] = [
   'el whatsapp no es válido',
   'elige el tipo de negocio',
   'solo quien administra el negocio',
+  'estos datos ya los completó',
 ];
 
 function extractMessage(raw: unknown): string {

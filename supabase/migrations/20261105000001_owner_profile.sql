@@ -192,6 +192,7 @@ set search_path = public, pg_temp as $$
 declare
   v_target bigint;
   v_owner  text;
+  v_rows   integer;
 begin
   if auth.uid() is null then raise exception 'No autenticado'; end if;
   v_target := owner_profile_target();
@@ -207,7 +208,16 @@ begin
          owner_name     = excluded.owner_name,
          owner_whatsapp = excluded.owner_whatsapp,
          business_type  = excluded.business_type,
-         updated_at     = now();
+         updated_at     = now()
+   -- Solo corrige quien lo guardó. Importa en negocios antiguos sin creador, donde
+   -- cualquier miembro es objetivo: el primero que lo completa queda como dueño del dato.
+   where business_owner_profile.user_id is null
+      or business_owner_profile.user_id = auth.uid();
+
+  get diagnostics v_rows = row_count;
+  if v_rows = 0 then
+    raise exception 'Estos datos ya los completó otra persona del negocio.' using errcode = '42501';
+  end if;
 end; $$;
 
 revoke execute on function save_owner_profile(text, text, text) from public, anon;

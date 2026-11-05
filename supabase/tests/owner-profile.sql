@@ -12,11 +12,12 @@
 --       save_owner_profile lo completa, y volver a guardarlo lo corrige (no duplica).
 --   4 · Quien entró por invitación a un negocio con creador no tiene nada pendiente y
 --       no puede guardar el perfil de otro.
---   5 · Un negocio antiguo sin creador conocido se le pide a quien es miembro.
+--   5 · Un negocio antiguo sin creador conocido se le pide a quien es miembro; una vez
+--       guardado, otro miembro no lo puede sobrescribir.
 --   6 · Privacidad: authenticated/anon no pueden leer ni escribir la tabla.
 --   7 · admin_list_businesses devuelve nombre, WhatsApp y tipo.
 --
--- Usuarios propios: ...000ab1 a ...000ab5. Negocios "PRUEBA Perfil ...". Se borran al final.
+-- Usuarios propios: ...000ab1 a ...000ab6. Negocios "PRUEBA Perfil ...". Se borran al final.
 
 do $$
 declare
@@ -25,6 +26,7 @@ declare
   v_c      uuid := '00000000-0000-0000-0000-000000000ab3';  -- invitada al negocio de B
   v_d      uuid := '00000000-0000-0000-0000-000000000ab4';  -- miembro de un negocio antiguo
   v_admin  uuid := '00000000-0000-0000-0000-000000000ab5';
+  v_e      uuid := '00000000-0000-0000-0000-000000000ab6';  -- otro miembro del negocio antiguo
   v_biz_a  bigint;
   v_biz_b  bigint;
   v_old    bigint;
@@ -49,13 +51,14 @@ begin
   -- Limpieza previa por si una corrida anterior murió a medias.
   delete from business where name like 'PRUEBA Perfil%';
   delete from platform_admin where user_id = v_admin;
-  delete from auth.users where id in (v_a, v_b, v_c, v_d, v_admin);
+  delete from auth.users where id in (v_a, v_b, v_c, v_d, v_e, v_admin);
   insert into auth.users (id, aud, role, email, created_at, updated_at)
   values (v_a, 'authenticated', 'authenticated', 'prueba-ab1@citelis.test', now(), now()),
          (v_b, 'authenticated', 'authenticated', 'prueba-ab2@citelis.test', now(), now()),
          (v_c, 'authenticated', 'authenticated', 'prueba-ab3@citelis.test', now(), now()),
          (v_d, 'authenticated', 'authenticated', 'prueba-ab4@citelis.test', now(), now()),
-         (v_admin, 'authenticated', 'authenticated', 'prueba-ab5@citelis.test', now(), now());
+         (v_admin, 'authenticated', 'authenticated', 'prueba-ab5@citelis.test', now(), now()),
+         (v_e, 'authenticated', 'authenticated', 'prueba-ab6@citelis.test', now(), now());
 
   -- ── 1 · Alta con perfil completo ─────────────────────────────────────────
   perform set_config('request.jwt.claims', json_build_object('sub', v_a)::text, true);
@@ -142,6 +145,20 @@ begin
   if not owner_profile_pending() then raise exception 'FALLÓ 5: al negocio antiguo no se le piden los datos'; end if;
   perform save_owner_profile('Ana Reyes', '8297770000', 'nails');
   if owner_profile_pending() then raise exception 'FALLÓ 5: sigue pendiente después de guardar'; end if;
+  insert into business_member (user_id, business_id) values (v_e, v_old);
+  perform set_config('request.jwt.claims', json_build_object('sub', v_e)::text, true);
+  if owner_profile_pending() then raise exception 'FALLÓ 5: a otro miembro se le piden datos ya completos'; end if;
+  v_msg := null;
+  begin
+    perform save_owner_profile('Otra Persona', '8291112222', 'other');
+  exception when others then v_msg := sqlerrm;
+  end;
+  if v_msg is distinct from 'Estos datos ya los completó otra persona del negocio.' then
+    raise exception 'FALLÓ 5: otro miembro sobrescribió o el mensaje fue "%"', coalesce(v_msg, '(no hubo error)');
+  end if;
+  if (select owner_name from business_owner_profile where business_id = v_old) <> 'Ana Reyes' then
+    raise exception 'FALLÓ 5: el perfil del negocio antiguo cambió';
+  end if;
 
   -- ── 6 · Privacidad ───────────────────────────────────────────────────────
   if has_table_privilege('authenticated', 'public.business_owner_profile', 'SELECT')
@@ -173,7 +190,7 @@ begin
   -- Limpieza.
   delete from business where id in (v_biz_a, v_biz_b, v_old);
   delete from platform_admin where user_id = v_admin;
-  delete from auth.users where id in (v_a, v_b, v_c, v_d, v_admin);
+  delete from auth.users where id in (v_a, v_b, v_c, v_d, v_e, v_admin);
 end $$;
 
 select 'VERDE: el perfil se pide al registrarse o al entrar, solo a quien administra, y solo lo ve el admin' as resultado;
