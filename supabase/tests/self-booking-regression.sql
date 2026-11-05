@@ -96,7 +96,10 @@ begin
       -- 20260922000003). has_function_privilege REVIENTA si la función no existe,
       -- así que una firma vieja aquí rompe toda la suite — y así estuvo desde el
       -- 22 de septiembre sin que nadie lo notara, porque esto no corre en CI.
-      ('public.create_business(text,text,text)',                     false, true ),
+      -- Tercer cambio: el perfil de quien administra (20261105000001_owner_profile).
+      ('public.create_business(text,text,text,text,text,text)',      false, true ),
+      ('public.owner_profile_pending()',                            false, true ),
+      ('public.save_owner_profile(text,text,text)',                 false, true ),
       ('public.create_invitation()',                                false, true ),
       ('public.redeem_invitation(text)',                            false, true ),
       -- is_member sigue abierta a anon A PROPÓSITO: las policies RLS la evalúan
