@@ -50,6 +50,7 @@ import { LoadingScreen } from '../../components/LoadingScreen';
 import { btnPrimary } from '../../components/ui';
 import { Onboarding } from '../../components/Onboarding';
 import { OnboardingWizard } from '../../components/OnboardingWizard';
+import { OwnerProfileGate } from '../../components/OwnerProfileGate';
 import { markReleaseNotesSeen } from '../releaseNotes';
 
 // ── Tipos de la fachada (idénticos a las fases en memoria) ──────────────────
@@ -392,18 +393,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   if (!data) {
     return <LoadingScreen message="Cargando tus datos…" />;
   }
+  // A los negocios que ya existían les falta el perfil de quien administra: se
+  // pide una sola vez antes de entrar (OwnerProfileGate decide con el servidor).
   return (
-    <StoreReady
-      data={data}
-      wizardActive={wizardActive}
-      onWizardFinish={() => {
-        // Quien acaba de crear su negocio no necesita un "qué hay de nuevo".
-        markReleaseNotesSeen();
-        setWizardActive(false);
-      }}
-    >
-      {children}
-    </StoreReady>
+    <OwnerProfileGate>
+      <StoreReady
+        data={data}
+        wizardActive={wizardActive}
+        onWizardFinish={() => {
+          // Quien acaba de crear su negocio no necesita un "qué hay de nuevo".
+          markReleaseNotesSeen();
+          setWizardActive(false);
+        }}
+      >
+        {children}
+      </StoreReady>
+    </OwnerProfileGate>
   );
 }
 
