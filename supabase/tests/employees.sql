@@ -49,6 +49,8 @@ begin
   v_biz := create_business('PRUEBA Empleadas', '#e11d48', 'prueba-empleadas');
   perform set_config('request.jwt.claims', json_build_object('sub', v_uid2)::text, true);
   v_otro := create_business('PRUEBA Empleadas Ajeno', '#e11d48', 'prueba-empleadas-ajeno');
+  -- Los negocios nuevos nacen sin el módulo Equipo (20261106000001_business_modules).
+  update business set team_enabled = true where id in (v_biz, v_otro);
   perform set_config('request.jwt.claims', json_build_object('sub', v_uid)::text, true);
 
   insert into service (id, business_id, name, price, supply_cost, cost_override, duration_min, variable_price)
