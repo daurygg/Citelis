@@ -211,7 +211,16 @@ export function ClientPicker({
         placeholder="Buscar por nombre o teléfono"
       />
       {showList && (
-        <ul id={listId} role="listbox" aria-label="Clientes" className="flex flex-col rounded-xl bg-white p-1 ring-1 ring-line">
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label="Clientas"
+          className="flex flex-col rounded-xl bg-white p-1 ring-1 ring-line"
+          // Safari (iOS y Mac) no enfoca un botón al tocarlo: el buscador se desenfoca con
+          // `relatedTarget` null, la lista se cierra y el click nunca llega. Evitar que el
+          // toque mueva el foco mantiene la lista abierta hasta que llegue el click.
+          onMouseDown={(e) => e.preventDefault()}
+        >
           {results.map((client) => (
             <li key={client.id} role="presentation">
               <button type="button" role="option" aria-selected={false} className={rowButton} onClick={() => choose(client)}>

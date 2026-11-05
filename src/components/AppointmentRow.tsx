@@ -2,7 +2,7 @@
 // y Cancelar. Al cobrar, muestra precio/costo/ganancia (ya calculados por el store).
 // Pide UN precio por cada servicio de precio variable antes de completar; lo que
 // se pide, y cuándo se puede cobrar, lo decide `buildChargeForm` (dominio puro).
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../lib/store/StoreContext';
 import { formatMoney, formatTime, statusLabel } from '../lib/format';
 import { splitClock } from '../lib/agendaDay';
@@ -56,6 +56,10 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
   const [showingReceipt, setShowingReceipt] = useState(false);
 
   const isOpen = appointment.status === 'PENDING' || appointment.status === 'IN_PROGRESS';
+  // Solo la fila que se cobra a la vista hace el fundido del dinero; las que ya
+  // llegaron cobradas al cargar la agenda aparecen quietas.
+  const statusAtMount = useRef(appointment.status);
+  const justCharged = appointment.status === 'COMPLETED' && statusAtMount.current !== 'COMPLETED';
   const form = buildChargeForm(cobroServices ?? [], texts, store.employees);
   const assignable = activeEmployees(store.employees);
   const preview = store.completionPreview(appointment.id, {
@@ -175,14 +179,24 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
             <div className="text-sm text-brand-700">Abonó {formatMoney(alreadyPaid)}</div>
           )}
         </div>
-        <span className={'shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap ' + STATUS_BADGE[appointment.status]}>
+        <span
+          className={
+            'shrink-0 rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap motion-safe:transition-colors motion-safe:duration-(--motion-micro) motion-safe:ease-out-soft ' +
+            STATUS_BADGE[appointment.status]
+          }
+        >
           {statusLabel(appointment.status)}
         </span>
       </div>
 
       {/* El dinero de una cita cobrada va debajo, alineado con el nombre: así el nombre no se recorta. */}
       {(appointment.status === 'COMPLETED' && appointment.profit !== null) || owes > 0 ? (
-        <div className="-mt-1 ml-[calc(3.75rem+0.75rem)] flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums">
+        <div
+          className={
+            '-mt-1 ml-[calc(3.75rem+0.75rem)] flex flex-wrap items-center gap-x-3 gap-y-1 tabular-nums' +
+            (justCharged ? ' money-in' : '')
+          }
+        >
           {appointment.status === 'COMPLETED' && appointment.profit !== null && (
             <>
               <span className="font-semibold text-green-700">+{formatMoney(appointment.profit)}</span>
@@ -278,16 +292,19 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
           cancelada, y desaparece cuando ya no hay nada que avisar. */}
       <ClientNotice appointment={appointment} />
 
+      {/* Los paneles solo animan la entrada (index.css: `panel-in`); nunca la altura. */}
       {isOpen && depositing && (
-        <DepositPanel
-          appointment={appointment}
-          estimate={store.completionPreview(appointment.id)?.charged_price ?? null}
-          onDone={() => setDepositing(false)}
-        />
+        <div className="panel-in">
+          <DepositPanel
+            appointment={appointment}
+            estimate={store.completionPreview(appointment.id)?.charged_price ?? null}
+            onDone={() => setDepositing(false)}
+          />
+        </div>
       )}
 
       {rescheduling && (
-        <div className="flex flex-col gap-2 rounded-xl bg-paper p-3">
+        <div className="panel-in flex flex-col gap-2 rounded-xl bg-paper p-3">
           <label className={field}>
             <span className={fieldLabel}>Nueva fecha y hora</span>
             <input
@@ -304,7 +321,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
       )}
 
       {editingServices && editable && (
-        <div className="flex flex-col gap-3 rounded-xl bg-paper p-3">
+        <div className="panel-in flex flex-col gap-3 rounded-xl bg-paper p-3">
           <fieldset className={field}>
             <legend className={fieldLabel}>Servicios de esta cita</legend>
             <div className="flex flex-wrap gap-2">
@@ -350,7 +367,7 @@ export function AppointmentRow({ appointment }: { appointment: Appointment }) {
       )}
 
       {charging && (
-        <div className="flex flex-col gap-2 rounded-xl bg-paper p-3">
+        <div className="panel-in flex flex-col gap-2 rounded-xl bg-paper p-3">
           {/* Un precio por cada servicio de precio variable, con su nombre. */}
           {form.variableServices.map((service) => (
             <label key={service.id} className={field}>
