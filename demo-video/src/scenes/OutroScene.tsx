@@ -7,9 +7,9 @@ export const OutroScene: React.FC<{ logo: string; title: string; cta: string }> 
   const { fps, width } = useVideoConfig();
   const landscape = width > 1200;
 
-  const logoP = spring({ frame, fps, config: { damping: 12, stiffness: 100 } });
-  const titleP = spring({ frame: frame - 12, fps, config: { damping: 12 } });
-  const ctaP = spring({ frame: frame - 24, fps, config: { damping: 14 } });
+  const logoP = spring({ frame, fps, config: { damping: 11, stiffness: 180 } });
+  const titleP = spring({ frame: frame - 6, fps, config: { damping: 12, stiffness: 200 } });
+  const ctaP = spring({ frame: frame - 12, fps, config: { damping: 14, stiffness: 200 } });
   const pulse = 1 + 0.045 * Math.sin(frame / 6);
 
   return (

@@ -38,6 +38,18 @@ con capturas reales de la app, motion graphics (Remotion) y voz en off grabada p
     `npm run render:vertical` → `out/demo-vertical.mp4` 1080x1920, 79.4 s, 23.1 MB.
     Audio: pico 30496, voz en 72/79 s. Escena 9 muestra `https://citelis.app/...`.
 
+### Ronda 2 (pedido del usuario, 2026-11-06): más rápido, entretenido, música y efectos
+- [x] T6 Voz limpia: transcribir cada toma (whisper local, timestamps por palabra), detectar
+      tropiezos y repeticiones, quedarse con la última toma buena de cada frase y cortar silencios. (delegado)
+  - Whisper (transformers, local) no encontró frases repetidas: cada toma es una pasada limpia.
+    Se quitaron silencios, un "Ok" + respiración en 01, un ruido en 11 y una pausa de 0.7 s en 07.
+    Cortes no destructivos en `voiceover-edits.json`. Duda abierta: ¿"Y eso es todo" o "Eso es todo" en 11?
+- [x] T7 Ritmo: escenas más cortas, transiciones rápidas, clips acelerados sin perder la enseñanza. (delegado)
+  - 79.4 s → 62.5 s; transiciones de 9 frames; resaltados sincronizados con la palabra.
+- [x] T8 Efectos de sonido: whoosh en transiciones, pop en callouts, tap en toques, "cha-ching" al cobrar. (delegado)
+  - Sintetizados por `scripts/make-sfx.ts` en `public/sfx/` (sin descargas, sin licencias).
+- [ ] T9 Música de fondo acorde, con ducking bajo la voz. (pendiente: fuente de la música)
+
 ## Verificación
 - Stills por escena revisados antes del render completo.
 - MP4 final reproducido; sin datos reales visibles.

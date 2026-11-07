@@ -8,3 +8,4 @@ public/captures/
 public/voiceover/*.wav
 public/voiceover/*.mp3
 public/voiceover/*.m4a
+.cache/

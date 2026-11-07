@@ -105,7 +105,7 @@ const LayerView: React.FC<{
 const RingView: React.FC<{ ring: Ring; t: number }> = ({ ring, t }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const inP = spring({ frame: frame - ring.from * FPS, fps, config: { damping: 11, stiffness: 140 } });
+  const inP = spring({ frame: frame - ring.from * FPS, fps, config: { damping: 10, stiffness: 240 } });
   const out = interpolate(t, [ring.to - 0.2, ring.to], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   if (t < ring.from || t > ring.to) return null;
   const pulse = 1 + 0.015 * Math.sin(frame / 5);
@@ -128,10 +128,12 @@ const RingView: React.FC<{ ring: Ring; t: number }> = ({ ring, t }) => {
             position: 'absolute',
             ...(ring.labelSide === 'right'
               ? { left: '100%', top: '50%', marginLeft: 22 }
+              : ring.labelSide === 'below-left'
+                ? { left: 0, top: '100%', marginTop: 18 }
               : ring.labelSide === 'above'
                 ? { left: '50%', bottom: '100%', marginBottom: 16 }
                 : { left: '50%', top: '100%', marginTop: 18 }),
-            transform: `${ring.labelSide === 'right' ? 'translateY(-50%)' : 'translateX(-50%)'} scale(${inP})`,
+            transform: `${ring.labelSide === 'right' ? 'translateY(-50%)' : ring.labelSide === 'below-left' ? '' : 'translateX(-50%)'} scale(${inP})`,
             opacity: inP * out,
             padding: '8px 22px',
             borderRadius: 999,
@@ -166,7 +168,7 @@ const Title: React.FC<{ title: string; fontSize: number; align: 'left' | 'center
         }}
       >
         {words.map((w, i) => {
-          const p = spring({ frame: frame - 6 - i * 5, fps, config: { damping: 12, stiffness: 120 } });
+          const p = spring({ frame: frame - 3 - i * 3, fps, config: { damping: 11, stiffness: 220 } });
           return (
             <span
               key={i}
@@ -179,7 +181,7 @@ const Title: React.FC<{ title: string; fontSize: number; align: 'left' | 'center
                 color: i === words.length - 1 ? theme.primary : theme.ink,
                 opacity: p,
                 display: 'inline-block',
-                transform: `translateY(${interpolate(p, [0, 1], [70, 0])}px)`,
+                transform: `translateY(${interpolate(p, [0, 1], [70, 0])}px) scale(${interpolate(p, [0, 1], [0.8, 1])}) rotate(${interpolate(p, [0, 1], [-4, 0])}deg)`,
               }}
             >
               {w}
@@ -193,7 +195,7 @@ const Title: React.FC<{ title: string; fontSize: number; align: 'left' | 'center
           height: 12,
           borderRadius: 6,
           background: theme.primary,
-          width: interpolate(frame, [18, 45], [0, fontSize * 2.2], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
+          width: interpolate(frame, [8, 24], [0, fontSize * 2.2], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }),
           marginLeft: align === 'center' ? 'auto' : 0,
           marginRight: align === 'center' ? 'auto' : 0,
         }}
@@ -207,10 +209,11 @@ export const PhoneScene: React.FC<Props> = ({ title, side, layers, cropTop = 0, 
   const { fps, width, height, durationInFrames } = useVideoConfig();
   const landscape = width > height;
 
-  // Voice-over can lengthen the scene: slow the playback instead of freezing.
+  // The scene is as long as its (cut) voice-over: layers speed up or slow down uniformly to fit.
+  // Rings and zooms are authored in scene seconds, so they track the spoken word.
   const natural = layers.reduce((s, l) => s + layerSeconds(l), 0) * FPS;
-  const stretch = Math.max(1, durationInFrames / natural);
-  const t = frame / FPS / stretch; // natural scene time in seconds
+  const stretch = durationInFrames / natural;
+  const t = frame / FPS;
 
   const aspect = CAPTURE_W / (CAPTURE_H * (1 - cropTop));
   const frameH = landscape ? height * 0.9 : height - 470 - 80;
@@ -219,7 +222,8 @@ export const PhoneScene: React.FC<Props> = ({ title, side, layers, cropTop = 0, 
   const realScreenH = screenW / aspect;
   const frameW = screenW + BEZEL * 2;
 
-  const enter = spring({ frame, fps, config: { damping: 200 } });
+  const enter = spring({ frame, fps, config: { damping: 16, stiffness: 170 } });
+  const push = 1 + 0.04 * (frame / durationInFrames); // constant slow push-in on the whole phone
   const float = Math.sin(frame / 28) * 7;
   const cam = cameraAt(zooms, t);
 
@@ -249,7 +253,8 @@ export const PhoneScene: React.FC<Props> = ({ title, side, layers, cropTop = 0, 
           [0, 1],
           [landscape ? (side === 'right' ? 220 : -220) : 0, 0],
         )}px)`,
-        opacity: enter,
+        opacity: Math.min(1, enter * 2),
+        scale: String(push),
       }}
     >
       <div
