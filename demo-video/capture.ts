@@ -17,7 +17,12 @@ import { copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 // ───────────────────────── configuración ─────────────────────────
-const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5180';
+const BASE_URL = process.env.BASE_URL ?? 'http://localhost:5180'; // dónde corre la app de verdad
+// Origen que se VE en pantalla (enlace público, QR del recibo...). La app arma esas URLs con
+// window.location.origin, así que se sirve la app local bajo ese origen con un proxy de red.
+// PUBLIC_ORIGIN='' desactiva el proxy y usa BASE_URL tal cual.
+const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN ?? 'https://citelis.app';
+const APP_URL = PUBLIC_ORIGIN || BASE_URL;
 const OUT = path.resolve('captures');
 const DB_CONTAINER = 'supabase_db_Citelis';
 const TZ = 'America/Santo_Domingo';
@@ -264,14 +269,43 @@ async function main() {
   const browser = await chromium.launch({
     args: ['--force-device-scale-factor=2', `--window-size=${VIEWPORT.width},${VIEWPORT.height}`],
   });
-  const newContext = (): Promise<BrowserContext> =>
-    browser.newContext({
+  const newContext = async (): Promise<BrowserContext> => {
+    const c = await browser.newContext({
       viewport: null,
       hasTouch: true,
       locale: 'es-DO',
       timezoneId: TZ,
       reducedMotion: 'no-preference',
+      serviceWorkers: 'block',
     });
+    if (PUBLIC_ORIGIN) {
+      // https://citelis.app/** → app local. Supabase (127.0.0.1:54321) no pasa por aquí.
+      await c.route(`${PUBLIC_ORIGIN}/**`, async (route) => {
+        const req = route.request();
+        // Sin esto el cliente de Vite (HMR) no halla su websocket, hace ping y recarga la página en bucle.
+        if (req.headers()['accept']?.includes('text/x-vite-ping')) return route.abort();
+        const response = await route.fetch({ url: req.url().replace(PUBLIC_ORIGIN, BASE_URL) });
+        await route.fulfill({ response });
+      });
+      // Desde una página https, Chrome bloquea las llamadas directas a 127.0.0.1 (red privada/CORS).
+      // Se pasan por el proxy de Node y se les agregan las cabeceras CORS: el servidor sigue siendo el local.
+      await c.route('http://127.0.0.1:54321/**', async (route) => {
+        const req = route.request();
+        const cors = {
+          'access-control-allow-origin': PUBLIC_ORIGIN,
+          'access-control-allow-headers': req.headers()['access-control-request-headers'] ?? '*',
+          'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+          'access-control-allow-private-network': 'true',
+          'access-control-expose-headers': '*',
+          vary: 'Origin',
+        };
+        if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+        const response = await route.fetch();
+        await route.fulfill({ response, headers: { ...response.headers(), ...cors } });
+      });
+    }
+    return c;
+  };
   const initContext = async (ctx: BrowserContext) => {
     await ctx.addInitScript((v) => {
       try {
@@ -291,7 +325,7 @@ async function main() {
   const today = todayISO();
   const at = (day: string, hhmm: string) => `${day}T${hhmm}`;
 
-  await page.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await page.goto(APP_URL, { waitUntil: 'networkidle' });
 
   // 1 ── Crear cuenta
   await clip(page, 'login', async () => {
@@ -519,7 +553,7 @@ async function main() {
     await initContext(pctx);
     const pub = await pctx.newPage();
     try {
-      await pub.goto(`${BASE_URL}/reservar/${slug}`, { waitUntil: 'networkidle' });
+      await pub.goto(`${APP_URL}/reservar/${slug}`, { waitUntil: 'networkidle' });
       await pub.getByRole('heading', { name: '¿Qué te vas a hacer?' }).waitFor({ timeout: 20000 });
       await pub.screencast.start({ path: path.join(OUT, 'booking.webm'), size: VIDEO_SIZE, quality: 95 });
       try {
