@@ -196,7 +196,7 @@
   "07-day": {
     "file": "voiceover/07-day.wav",
     "original_seconds": 7.814,
-    "kept_seconds": 6.17,
+    "kept_seconds": 4.35,
     "transcript": "Cada día ves lo ganado, lo que falta y lo cobrado.",
     "speech_segments": [
       [
@@ -218,15 +218,11 @@
     ],
     "keep": [
       {
-        "from": 0.36,
-        "to": 2.105
-      },
-      {
-        "from": 2.455,
+        "from": 2.53,
         "to": 6.88
       }
     ],
-    "note": "Se comprimió una pausa de 0.7 s después de \"ves lo\" a 0.35 s; el resto igual."
+    "note": "Se quitó el primer intento cortado (\"Cada día ves lo ga…\"); queda la segunda toma completa, confirmada por el usuario."
   },
   "08-charge": {
     "file": "voiceover/08-charge.wav",

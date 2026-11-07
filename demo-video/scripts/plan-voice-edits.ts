@@ -20,7 +20,7 @@ const overrides: Record<string, { dropLeading?: number; note: string }> = {
   '04-wizard': { note: 'Toma limpia. Se recortó el silencio; la pausa antes de "¡Listo!" se conserva porque es el énfasis.' },
   '05-services': { note: 'Toma limpia. Se recortó el silencio del inicio y el final.' },
   '06-schedule': { note: 'Toma limpia. Se recortó el silencio del inicio y el final.' },
-  '07-day': { note: 'Se comprimió una pausa de 0.7 s después de "ves lo" a 0.35 s; el resto igual.' },
+  '07-day': { dropLeading: 1, note: 'Se quitó el primer intento cortado ("Cada día ves lo ga…"); queda la segunda toma completa, confirmada por el usuario.' },
   '08-charge': { note: 'Toma limpia. Se recortó el silencio del inicio y el final.' },
   '09-online-booking': { note: 'Toma limpia. Se recortó 0.45 s de silencio al final.' },
   '10-report': { note: 'Toma limpia. Se recortó el silencio del inicio y el final.' },
