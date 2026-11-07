@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100">
+  <!-- Logo "Reloj-C" de Citelis: la C es un reloj (la agenda) y el punto que la cierra es la próxima cita.
+       Fuente de la geometría de scripts/generate-icons.mjs; el color es DEFAULT_BRAND_COLOR. -->
+  <rect width="100" height="100" rx="22" fill="#e11d48"/>
+  <path d="M71.45 68 A28 28 0 1 1 71.45 32" fill="none" stroke="#ffffff" stroke-width="11" stroke-linecap="round"/>
+  <path d="M50 50 L50 35 M50 50 L60 50" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="84" cy="50" r="4.5" fill="#ffffff"/>
+</svg>

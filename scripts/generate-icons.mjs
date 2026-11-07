@@ -2,10 +2,13 @@
 // Genera los íconos de Citelis sin ImageMagick ni Pillow (no están instalados
 // en esta máquina, ver T4 en odd/tasks/owner-push-notifications.md): dibuja un
 // cuadrado sólido del color de marca por defecto (`DEFAULT_BRAND_COLOR` en
-// src/lib/domain/theme.ts) con un anillo blanco centrado —geometría pura,
-// nada de assets externos— y codifica el PNG a mano (chunks, CRC32 y el
-// deflate de node:zlib). El anillo se queda dentro del 32% del radio, bien
-// adentro de la "zona segura" que exige un ícono maskable (~40%).
+// src/lib/domain/theme.ts) con el logo "Reloj-C" en blanco —una C que es un
+// reloj, con sus agujas, y un punto que la cierra (la próxima cita)— por
+// geometría pura (distancias a arcos, segmentos y círculos), con suavizado por
+// supermuestreo 4x4, y codifica el PNG a mano (chunks, CRC32 y el deflate de
+// node:zlib). Es la misma geometría que `public/icons/icon.svg`, reducida al
+// 85% para que todo quede dentro del 39% del radio: la "zona segura" de un
+// ícono maskable (~40%).
 //
 // Los tres íconos son completamente opacos (alpha = 255 en cada píxel): así
 // `apple-touch-icon.png` cumple la regla de iOS de no llevar transparencia,
@@ -51,24 +54,64 @@ function chunk(type, data) {
   return Buffer.concat([lenBuf, typeBuf, data, crcBuf]);
 }
 
-/** RGBA de `size`x`size`: color de marca de fondo, anillo blanco en el centro. */
+// Geometría del logo en un lienzo de 100x100 (la misma de public/icons/icon.svg).
+const GLYPH_SCALE = 0.85; // reducción alrededor del centro para la zona segura maskable
+const ARC = { cx: 50, cy: 50, r: 28, half: 5.5, gapDeg: 40 }; // la C: abierta ±40° a la derecha
+const ARC_ENDS = [
+  { x: 71.45, y: 68 },
+  { x: 71.45, y: 32 },
+];
+const HANDS = [
+  { ax: 50, ay: 50, bx: 50, by: 35 }, // aguja larga, hacia arriba
+  { ax: 50, ay: 50, bx: 60, by: 50 }, // aguja corta, hacia la derecha
+];
+const HAND_HALF = 3.5;
+const DOT = { cx: 84, cy: 50, r: 4.5 }; // el punto que cierra la C: la próxima cita
+const SUPERSAMPLE = 4;
+
+function distToSegment(px, py, { ax, ay, bx, by }) {
+  const vx = bx - ax;
+  const vy = by - ay;
+  const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy)));
+  return Math.hypot(px - (ax + t * vx), py - (ay + t * vy));
+}
+
+/** ¿El punto (x, y) del lienzo 100x100 cae sobre el trazo blanco del logo? */
+function onGlyph(x, y) {
+  // Deshace la reducción: el logo se dibuja al 85% alrededor del centro.
+  const px = 50 + (x - 50) / GLYPH_SCALE;
+  const py = 50 + (y - 50) / GLYPH_SCALE;
+
+  const dx = px - ARC.cx;
+  const dy = py - ARC.cy;
+  const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+  if (Math.abs(angle) > ARC.gapDeg && Math.abs(Math.hypot(dx, dy) - ARC.r) <= ARC.half) return true;
+  if (ARC_ENDS.some((e) => Math.hypot(px - e.x, py - e.y) <= ARC.half)) return true; // puntas redondas
+  if (HANDS.some((h) => distToSegment(px, py, h) <= HAND_HALF)) return true;
+  return Math.hypot(px - DOT.cx, py - DOT.cy) <= DOT.r;
+}
+
+/** RGBA de `size`x`size`: color de marca de fondo y el logo Reloj-C en blanco, suavizado. */
 function renderPixels(size) {
-  const center = size / 2;
-  const outerR = size * 0.32;
-  const innerR = size * 0.2;
   const pixels = Buffer.alloc(size * size * 4);
+  const unit = 100 / size;
+  const samples = SUPERSAMPLE * SUPERSAMPLE;
 
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const dx = x + 0.5 - center;
-      const dy = y + 0.5 - center;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const onRing = dist >= innerR && dist <= outerR;
-      const color = onRing ? WHITE : BRAND_COLOR;
+      let hits = 0;
+      for (let sy = 0; sy < SUPERSAMPLE; sy++) {
+        for (let sx = 0; sx < SUPERSAMPLE; sx++) {
+          const ux = (x + (sx + 0.5) / SUPERSAMPLE) * unit;
+          const uy = (y + (sy + 0.5) / SUPERSAMPLE) * unit;
+          if (onGlyph(ux, uy)) hits++;
+        }
+      }
+      const a = hits / samples; // cobertura del blanco sobre el color de marca
       const i = (y * size + x) * 4;
-      pixels[i] = color.r;
-      pixels[i + 1] = color.g;
-      pixels[i + 2] = color.b;
+      pixels[i] = Math.round(BRAND_COLOR.r + (WHITE.r - BRAND_COLOR.r) * a);
+      pixels[i + 1] = Math.round(BRAND_COLOR.g + (WHITE.g - BRAND_COLOR.g) * a);
+      pixels[i + 2] = Math.round(BRAND_COLOR.b + (WHITE.b - BRAND_COLOR.b) * a);
       pixels[i + 3] = 255; // opaco siempre: ningún ícono lleva transparencia
     }
   }
