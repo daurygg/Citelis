@@ -110,7 +110,7 @@ export const scenes: SceneConfig[] = [
     type: 'hook',
     seconds: 3,
     lines: ['Tu negocio,', 'en orden'],
-    voiceover: 'voiceover/01-hook.mp3',
+    voiceover: 'voiceover/01-hook.wav',
     subtitle: 'Tu negocio, en orden',
   },
   {
@@ -120,7 +120,7 @@ export const scenes: SceneConfig[] = [
     side: 'right',
     layers: [{ kind: 'video', src: 'captures/login.webm', from: 3.2, to: 10.2, rate: 1.75 }],
     zooms: [{ at: 0.2, scale: 1.06, x: 50, y: 30, dur: 3 }],
-    voiceover: 'voiceover/02-signup.mp3',
+    voiceover: 'voiceover/02-signup.wav',
     subtitle: 'Crea tu cuenta',
   },
   {
@@ -130,7 +130,7 @@ export const scenes: SceneConfig[] = [
     side: 'left',
     layers: [{ kind: 'video', src: 'captures/owner-profile.webm', from: 2.6, to: 10.2, rate: 1.6 }],
     rings: [{ from: 3.0, to: 4.7, x: 3, y: 49.5, w: 94, h: 10, label: 'Tu tipo de negocio' }],
-    voiceover: 'voiceover/03-owner-profile.mp3',
+    voiceover: 'voiceover/03-owner-profile.wav',
     subtitle: 'Cuéntanos de ti',
   },
   {
@@ -139,7 +139,7 @@ export const scenes: SceneConfig[] = [
     title: 'Listo en 4 pasos',
     side: 'right',
     layers: wizardLayers,
-    voiceover: 'voiceover/04-wizard.mp3',
+    voiceover: 'voiceover/04-wizard.wav',
     subtitle: 'Listo en 4 pasos',
   },
   {
@@ -156,7 +156,7 @@ export const scenes: SceneConfig[] = [
       { from: 4.0, to: 4.95, x: 3, y: 80, w: 92, h: 10.5, label: 'Tu margen', labelSide: 'above' },
       { from: 5.9, to: 7.9, x: 59, y: 32, w: 31, h: 8 },
     ],
-    voiceover: 'voiceover/05-services.mp3',
+    voiceover: 'voiceover/05-services.wav',
     subtitle: 'Sabe cuánto ganas',
   },
   {
@@ -178,7 +178,7 @@ export const scenes: SceneConfig[] = [
         labelSide: 'right',
       },
     ],
-    voiceover: 'voiceover/06-schedule.mp3',
+    voiceover: 'voiceover/06-schedule.wav',
     subtitle: 'Agenda en segundos',
   },
   {
@@ -193,7 +193,7 @@ export const scenes: SceneConfig[] = [
       { from: 2.6, to: 4.2, x: 56, y: 17.5, w: 38, h: 6.5 },
       { from: 4.2, to: 5.9, x: 56, y: 23.3, w: 38, h: 7 },
     ],
-    voiceover: 'voiceover/07-day.mp3',
+    voiceover: 'voiceover/07-day.wav',
     subtitle: 'Tu día de un vistazo',
   },
   {
@@ -204,7 +204,7 @@ export const scenes: SceneConfig[] = [
     layers: [{ kind: 'video', src: 'captures/charge.webm', from: 1.6, to: 10.3, rate: 1.09 }],
     zooms: [{ at: 5.0, scale: 1.08, x: 50, y: 95, dur: 0.7 }],
     rings: [{ from: 5.2, to: 7.4, x: 26, y: 91.2, w: 48, h: 5, label: '¡Cobrado!', labelSide: 'above' }],
-    voiceover: 'voiceover/08-charge.mp3',
+    voiceover: 'voiceover/08-charge.wav',
     subtitle: 'Cobra y listo',
   },
   {
@@ -218,7 +218,7 @@ export const scenes: SceneConfig[] = [
       { at: 2.2, scale: 1, x: 50, y: 26, dur: 0.4 },
     ],
     rings: [{ from: 0.8, to: 2.2, x: 6, y: 22.5, w: 88, h: 5.5, label: 'Tu enlace' }],
-    voiceover: 'voiceover/09-online-booking.mp3',
+    voiceover: 'voiceover/09-online-booking.wav',
     subtitle: 'Que te reserven solos',
   },
   {
@@ -230,7 +230,7 @@ export const scenes: SceneConfig[] = [
     layers: [{ kind: 'image', src: 'captures/report-full.png', seconds: 7, y0: 520, y1: 1500, scrollFrom: 0.2, scrollTo: 4.2 }],
     zooms: [{ at: 4.3, scale: 1.06, x: 50, y: 67, dur: 0.8 }],
     rings: [{ from: 4.2, to: 7, x: 4.5, y: 46.3, w: 91, h: 40.5 }],
-    voiceover: 'voiceover/10-report.mp3',
+    voiceover: 'voiceover/10-report.wav',
     subtitle: 'Mira cómo te va',
   },
   {
@@ -239,7 +239,7 @@ export const scenes: SceneConfig[] = [
     logo: 'captures/icon-512.png',
     title: 'Citelis',
     cta: 'tu agenda que hace cuentas',
-    voiceover: 'voiceover/11-outro.mp3',
+    voiceover: 'voiceover/11-outro.wav',
     subtitle: 'Citelis · tu agenda que hace cuentas',
   },
 ];

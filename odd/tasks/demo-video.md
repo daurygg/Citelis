@@ -31,9 +31,12 @@ con capturas reales de la app, motion graphics (Remotion) y voz en off grabada p
   - Evidencia: `npx tsc --noEmit` OK; 22 stills (11 escenas × Landscape/Vertical) revisados en `out/stills/`.
     Sin voz: 62.5 s. Comandos: `npm run studio | render | render:vertical`.
   - Pendiente de decidir: la escena 9 muestra `http://localhost:5180/reservar/estudio-bella`.
-- [ ] T4 Guion de voz en off por escena → el usuario graba. (inline)
-  - Guion listo en `demo-video/VOICEOVER.md`; esperando los audios en `public/voiceover/`.
-- [ ] T5 Integrar audios, render horizontal + vertical. (delegado)
+- [x] T4 Guion de voz en off por escena → el usuario graba. (inline)
+  - 11 WAV del usuario renombrados a `NN-<id>.wav` en `public/voiceover/` (ignorados en git, 20 MB).
+- [x] T5 Integrar audios, render horizontal + vertical. (inline)
+  - Evidencia: `npm run render` → `out/demo-landscape.mp4` 1920x1080, 79.4 s, 20.4 MB;
+    `npm run render:vertical` → `out/demo-vertical.mp4` 1080x1920, 79.4 s, 23.1 MB.
+    Audio: pico 30496, voz en 72/79 s. Escena 9 muestra `https://citelis.app/...`.
 
 ## Verificación
 - Stills por escena revisados antes del render completo.

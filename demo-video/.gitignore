@@ -3,3 +3,8 @@ out/
 captures/
 .auth/
 public/captures/
+
+# Grabaciones de voz del usuario (binarios pesados, no van al repo)
+public/voiceover/*.wav
+public/voiceover/*.mp3
+public/voiceover/*.m4a
