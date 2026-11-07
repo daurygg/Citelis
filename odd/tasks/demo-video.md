@@ -27,8 +27,12 @@ con capturas reales de la app, motion graphics (Remotion) y voz en off grabada p
   - Decisiones: escena 9 usa enlace + portal público (no hay QR en "Mi negocio"); el banner de
     prueba se recorta en Remotion.
   - Hallazgo fuera de alcance: `ClientPicker.tsx:96` aún dice "Clienta" (invariante 4) → fix aparte.
-- [ ] T3 Remotion: copiar plantilla, `config.ts`/`theme.ts` con marca Citelis, stills por escena. (delegado)
+- [x] T3 Remotion: copiar plantilla, `config.ts`/`theme.ts` con marca Citelis, stills por escena. (delegado)
+  - Evidencia: `npx tsc --noEmit` OK; 22 stills (11 escenas × Landscape/Vertical) revisados en `out/stills/`.
+    Sin voz: 62.5 s. Comandos: `npm run studio | render | render:vertical`.
+  - Pendiente de decidir: la escena 9 muestra `http://localhost:5180/reservar/estudio-bella`.
 - [ ] T4 Guion de voz en off por escena → el usuario graba. (inline)
+  - Guion listo en `demo-video/VOICEOVER.md`; esperando los audios en `public/voiceover/`.
 - [ ] T5 Integrar audios, render horizontal + vertical. (delegado)
 
 ## Verificación
