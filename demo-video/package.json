@@ -1,0 +1,32 @@
+{
+  "name": "citelis-demo-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync-captures": "node -e \"require('fs').cpSync('captures','public/captures',{recursive:true})\"",
+    "studio": "npm run sync-captures && remotion studio src/index.ts",
+    "render": "npm run sync-captures && remotion render src/index.ts Landscape out/demo-landscape.mp4",
+    "render:vertical": "npm run sync-captures && remotion render src/index.ts Vertical out/demo-vertical.mp4",
+    "still": "npm run sync-captures && remotion still src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "capture": "tsx capture.ts"
+  },
+  "devDependencies": {
+    "@huggingface/transformers": "^4.3.2",
+    "@types/node": "^26.6.6",
+    "@types/react": "19.3.0",
+    "playwright": "^1.65.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.541",
+    "@remotion/google-fonts": "4.0.541",
+    "@remotion/media": "4.0.541",
+    "@remotion/transitions": "4.0.541",
+    "mediabunny": "1.64.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.541"
+  }
+}
