@@ -9,3 +9,6 @@ public/voiceover/*.wav
 public/voiceover/*.mp3
 public/voiceover/*.m4a
 .cache/
+
+# Música generada por scripts/make-music.ts (reproducible)
+public/music/*.wav

@@ -1,4 +1,4 @@
-import { FPS, TRANSITION_FRAMES, keepSegments, sceneFrames, scenes, type SfxName } from './config';
+import { FPS, TRANSITION_FRAMES, keepSegments, sceneFrames, scenes, speechSpans, type SfxName } from './config';
 
 export type VoicePlacement = { scene: number; start: number; duration: number; trimBefore: number };
 export type SfxPlacement = { start: number; name: SfxName; volume: number };
@@ -47,13 +47,22 @@ const build = () => {
 
 export const timeline = build();
 
-/** Merged [start, end) windows where any voice segment plays, for music ducking. */
+/**
+ * [start, end) windows (absolute frames) where someone is actually speaking, for music ducking.
+ * Uses the detected speech, not the padded keep-segments, so the music can swell between lines;
+ * gaps shorter than ~0.35 s (breaths between words) stay ducked.
+ */
 export const voiceWindows = (): [number, number][] => {
+  const MERGE = Math.round(0.35 * FPS);
   const w: [number, number][] = [];
-  for (const v of timeline.voice) {
-    const last = w[w.length - 1];
-    if (last && v.start <= last[1]) last[1] = Math.max(last[1], v.start + v.duration);
-    else w.push([v.start, v.start + v.duration]);
-  }
+  scenes.forEach((scene, i) => {
+    for (const [a, b] of speechSpans(scene)) {
+      const start = timeline.starts[i] + Math.round(a * FPS);
+      const end = timeline.starts[i] + Math.round(b * FPS);
+      const last = w[w.length - 1];
+      if (last && start - last[1] < MERGE) last[1] = Math.max(last[1], end);
+      else w.push([start, end]);
+    }
+  });
   return w;
 };

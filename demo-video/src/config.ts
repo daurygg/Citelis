@@ -71,7 +71,7 @@ export const settings: {
   /** Burn the scene `subtitle` into the video. */
   subtitles: boolean;
 } = {
-  // music: 'music/bed.mp3',
+  music: 'music/citelis-theme.wav',
   subtitles: false,
 };
 
@@ -95,6 +95,16 @@ const voiceId = (scene: SceneConfig): EditId | null => {
 export const keepSegments = (scene: SceneConfig): Keep[] => {
   const id = voiceId(scene);
   return id ? (edits[id].keep as Keep[]) : [];
+};
+
+/** Spoken stretches of a scene (seconds, scene time), from the energy analysis; dropped fillers are excluded. */
+export const speechSpans = (scene: SceneConfig): [number, number][] => {
+  const id = voiceId(scene);
+  if (!id) return [];
+  const keeps = edits[id].keep as Keep[];
+  return (edits[id].speech_segments as [number, number][])
+    .filter(([a, b]) => keeps.some((k) => a >= k.from - 1e-6 && b <= k.to + 1e-6))
+    .map(([a, b]) => [vt(id, a), vt(id, b)]);
 };
 
 /** Seconds of voice that actually play in the scene (after the cuts). */

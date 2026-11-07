@@ -48,7 +48,13 @@ con capturas reales de la app, motion graphics (Remotion) y voz en off grabada p
   - 79.4 s → 62.5 s; transiciones de 9 frames; resaltados sincronizados con la palabra.
 - [x] T8 Efectos de sonido: whoosh en transiciones, pop en callouts, tap en toques, "cha-ching" al cobrar. (delegado)
   - Sintetizados por `scripts/make-sfx.ts` en `public/sfx/` (sin descargas, sin licencias).
-- [ ] T9 Música de fondo acorde, con ducking bajo la voz. (pendiente: fuente de la música)
+- [x] T9 Música de fondo acorde, con ducking bajo la voz. (delegado; el usuario eligió música por código)
+  - `scripts/make-music.ts` (determinista): pop en Do mayor, 110.6 BPM, I–V–vi–IV, breakdown en
+    escenas 6–7, golpe final sobre el cierre. WAV ignorado en git; se regenera con el script.
+  - Bug corregido: el ducking quedaba activo todo el video (ventanas de voz con padding contiguas).
+  - Medido en el render: voz 16.3 dB por encima de la música al hablar; música audible entre frases.
+  - Renders: `out/demo-landscape.mp4` y `out/demo-vertical.mp4`, 62.5 s (19.5 / 21.6 MB).
+  - Suno descartado: sin API oficial ni herramienta disponible en la sesión.
 
 ## Verificación
 - Stills por escena revisados antes del render completo.
