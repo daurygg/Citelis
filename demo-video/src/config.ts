@@ -319,7 +319,7 @@ export const scenes: SceneConfig[] = [
   {
     type: 'outro',
     seconds: 4,
-    logo: 'captures/icon-512.png',
+    logo: 'brand/citelis-icon.svg',
     title: 'Citelis',
     cta: 'tu agenda que hace cuentas',
     voiceover: 'voiceover/11-outro.wav',
